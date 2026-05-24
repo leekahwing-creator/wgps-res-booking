@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<deploymentLocations>
+  <location>1A</location>
+  <location>1B</location>
+  <location>1C</location>
+  <location>1D</location>
+  <location>1E</location>
+  <location>1F</location>
+  <location>2A</location>
+  <location>2B</location>
+  <location>2C</location>
+  <location>2D</location>
+  <location>2E</location>
+  <location>2F</location>
+  <location>2G</location>
+  <location>3A</location>
+  <location>3B</location>
+  <location>3C</location>
+  <location>3D</location>
+  <location>3E</location>
+  <location>3F</location>
+  <location>4A</location>
+  <location>4B</location>
+  <location>4C</location>
+  <location>4D</location>
+  <location>4E</location>
+  <location>4F</location>
+  <location>5A</location>
+  <location>5B</location>
+  <location>5C</location>
+  <location>5D</location>
+  <location>5E</location>
+  <location>5F</location>
+  <location>6A</location>
+  <location>6B</location>
+  <location>6C</location>
+  <location>6D</location>
+  <location>6E</location>
+  <location>Other</location>
+</deploymentLocations>

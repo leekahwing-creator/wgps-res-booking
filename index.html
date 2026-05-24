@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ICT Resource Booking</title>
+  <style>
+    :root {
+      --primary: #0f766e;
+      --primary-dark: #115e59;
+      --primary-light: #ccfbf1;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: #dbe4ee;
+      --danger: #dc2626;
+      --shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+      --radius: 22px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: linear-gradient(135deg, #ecfeff 0%, #f8fafc 48%, #eef2ff 100%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .page {
+      width: min(1120px, 100%);
+      margin: 0 auto;
+      padding: 32px 18px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: 28px;
+      align-items: stretch;
+    }
+
+    .intro {
+      padding: 28px;
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.72);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.9);
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .badge {
+      width: fit-content;
+      padding: 8px 12px;
+      background: var(--primary-light);
+      color: var(--primary-dark);
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 0.86rem;
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2rem, 4vw, 3.35rem);
+      line-height: 1.05;
+      letter-spacing: -0.04em;
+    }
+
+    .subtitle {
+      margin: 18px 0 0;
+      color: var(--muted);
+      font-size: 1.05rem;
+      line-height: 1.65;
+      max-width: 58ch;
+    }
+
+    .quick-info {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 28px;
+    }
+
+    .info-card {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px;
+    }
+
+    .info-card strong {
+      display: block;
+      font-size: 1.2rem;
+      color: var(--primary-dark);
+      margin-bottom: 4px;
+    }
+
+    .info-card span {
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+
+    .booking-card {
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      border: 1px solid rgba(226, 232, 240, 0.95);
+      overflow: hidden;
+    }
+
+    .booking-header {
+      padding: 22px 24px;
+      background: linear-gradient(135deg, var(--primary), #164e63);
+      color: #ffffff;
+    }
+
+    .booking-header h2 {
+      margin: 0 0 6px;
+      font-size: 1.35rem;
+    }
+
+    .booking-header p {
+      margin: 0;
+      opacity: 0.88;
+      font-size: 0.94rem;
+    }
+
+    form {
+      padding: 24px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .field.full {
+      grid-column: 1 / -1;
+    }
+
+    label {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #1e293b;
+    }
+
+    input,
+    select {
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: textfield;
+      width: 100%;
+      min-height: 48px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 11px 13px;
+      font-size: 1rem;
+      background: #ffffff;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    input[type="number"]::-webkit-outer-spin-button,
+    input[type="number"]::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    input:focus,
+    select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.14);
+    }
+
+    .helper {
+      color: var(--muted);
+      font-size: 0.82rem;
+      line-height: 1.35;
+    }
+
+    .device-control {
+      display: grid;
+      grid-template-columns: 48px 1fr 48px;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .device-control button {
+      border: 0;
+      border-radius: 14px;
+      background: var(--primary-light);
+      color: var(--primary-dark);
+      font-size: 1.3rem;
+      font-weight: 800;
+      min-height: 48px;
+      cursor: pointer;
+    }
+
+    .device-control button:hover {
+      background: #99f6e4;
+    }
+
+    .summary {
+      margin-top: 22px;
+      border-radius: 18px;
+      padding: 16px;
+      background: #f8fafc;
+      border: 1px dashed #cbd5e1;
+      color: #334155;
+      font-size: 0.94rem;
+      line-height: 1.5;
+    }
+
+    .actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    .btn {
+      border: 0;
+      min-height: 50px;
+      padding: 0 18px;
+      border-radius: 16px;
+      font-weight: 800;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+    }
+
+    .btn-primary {
+      flex: 1;
+      background: var(--primary);
+      color: #ffffff;
+      box-shadow: 0 12px 26px rgba(15, 118, 110, 0.22);
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-dark);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: #e2e8f0;
+      color: #334155;
+    }
+
+    .status {
+      display: none;
+      margin-top: 16px;
+      padding: 13px 14px;
+      border-radius: 14px;
+      font-weight: 700;
+      font-size: 0.92rem;
+    }
+
+    .status.success {
+      display: block;
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .status.warning {
+      display: block;
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .status.error {
+      display: block;
+      background: #fee2e2;
+      color: var(--danger);
+    }
+
+    .admin-note {
+      margin-top: 20px;
+      color: var(--muted);
+      font-size: 0.85rem;
+      line-height: 1.45;
+    }
+
+    @media (max-width: 860px) {
+      .hero {
+        grid-template-columns: 1fr;
+      }
+
+      .quick-info {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .page {
+        padding: 18px 12px;
+      }
+
+      .intro,
+      form {
+        padding: 20px;
+      }
+
+      .booking-header {
+        padding: 20px;
+      }
+
+      .form-grid {
+        grid-template-columns: 1fr;
+        gap: 15px;
+      }
+
+      .actions {
+        flex-direction: column-reverse;
+      }
+
+      .btn {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero" aria-label="ICT resource booking page">
+      <div class="intro">
+        <div class="badge">ICT Resource Booking Portal</div>
+        <h1>Book ICT resources quickly and easily.</h1>
+        <p class="subtitle">
+          Submit your resource request in one simple form. The information collected here will support future automatic resource allocation, availability checks and administrator reports.
+        </p>
+
+        <div class="quick-info" aria-label="Booking process highlights">
+          <div class="info-card">
+            <strong>1</strong>
+            <span>Enter booking details</span>
+          </div>
+          <div class="info-card">
+            <strong>2</strong>
+            <span>Submit request</span>
+          </div>
+          <div class="info-card">
+            <strong>3</strong>
+            <span>Resources allocated later</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="booking-card">
+        <div class="booking-header">
+          <h2>New Booking Request</h2>
+          <p>Complete all fields to help us allocate suitable ICT resources.</p>
+        </div>
+
+        <form id="bookingForm">
+          <div class="form-grid">
+            <div class="field full">
+              <label for="name">Name</label>
+              <input id="name" name="name" type="text" autocomplete="off" placeholder="Enter your name" list="userSuggestions" required />
+              <datalist id="userSuggestions"></datalist>
+            </div>
+
+            <div class="field">
+              <label for="bookingDate">Date of booking</label>
+              <input id="bookingDate" name="bookingDate" type="date" required />
+            </div>
+
+            <div class="field">
+              <label for="location">Deployment location</label>
+              <select id="location" name="location" required>
+                <option value="">Loading locations...</option>
+              </select>
+            </div>
+
+            <div class="field full" id="customLocationField" style="display: none;">
+              <label for="customLocation">Custom location description</label>
+              <input
+                id="customLocation"
+                name="customLocation"
+                type="text"
+                placeholder="Enter custom deployment location"
+              />
+              <span class="helper">Provide additional details for locations not listed above.</span>
+            </div>
+
+            <div class="field">
+              <label for="startTime">Start time</label>
+              <input id="startTime" name="startTime" type="time" required />
+            </div>
+
+            <div class="field">
+              <label for="endTime">End time</label>
+              <input id="endTime" name="endTime" type="time" required />
+            </div>
+
+            <div class="field">
+              <label for="deviceType">Device type</label>
+              <select id="deviceType" name="deviceType" required>
+                <option value="">Select device type</option>
+                <option value="iPad">iPad</option>
+                <option value="iPad with Keyboard">iPad with keyboard</option>
+                <option value="Laptop">Laptop</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label>Software requirement</label>
+
+              <div style="display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 4px; background: transparent;">
+                <input
+                  id="softwareProcreate"
+                  name="softwareRequirement"
+                  type="checkbox"
+                  value="Procreate"
+                  style="width: 20px; height: 20px; accent-color: var(--primary); margin: 0;"
+                />
+
+                <label for="softwareProcreate" style="margin: 0; font-weight: 600; cursor: pointer;">
+                  Procreate
+                </label>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="devicesRequired">Number of devices required</label>
+              <div class="device-control">
+                <button type="button" id="decreaseDevices" aria-label="Decrease number of devices">−</button>
+                <input id="devicesRequired" name="devicesRequired" type="number" min="1" max="100" value="1" inputmode="numeric" required />
+                <button type="button" id="increaseDevices" aria-label="Increase number of devices">+</button>
+              </div>
+              <span class="helper">Use the + or − buttons for quick adjustment.</span>
+            </div>
+            </div>
+          </div>
+
+          <div class="summary" id="bookingSummary">
+            Your booking summary will appear here as you complete the form.
+          </div>
+
+          <div class="actions">
+            <button class="btn btn-secondary" type="reset">Clear</button>
+            <button class="btn btn-primary" type="submit">Submit Booking Request</button>
+          </div>
+
+          <div id="statusMessage" class="status" role="status" aria-live="polite"></div>
+
+          <p class="admin-note">
+            Developer note: Booking submissions are sent to the backend API endpoint <strong>/api/bookings</strong>, which saves each request into <strong>bookings.xml</strong>.
+          </p>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    /*
+      Reusable user database file: users.xml
+
+      Save this XML in a separate file named users.xml in the same folder as this HTML page.
+      Future pages can reuse the same file by fetching users.xml.
+
+      Example structure:
+
+      <?xml version="1.0" encoding="UTF-8"?>
+      <organisationUsers>
+        <user><name>Aaron Tan</name></user>
+        <user><name>Abigail Lim</name></user>
+        <user><name>Adam Lee</name></user>
+      </organisationUsers>
+    */
+
+    let usersDatabase = [];
+    let locationsDatabase = [];
+
+    const fallbackUsersDatabase = [
+      'Aaron Tan', 'Abigail Lim', 'Adam Lee', 'Adrian Chua', 'Aidan Koh', 'Alicia Ng', 'Amanda Teo', 'Amelia Goh', 'Andrew Ong', 'Angela Tay',
+      'Benjamin Ho', 'Bernice Lim', 'Brandon Tan', 'Brenda Lee', 'Bryan Chia', 'Caleb Wong', 'Carmen Yeo', 'Cassandra Lim', 'Celine Ng', 'Cheryl Tan',
+      'Christopher Lee', 'Clarence Goh', 'Claudia Tay', 'Daniel Koh', 'Daphne Lim', 'Darren Ong', 'Deborah Chua', 'Desmond Tan', 'Dominic Lee', 'Edmund Ng',
+      'Elaine Goh', 'Elizabeth Tay', 'Emily Chia', 'Ethan Lim', 'Eugene Ho', 'Felicia Tan', 'Gabriel Lee', 'Geraldine Ong', 'Grace Koh', 'Hannah Lim',
+      'Isaac Tan', 'Jasmine Lee', 'Jason Ng', 'Jeffrey Ong', 'Jolene Goh', 'Jonathan Lim', 'Josephine Tay', 'Joshua Chua', 'Joyce Tan', 'Justin Lee',
+      'Karen Ong', 'Keith Koh', 'Kenneth Lim', 'Kevin Lee', 'Kimberly Goh', 'Lawrence Tan', 'Leonard Chia', 'Lydia Ng', 'Marcus Lim', 'Melissa Ong',
+      'Nicholas Tan', 'Nicole Lee', 'Olivia Koh', 'Patrick Lim', 'Priscilla Ong', 'Rachel Goh', 'Ryan Tan', 'Samantha Lee', 'Shawn Ng', 'Vivian Koh'
+    ];
+
+    const fallbackLocationsDatabase = [
+      'Classroom',
+      'Computer Lab',
+      'Library',
+      'Hall',
+      'Special Room',
+      'Other'
+    ];
+
+    const form = document.getElementById('bookingForm');
+    const summary = document.getElementById('bookingSummary');
+    const statusMessage = document.getElementById('statusMessage');
+    const bookingDate = document.getElementById('bookingDate');
+    const startTime = document.getElementById('startTime');
+    const endTime = document.getElementById('endTime');
+    const devicesRequired = document.getElementById('devicesRequired');
+    const increaseDevices = document.getElementById('increaseDevices');
+    const nameInput = document.getElementById('name');
+    const userSuggestions = document.getElementById('userSuggestions');
+    const locationSelect = document.getElementById('location');
+    const customLocationField = document.getElementById('customLocationField');
+    const customLocationInput = document.getElementById('customLocation');
+    const deviceTypeSelect = document.getElementById('deviceType');
+    const softwareProcreate = document.getElementById('softwareProcreate');
+    const decreaseDevices = document.getElementById('decreaseDevices');
+
+    const today = new Date().toISOString().split('T')[0];
+    bookingDate.min = today;
+    bookingDate.value = today;
+
+    async function loadUsersFromXML() {
+      try {
+        const response = await fetch('./users.xml', { cache: 'no-store' });
+        if (!response.ok) throw new Error('users.xml could not be loaded.');
+
+        const xmlText = await response.text();
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(xmlText, 'application/xml');
+        const parserError = xmlDoc.querySelector('parsererror');
+
+        if (parserError) throw new Error('users.xml contains invalid XML.');
+
+        usersDatabase = Array.from(xmlDoc.getElementsByTagName('name'))
+          .map(nameNode => nameNode.textContent.trim())
+          .filter(Boolean)
+          .sort((a, b) => a.localeCompare(b));
+
+        if (usersDatabase.length === 0) throw new Error('No users found in users.xml.');
+
+        console.log(`${usersDatabase.length} users loaded from users.xml`, usersDatabase);
+      } catch (error) {
+        console.warn('Unable to load users.xml. Using fallback user database instead:', error.message);
+        usersDatabase = fallbackUsersDatabase;
+      }
+
+      updateUserSuggestions(nameInput.value);
+    }
+
+    async function loadLocationsFromXML() {
+      try {
+        const response = await fetch('./locations.xml', { cache: 'no-store' });
+        if (!response.ok) throw new Error('locations.xml could not be loaded.');
+
+        const xmlText = await response.text();
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(xmlText, 'application/xml');
+        const parserError = xmlDoc.querySelector('parsererror');
+
+        if (parserError) throw new Error('locations.xml contains invalid XML.');
+
+        locationsDatabase = Array.from(xmlDoc.getElementsByTagName('location'))
+          .map(locationNode => locationNode.textContent.trim())
+          .filter(Boolean)
+          .sort((a, b) => a.localeCompare(b));
+
+        if (locationsDatabase.length === 0) throw new Error('No locations found in locations.xml.');
+
+        console.log(`${locationsDatabase.length} locations loaded from locations.xml`, locationsDatabase);
+      } catch (error) {
+        console.warn('Unable to load locations.xml. Using fallback location database instead:', error.message);
+        locationsDatabase = fallbackLocationsDatabase;
+      }
+
+      populateLocationDropdown();
+    }
+
+    function populateLocationDropdown() {
+      locationSelect.innerHTML = '<option value="">Select location</option>';
+
+      locationsDatabase.forEach(location => {
+        const option = document.createElement('option');
+        option.value = location;
+        option.textContent = location;
+        locationSelect.appendChild(option);
+      });
+    }
+
+    function updateUserSuggestions(searchTerm = '') {
+      const cleanedSearchTerm = searchTerm.trim().toLowerCase();
+
+      if (!cleanedSearchTerm) {
+        userSuggestions.innerHTML = '';
+        return;
+      }
+
+      const filteredUsers = usersDatabase
+        .filter(user => user.toLowerCase().startsWith(cleanedSearchTerm))
+        .slice(0, 10);
+
+      userSuggestions.innerHTML = filteredUsers
+        .map(user => `<option value="${user}"></option>`)
+        .join('');
+    }
+
+    nameInput.addEventListener('input', (event) => {
+      updateUserSuggestions(event.target.value);
+    });
+
+    nameInput.addEventListener('focus', () => {
+      updateUserSuggestions(nameInput.value);
+    });
+
+    function getBookingData() {
+      return {
+        name: document.getElementById('name').value.trim(),
+        bookingDate: bookingDate.value,
+        startTime: startTime.value,
+        endTime: endTime.value,
+        location:
+          document.getElementById('location').value === 'Other'
+            ? customLocationInput.value.trim()
+            : document.getElementById('location').value,
+        deviceType: deviceTypeSelect.value,
+        softwareRequirement: softwareProcreate.checked ? 'Procreate' : 'None',
+        devicesRequired: Number(devicesRequired.value)
+      };
+    }
+
+    function formatDate(dateString) {
+      if (!dateString) return 'selected date';
+      return new Date(dateString + 'T00:00:00').toLocaleDateString('en-SG', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      });
+    }
+
+    function toggleCustomLocationField() {
+      const selectedLocation = locationSelect.value;
+
+      if (selectedLocation === 'Other') {
+        customLocationField.style.display = 'flex';
+        customLocationInput.required = true;
+      } else {
+        customLocationField.style.display = 'none';
+        customLocationInput.required = false;
+        customLocationInput.value = '';
+      }
+    }
+
+    locationSelect.addEventListener('change', () => {
+      toggleCustomLocationField();
+      updateSummary();
+    });
+
+    function updateSummary() {
+      const data = getBookingData();
+      const name = data.name || 'Requester';
+      const location = data.location || 'selected location';
+      const date = formatDate(data.bookingDate);
+      const start = data.startTime || 'start time';
+      const end = data.endTime || 'end time';
+      const devices = data.devicesRequired || 1;
+      const deviceType = data.deviceType || 'selected device type';
+      const softwareRequirement = data.softwareRequirement !== 'None'
+        ? ` with <strong>${data.softwareRequirement}</strong>`
+        : '';
+
+      summary.innerHTML = `<strong>${name}</strong> is requesting <strong>${devices}</strong> <strong>${deviceType}</strong> device${devices > 1 ? 's' : ''}${softwareRequirement} for <strong>${location}</strong> on <strong>${date}</strong>, from <strong>${start}</strong> to <strong>${end}</strong>.`;
+    }
+
+    function showStatus(type, message) {
+      statusMessage.className = `status ${type}`;
+      statusMessage.innerHTML = message;
+    }
+
+    fufunction validateTimes() {.0" encoding="UTF-8"?>
+<bookings>${bookingNodes}
+</bookings>`;
+    }
+
+    function downloadBookingsXML(bookings) {
+      const xmlContent = convertBookingsToXML(bookings);
+      const blob = new Blob([xmlContent], { type: 'application/xml' });
+      const downloadLink = document.createElement('a');
+
+      downloadLink.href = URL.createObjectURL(blob);
+      downloadLink.download = 'bookings.xml';
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+      URL.revokeObjectURL(downloadLink.href);
+    }
+
+    function saveBookingToLocalXMLFile(bookingData) {
+      const existingBookings = JSON.parse(localStorage.getItem('ictBookings') || '[]');
+      existingBookings.push(bookingData);
+      localStorage.setItem('ictBookings', JSON.stringify(existingBookings));
+      downloadBookingsXML(existingBookings);
+    }
+
+    function validateTimes() {
+      if (startTime.value && endTime.value && endTime.value <= startTime.value) {
+        showStatus('error', 'End time must be later than start time.');
+        return false;
+      }
+      return true;
+    }
+
+    function adjustDeviceCount(change) {
+      const current = Number(devicesRequired.value) || 1;
+      const min = Number(devicesRequired.min);
+      const max = Number(devicesRequired.max);
+      devicesRequired.value = Math.min(max, Math.max(min, current + change));
+      loadUsersFromXML();
+    loadLocationsFromXML();
+    toggleCustomLocationField();
+    updateSummary();
+    }
+
+    increaseDevices.addEventListener('click', () => adjustDeviceCount(1));
+    decreaseDevices.addEventListener('click', () => adjustDeviceCount(-1));
+
+    form.addEventListener('input', () => {
+      statusMessage.className = 'status';
+      updateSummary();
+    });
+
+    form.addEventListener('reset', () => {
+      setTimeout(() => {
+        bookingDate.value = today;
+        devicesRequired.value = 1;
+        statusMessage.className = 'status';
+        updateSummary();
+      }, 0);
+    });
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+
+      if (!validateTimes()) return;
+
+      const bookingData = {
+        ...getBookingData(),
+        submittedAt: new Date().toISOString(),
+        status: 'Pending Allocation'
+      };
+
+      try {
+        const response = await fetch('/api/bookings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(bookingData)
+        });
+
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+          throw new Error(result.message || 'Unable to save booking.');
+        }
+
+        const savedBooking = result.booking;
+        localStorage.setItem('latestICTBooking', JSON.stringify(savedBooking));
+
+        const statusType = savedBooking.status === 'Confirmed' ? 'success' : 'warning';
+        showStatus(statusType, buildAllocationMessage(savedBooking));
+        console.log('Booking saved to bookings.xml with allocation:', savedBooking);
+      } catch (error) {
+        showStatus('error', `The booking could not be submitted. ${error.message}`);
+      }
+    });
+
+    updateSummary();
+  </script>
+</body>
+</html>

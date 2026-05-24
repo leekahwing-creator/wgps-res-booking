@@ -1,0 +1,23 @@
+{
+  "name": "ict-resource-booking-portal",
+  "version": "1.0.0",
+  "description": "ICT Resource Booking Portal with XML-based storage",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "ICT",
+    "booking",
+    "resource-booking",
+    "xml",
+    "express"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.19.2",
+    "fast-xml-parser": "^4.5.0"
+  }
+}

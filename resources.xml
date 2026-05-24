@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<resources>
+
+  <resource>
+    <id>LAPTOP-CART-01</id>
+    <name>Laptop Cart 1</name>
+    <deviceType>Laptop</deviceType>
+    <capacity>20</capacity>
+    <resourceType>Cart</resourceType>
+    <status>Available</status>
+  </resource>
+
+  <resource>
+    <id>LAPTOP-CART-02</id>
+    <name>Laptop Cart 2</name>
+    <deviceType>Laptop</deviceType>
+    <capacity>20</capacity>
+    <resourceType>Cart</resourceType>
+    <status>Available</status>
+  </resource>
+
+  <resource>
+    <id>LAPTOP-CART-03</id>
+    <name>Laptop Cart 3</name>
+    <deviceType>Laptop</deviceType>
+    <capacity>20</capacity>
+    <resourceType>Cart</resourceType>
+    <status>Available</status>
+  </resource>
+
+  <resource>
+    <id>LAPTOP-CART-04</id>
+    <name>Laptop Cart 4</name>
+    <deviceType>Laptop</deviceType>
+    <capacity>20</capacity>
+    <resourceType>Cart</resourceType>
+    <status>Available</status>
+  </resource>
+
+  <resource>
+    <id>IPAD-CART-05</id>
+    <name>iPAD Cart 5</name>
+    <deviceType>iPad</deviceType>
+    <capacity>40</capacity>
+    <resourceType>Cart</resourceType>
+    <status>Available</status>
+  </resource>
+
+  <resource>
+    <id>IPAD-CART-06</id>
+    <name>iPAD Cart 6</name>
+    <deviceType>iPad</deviceType>
+    <capacity>40</capacity>
+    <resourceType>Cart</resourceType>
+    <status>Available</status>
+  </resource>
+
+  <resource>
+    <id>IPAD-CART-07</id>
+    <name>iPAD Cart 7</name>
+    <deviceType>iPad</deviceType>
+    <capacity>40</capacity>
+    <resourceType>Cart</resourceType>
+    <status>Available</status>
+  </resource>
+
+  <resource>
+    <id>IPAD-CART-08</id>
+    <name>iPAD Cart 8</name>
+    <deviceType>iPad</deviceType>
+    <capacity>35</capacity>
+    <resourceType>Cart</resourceType>
+    <status>Available</status>
+  </resource>
+
+  <resource>
+    <id>IPAD-CART-09-KB</id>
+    <name>iPAD Cart 9 with Keyboard</name>
+    <deviceType>iPad with Keyboard</deviceType>
+    <capacity>40</capacity>
+    <resourceType>Cart</resourceType>
+    <status>Available</status>
+  </resource>
+
+  <resource>
+    <id>IPAD-CART-10</id>
+    <name>iPAD Cart 10</name>
+    <deviceType>iPad</deviceType>
+    <capacity>40</capacity>
+    <resourceType>Cart</resourceType>
+    <status>Available</status>
+  </resource>
+
+  <resource>
+    <id>IPAD-BAG-A</id>
+    <name>iPAD Bag A</name>
+    <deviceType>iPad</deviceType>
+    <capacity>8</capacity>
+    <resourceType>Bag</resourceType>
+    <status>Available</status>
+  </resource>
+
+  <resource>
+    <id>IPAD-BAG-B</id>
+    <name>iPAD Bag B</name>
+    <deviceType>iPad</deviceType>
+    <capacity>8</capacity>
+    <resourceType>Bag</resourceType>
+    <status>Available</status>
+  </resource>
+
+  <resource>
+    <id>IPAD-BAG-C</id>
+    <name>iPAD Bag C</name>
+    <deviceType>iPad</deviceType>
+    <capacity>8</capacity>
+    <resourceType>Bag</resourceType>
+    <status>Available</status>
+  </resource>
+
+  <resource>
+    <id>IPAD-BAG-D</id>
+    <name>iPAD Bag D</name>
+    <deviceType>iPad</deviceType>
+    <capacity>8</capacity>
+    <resourceType>Bag</resourceType>
+    <status>Available</status>
+  </resource>
+
+</resources>

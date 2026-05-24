@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<resourceRules>
+
+  <rule>
+    <deviceType>Laptop</deviceType>
+    <preferredResourceType>Cart</preferredResourceType>
+    <defaultCapacity>20</defaultCapacity>
+    <allocationMethod>Sequential</allocationMethod>
+    <allowPartialAllocation>false</allowPartialAllocation>
+  </rule>
+
+  <rule>
+    <deviceType>iPad</deviceType>
+    <preferredResourceType>Cart</preferredResourceType>
+    <defaultCapacity>40</defaultCapacity>
+    <secondaryResourceType>Bag</secondaryResourceType>
+    <secondaryCapacity>8</secondaryCapacity>
+    <allocationMethod>OptimisedCombination</allocationMethod>
+    <allowPartialAllocation>true</allowPartialAllocation>
+  </rule>
+
+  <rule>
+    <deviceType>iPad with Keyboard</deviceType>
+    <preferredResourceType>Cart</preferredResourceType>
+    <defaultCapacity>40</defaultCapacity>
+    <allocationMethod>DedicatedResourceOnly</allocationMethod>
+    <allowPartialAllocation>false</allowPartialAllocation>
+  </rule>
+
+</resourceRules>
