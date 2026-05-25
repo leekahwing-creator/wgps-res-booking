@@ -10,20 +10,6 @@ const PORT = 3000;
 app.use(express.json());
 app.use(express.static(__dirname));
 
-app.get("/api/users", (req, res) => {
-  const xml = fs.readFileSync(path.join(__dirname, "users.xml"), "utf8");
-  const parsed = new XMLParser().parse(xml);
-  const users = parsed.organisationUsers.user.map(u => u.name);
-  res.json({ users });
-});
-
-app.get("/api/locations", (req, res) => {
-  const xml = fs.readFileSync(path.join(__dirname, "locations.xml"), "utf8");
-  const parsed = new XMLParser().parse(xml);
-  const locations = parsed.deploymentLocations.location;
-  res.json({ locations });
-});
-
 const bookingsFile = path.join(__dirname, "bookings.xml");
 
 function ensureBookingsFile() {
@@ -70,6 +56,32 @@ app.post("/api/bookings", (req, res) => {
     message: "Booking saved with resource allocation.",
     booking: newBooking
   });
+});
+
+function toArray(value) {
+  if (!value) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+app.get("/api/users", (req, res) => {
+  const xml = fs.readFileSync(path.join(__dirname, "users.xml"), "utf8");
+  const parsed = new XMLParser().parse(xml);
+
+  const users = toArray(parsed.organisationUsers?.user)
+    .map(user => user.name)
+    .filter(Boolean);
+
+  res.json({ users });
+});
+
+app.get("/api/locations", (req, res) => {
+  const xml = fs.readFileSync(path.join(__dirname, "locations.xml"), "utf8");
+  const parsed = new XMLParser().parse(xml);
+
+  const locations = toArray(parsed.deploymentLocations?.location)
+    .filter(Boolean);
+
+  res.json({ locations });
 });
 
 app.listen(PORT, () => {
