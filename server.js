@@ -6,10 +6,28 @@ const { allocateResources } = require("./resourceAllocator");
 const { resolveConflict } = require("./conflictResolver");
 const { ensureMonthlyBookingsFile } = require("./bookingFileHelper");
 
+const session = require("express-session");
+const { OAuth2Client } = require("google-auth-library");
+
+const googleClient = new OAuth2Client(
+  process.env.GOOGLE_CLIENT_ID
+);
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
+app.use(session({
+  secret: process.env.SESSION_SECRET || "change-this-secret",
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 1000 * 60 * 60 * 8
+  }
+}));
 app.use(express.static(__dirname));
 
 // App folder files
@@ -63,7 +81,7 @@ app.get("/api/locations", (req, res) => {
   res.json({ locations });
 });
 
-app.post("/api/bookings", (req, res) => {
+app.post("/api/bookings", requireLogin, res) => {
   try {
     const parser = new XMLParser({ ignoreAttributes: false });
     const builder = new XMLBuilder({
@@ -227,7 +245,7 @@ function writeBookingsToFile(filePath, bookings) {
   fs.writeFileSync(filePath, updatedXml);
 }
 
-app.get("/api/bookings/search", (req, res) => {
+app.get("/api/bookings/search", requireLogin, res) => {
   try {
     const name = (req.query.name || "").trim().toLowerCase();
 
@@ -270,7 +288,7 @@ app.get("/api/bookings/search", (req, res) => {
   }
 });
 
-app.delete("/api/bookings/:bookingId", (req, res) => {
+app.delete("/api/bookings/:bookingId", requireLogin, res) => {
   try {
     const bookingId = req.params.bookingId;
     const bookingDate = req.query.date;
@@ -312,7 +330,7 @@ app.delete("/api/bookings/:bookingId", (req, res) => {
   }
 });
 
-app.delete("/api/bookings/recurring/:recurringGroupId", (req, res) => {
+app.delete("/api/bookings/recurring/:recurringGroupId", requireLogin, res) => {
   try {
     const recurringGroupId = req.params.recurringGroupId;
     const files = getAllMonthlyBookingFiles();
@@ -346,7 +364,7 @@ app.delete("/api/bookings/recurring/:recurringGroupId", (req, res) => {
   }
 });
 
-app.put("/api/bookings/:bookingId", (req, res) => {
+app.put("/api/bookings/:bookingId", requireLogin, res) => {
   try {
     const bookingId = req.params.bookingId;
     const originalBookingDate = req.query.date;
@@ -454,6 +472,83 @@ app.put("/api/bookings/:bookingId", (req, res) => {
       message: error.message
     });
   }
+});
+
+function requireLogin(req, res, next) {
+  if (!req.session.user) {
+    return res.status(401).json({
+      success: false,
+      message: "Login required."
+    });
+  }
+
+  next();
+}
+
+app.post("/api/auth/google", async (req, res) => {
+  try {
+    const { credential } = req.body;
+
+    if (!credential) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing Google credential."
+      });
+    }
+
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID
+    });
+
+    const payload = ticket.getPayload();
+
+    const allowedDomain = process.env.ALLOWED_GOOGLE_DOMAIN;
+
+    if (allowedDomain && payload.hd !== allowedDomain) {
+      return res.status(403).json({
+        success: false,
+        message: "Unauthorised Google account."
+      });
+    }
+
+    const authenticatedUser = {
+      name: payload.name,
+      email: payload.email,
+      picture: payload.picture,
+      googleSubject: payload.sub
+    };
+
+    req.session.user = authenticatedUser;
+
+    res.json({
+      success: true,
+      user: authenticatedUser
+    });
+
+  } catch (error) {
+    console.error("Google login error:", error);
+
+    res.status(401).json({
+      success: false,
+      message: "Google login failed."
+    });
+  }
+});
+
+app.get("/api/me", (req, res) => {
+  res.json({
+    success: true,
+    user: req.session.user || null
+  });
+});
+
+app.post("/api/logout", (req, res) => {
+  req.session.destroy(() => {
+    res.json({
+      success: true
+    });
+  });
 });
 
 app.listen(PORT, () => {
