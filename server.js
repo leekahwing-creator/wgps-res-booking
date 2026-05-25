@@ -4,6 +4,7 @@ const path = require("path");
 const { XMLParser, XMLBuilder } = require("fast-xml-parser");
 const { allocateResources } = require("./resourceAllocator");
 const { resolveConflict } = require("./conflictResolver");
+const { ensureMonthlyBookingsFile } = require("./bookingFileHelper");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -18,7 +19,6 @@ const locationsFile = path.join(appDir, "locations.xml");
 
 // Persistent disk folder for saved bookings only
 const dataDir = process.env.DATA_DIR || path.join(__dirname, "data");
-const bookingsFile = path.join(dataDir, "bookings.xml");
 
 function toArray(value) {
   if (!value) return [];
@@ -65,7 +65,7 @@ app.get("/api/locations", (req, res) => {
 
 app.post("/api/bookings", (req, res) => {
   try {
-    ensureBookingsFile();
+    const bookingsFile = ensureMonthlyBookingsFile(req.body.bookingDate);
 
     const parser = new XMLParser({ ignoreAttributes: false });
     const builder = new XMLBuilder({
@@ -142,8 +142,13 @@ app.post("/api/bookings", (req, res) => {
 
 app.get("/api/bookings", (req, res) => {
   try {
-    ensureBookingsFile();
+    const bookingDate = req.query.date;
 
+    if (!bookingDate) {
+      return res.status(400).send("Please provide a date, e.g. /api/bookings?date=2026-06-01");
+    }
+
+    const bookingsFile = ensureMonthlyBookingsFile(bookingDate);
     const xml = fs.readFileSync(bookingsFile, "utf8");
 
     res.set("Content-Type", "application/xml");
