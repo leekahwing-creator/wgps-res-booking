@@ -122,6 +122,7 @@ function allocateResources(bookingRequest) {
   return {
     status: canFulfil ? "Confirmed" : "Unable to Fulfil",
     allocation: {
+      allocationMethod: "Direct Allocation",
       cartCount: selectedResources.filter(resource => resource.resourceType === "Cart").length,
       bagCount: selectedResources.filter(resource => resource.resourceType === "Bag").length,
       totalAllocatedCapacity: totalCapacity,
