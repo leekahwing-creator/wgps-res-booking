@@ -498,7 +498,11 @@
               </div>
             </div>
 
-            <div class="field full recurrence-section" id="recurrenceSection" hidden>
+            <div
+              class="field full recurrence-section"
+              id="recurrenceSection"
+              style="display: none;"
+            >
               <div class="recurrence-grid">
                 <div class="field compact">
                   <label>Repeat every</label>
@@ -900,7 +904,7 @@
       recurringBookingBtn.classList.toggle('active', isRecurring);
       oneTimeBookingBtn.setAttribute('aria-pressed', String(!isRecurring));
       recurringBookingBtn.setAttribute('aria-pressed', String(isRecurring));
-      recurrenceSection.hidden = !isRecurring;
+      recurrenceSection.style.display = isRecurring ? 'block' : 'none';
 
       updateRecurrencePreview();
       updateSummary();
@@ -1178,6 +1182,7 @@
       populateTimeOptions();
 
       populateLocationDropdown();
+      setBookingMode('one-time');
       toggleCustomLocationField();
       updateSummary();
 
