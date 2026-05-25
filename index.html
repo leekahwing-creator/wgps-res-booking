@@ -582,21 +582,45 @@
       return xmlDoc;
     }
 
+    async function fetchJSONList(endpoint, key) {
+      const response = await fetch(endpoint, { cache: 'no-store' });
+
+      if (!response.ok) {
+        throw new Error(`${endpoint} returned HTTP status ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data[key] || [];
+    }
+
     async function loadUsersFromXML() {
       try {
-        const xmlDoc = await fetchXMLDocument('users.xml');
+        usersDatabase = await fetchJSONList('/api/users', 'users');
 
-        usersDatabase = Array.from(xmlDoc.getElementsByTagName('name'))
-          .map(nameNode => nameNode.textContent.trim())
-          .filter(Boolean)
-          .sort((a, b) => a.localeCompare(b));
+        if (usersDatabase.length === 0) {
+          throw new Error('No users returned from /api/users.');
+        }
 
-        if (usersDatabase.length === 0) throw new Error('No users found in users.xml.');
+        usersDatabase = usersDatabase.sort((a, b) => a.localeCompare(b));
+        console.log(`${usersDatabase.length} users loaded from backend API`, usersDatabase);
+      } catch (apiError) {
+        console.warn('Unable to load users from backend API. Trying users.xml directly:', apiError.message);
 
-        console.log(`${usersDatabase.length} users loaded from users.xml`, usersDatabase);
-      } catch (error) {
-        console.warn('Unable to load users.xml. Using fallback user database instead:', error.message);
-        usersDatabase = fallbackUsersDatabase;
+        try {
+          const xmlDoc = await fetchXMLDocument('users.xml');
+
+          usersDatabase = Array.from(xmlDoc.getElementsByTagName('name'))
+            .map(nameNode => nameNode.textContent.trim())
+            .filter(Boolean)
+            .sort((a, b) => a.localeCompare(b));
+
+          if (usersDatabase.length === 0) throw new Error('No users found in users.xml.');
+
+          console.log(`${usersDatabase.length} users loaded from users.xml`, usersDatabase);
+        } catch (xmlError) {
+          console.warn('Unable to load users.xml. Using fallback user database instead:', xmlError.message);
+          usersDatabase = fallbackUsersDatabase;
+        }
       }
 
       updateUserSuggestions(nameInput.value);
@@ -604,19 +628,32 @@
 
     async function loadLocationsFromXML() {
       try {
-        const xmlDoc = await fetchXMLDocument('locations.xml');
+        locationsDatabase = await fetchJSONList('/api/locations', 'locations');
 
-        locationsDatabase = Array.from(xmlDoc.getElementsByTagName('location'))
-          .map(locationNode => locationNode.textContent.trim())
-          .filter(Boolean)
-          .sort((a, b) => a.localeCompare(b));
+        if (locationsDatabase.length === 0) {
+          throw new Error('No locations returned from /api/locations.');
+        }
 
-        if (locationsDatabase.length === 0) throw new Error('No locations found in locations.xml.');
+        locationsDatabase = locationsDatabase.sort((a, b) => a.localeCompare(b));
+        console.log(`${locationsDatabase.length} locations loaded from backend API`, locationsDatabase);
+      } catch (apiError) {
+        console.warn('Unable to load locations from backend API. Trying locations.xml directly:', apiError.message);
 
-        console.log(`${locationsDatabase.length} locations loaded from locations.xml`, locationsDatabase);
-      } catch (error) {
-        console.warn('Unable to load locations.xml. Using fallback location database instead:', error.message);
-        locationsDatabase = fallbackLocationsDatabase;
+        try {
+          const xmlDoc = await fetchXMLDocument('locations.xml');
+
+          locationsDatabase = Array.from(xmlDoc.getElementsByTagName('location'))
+            .map(locationNode => locationNode.textContent.trim())
+            .filter(Boolean)
+            .sort((a, b) => a.localeCompare(b));
+
+          if (locationsDatabase.length === 0) throw new Error('No locations found in locations.xml.');
+
+          console.log(`${locationsDatabase.length} locations loaded from locations.xml`, locationsDatabase);
+        } catch (xmlError) {
+          console.warn('Unable to load locations.xml. Using fallback location database instead:', xmlError.message);
+          locationsDatabase = fallbackLocationsDatabase;
+        }
       }
 
       populateLocationDropdown();
