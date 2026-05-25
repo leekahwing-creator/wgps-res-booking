@@ -277,6 +277,38 @@
       background: #f8fafc;
     }
 
+    .suggestions {
+      display: none;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: #ffffff;
+      box-shadow: 0 14px 30px rgba(15, 23, 42, 0.12);
+      overflow: hidden;
+      max-height: 220px;
+      overflow-y: auto;
+      z-index: 20;
+    }
+
+    .suggestions.show {
+      display: block;
+    }
+
+    .suggestion-item {
+      padding: 11px 13px;
+      cursor: pointer;
+      font-size: 0.95rem;
+      border-bottom: 1px solid #f1f5f9;
+    }
+
+    .suggestion-item:last-child {
+      border-bottom: 0;
+    }
+
+    .suggestion-item:hover {
+      background: var(--primary-light);
+      color: var(--primary-dark);
+    }
+
     @media (max-width: 760px) {
       .search-row,
       .booking-meta,
@@ -326,6 +358,7 @@
           <div class="field">
             <label for="nameSearch">Name</label>
             <input id="nameSearch" name="nameSearch" type="text" placeholder="Enter your name" autocomplete="off" required />
+            <div id="userSuggestions" class="suggestions" role="listbox"></div>
           </div>
 
           <button class="btn btn-primary" type="submit">Retrieve Bookings</button>
@@ -343,6 +376,60 @@
     const nameSearch = document.getElementById('nameSearch');
     const bookingList = document.getElementById('bookingList');
     const statusMessage = document.getElementById('statusMessage');
+    const userSuggestions = document.getElementById('userSuggestions');
+
+    let usersDatabase = [];
+
+    async function loadUsers() {
+      try {
+        const response = await fetch('/api/users', { cache: 'no-store' });
+        const result = await response.json();
+
+        if (!response.ok || !Array.isArray(result.users)) {
+          throw new Error('Unable to load users.');
+        }
+
+        usersDatabase = result.users
+          .filter(Boolean)
+          .sort((a, b) => a.localeCompare(b));
+      } catch (error) {
+        console.warn('Unable to load users for autocomplete:', error.message);
+        usersDatabase = [];
+      }
+    }
+
+    function updateUserSuggestions(searchTerm = '') {
+      const cleanedSearchTerm = searchTerm.trim().toLowerCase();
+
+      if (!cleanedSearchTerm || usersDatabase.length === 0) {
+        userSuggestions.classList.remove('show');
+        userSuggestions.innerHTML = '';
+        return;
+      }
+
+      const filteredUsers = usersDatabase
+        .filter(user => user.toLowerCase().startsWith(cleanedSearchTerm))
+        .slice(0, 8);
+
+      if (filteredUsers.length === 0) {
+        userSuggestions.classList.remove('show');
+        userSuggestions.innerHTML = '';
+        return;
+      }
+
+      userSuggestions.innerHTML = '';
+
+      filteredUsers.forEach(user => {
+        const item = document.createElement('div');
+        item.className = 'suggestion-item';
+        item.setAttribute('role', 'option');
+        item.textContent = user;
+        item.dataset.name = user;
+        userSuggestions.appendChild(item);
+      });
+
+      userSuggestions.classList.add('show');
+    }
 
     function showStatus(type, message) {
       statusMessage.className = `status ${type}`;
@@ -452,6 +539,31 @@
 
       renderBookings(result.bookings);
     }
+
+    nameSearch.addEventListener('input', event => {
+      updateUserSuggestions(event.target.value);
+    });
+
+    nameSearch.addEventListener('focus', () => {
+      updateUserSuggestions(nameSearch.value);
+    });
+
+    userSuggestions.addEventListener('click', event => {
+      const selectedItem = event.target.closest('.suggestion-item');
+      if (!selectedItem) return;
+
+      nameSearch.value = selectedItem.dataset.name;
+      userSuggestions.classList.remove('show');
+      userSuggestions.innerHTML = '';
+    });
+
+    document.addEventListener('click', event => {
+      if (!nameSearch.contains(event.target) && !userSuggestions.contains(event.target)) {
+        userSuggestions.classList.remove('show');
+      }
+    });
+
+    loadUsers();
 
     searchForm.addEventListener('submit', async event => {
       event.preventDefault();
