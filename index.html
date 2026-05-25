@@ -979,13 +979,13 @@
     }
 
     function formatDate(dateString) {
-      if (!dateString) return 'selected date';
+      if (!dateString) return "selected date";
 
-      return new Date(`${dateString}T00:00:00`).toLocaleDateString('en-SG', {
-        weekday: 'short',
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric'
+      return parseLocalDate(dateString).toLocaleDateString("en-SG", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+        year: "numeric"
       });
     }
 
@@ -1006,16 +1006,28 @@
       return newDate;
     }
 
+    function parseLocalDate(dateString) {
+      const [year, month, day] = dateString.split("-").map(Number);
+      return new Date(year, month - 1, day);
+    }
+
+    function formatLocalDateForInput(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+    
     function generateRecurringDates() {
       if (!bookingDate.value) return [];
 
       const occurrences = Number(recurrenceCount.value) || 2;
       const dates = [];
-      const baseDate = new Date(`${bookingDate.value}T00:00:00`);
+      const baseDate = parseLocalDate(bookingDate.value);
 
       for (let index = 0; index < occurrences; index++) {
         const recurringDate = addDays(baseDate, index * repeatIntervalWeeks * 7);
-        dates.push(recurringDate.toISOString().split('T')[0]);
+        dates.push(formatLocalDateForInput(recurringDate));
       }
 
       return dates;
