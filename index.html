@@ -194,6 +194,38 @@
       line-height: 1.35;
     }
 
+    .suggestions {
+      display: none;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: #ffffff;
+      box-shadow: 0 14px 30px rgba(15, 23, 42, 0.12);
+      overflow: hidden;
+      max-height: 220px;
+      overflow-y: auto;
+      z-index: 20;
+    }
+
+    .suggestions.show {
+      display: block;
+    }
+
+    .suggestion-item {
+      padding: 11px 13px;
+      cursor: pointer;
+      font-size: 0.95rem;
+      border-bottom: 1px solid #f1f5f9;
+    }
+
+    .suggestion-item:last-child {
+      border-bottom: 0;
+    }
+
+    .suggestion-item:hover {
+      background: var(--primary-light);
+      color: var(--primary-dark);
+    }
+
     .device-control {
       display: grid;
       grid-template-columns: 48px 1fr 48px;
@@ -370,8 +402,8 @@
           <div class="form-grid">
             <div class="field full">
               <label for="name">Name</label>
-              <input id="name" name="name" type="text" autocomplete="off" placeholder="Enter your name" list="userSuggestions" required />
-              <datalist id="userSuggestions"></datalist>
+              <input id="name" name="name" type="text" autocomplete="off" placeholder="Enter your name" required />
+              <div id="userSuggestions" class="suggestions" role="listbox"></div>
             </div>
 
             <div class="field">
@@ -593,6 +625,10 @@
     }
 
     function populateLocationDropdown() {
+      if (!locationsDatabase || locationsDatabase.length === 0) {
+        locationsDatabase = fallbackLocationsDatabase;
+      }
+
       locationSelect.innerHTML = '<option value="">Select location</option>';
 
       locationsDatabase.forEach(location => {
@@ -607,18 +643,43 @@
       const cleanedSearchTerm = searchTerm.trim().toLowerCase();
 
       if (!cleanedSearchTerm) {
+        userSuggestions.classList.remove('show');
         userSuggestions.innerHTML = '';
         return;
       }
 
       const filteredUsers = usersDatabase
         .filter(user => user.toLowerCase().startsWith(cleanedSearchTerm))
-        .slice(0, 10);
+        .slice(0, 8);
+
+      if (filteredUsers.length === 0) {
+        userSuggestions.classList.remove('show');
+        userSuggestions.innerHTML = '';
+        return;
+      }
 
       userSuggestions.innerHTML = filteredUsers
-        .map(user => `<option value="${user}"></option>`)
+        .map(user => `<div class="suggestion-item" role="option" data-name="${user}">${user}</div>`)
         .join('');
+
+      userSuggestions.classList.add('show');
     }
+
+    userSuggestions.addEventListener('click', (event) => {
+      const selectedItem = event.target.closest('.suggestion-item');
+      if (!selectedItem) return;
+
+      nameInput.value = selectedItem.dataset.name;
+      userSuggestions.classList.remove('show');
+      userSuggestions.innerHTML = '';
+      updateSummary();
+    });
+
+    document.addEventListener('click', (event) => {
+      if (!nameInput.contains(event.target) && !userSuggestions.contains(event.target)) {
+        userSuggestions.classList.remove('show');
+      }
+    });
 
     nameInput.addEventListener('input', (event) => {
       updateUserSuggestions(event.target.value);
@@ -728,7 +789,8 @@
       const min = Number(devicesRequired.min);
       const max = Number(devicesRequired.max);
       devicesRequired.value = Math.min(max, Math.max(min, current + change));
-      loadUsersFromXML();
+      populateLocationDropdown();
+    loadUsersFromXML();
     loadLocationsFromXML();
     toggleCustomLocationField();
     updateSummary();
