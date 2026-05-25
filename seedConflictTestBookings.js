@@ -1,12 +1,9 @@
 const fs = require("fs");
 const path = require("path");
+const { ensureMonthlyBookingsFile } = require("./bookingFileHelper");
 
-const dataDir = process.env.DATA_DIR || path.join(__dirname, "data");
-const bookingsFile = path.join(dataDir, "bookings.xml");
-
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
-}
+const testBookingDate = "2026-06-01";
+const bookingsFile = ensureMonthlyBookingsFile(testBookingDate);
 
 const testBookingsXML = `<?xml version="1.0" encoding="UTF-8"?>
 <bookings>
