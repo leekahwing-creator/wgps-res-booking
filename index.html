@@ -459,7 +459,7 @@
           <div id="statusMessage" class="status" role="status" aria-live="polite"></div>
 
           <p class="admin-note">
-            Developer note: Booking submissions are sent to the backend API endpoint <strong>/api/bookings</strong>, which saves each request into <strong>bookings.xml</strong>.
+            Developer note: Booking submissions are sent to the backend API endpoint <strong>/api/bookings</strong>, which saves each request into <strong>bookings.xml</strong>. On GitHub Pages, XML files such as <strong>users.xml</strong> and <strong>locations.xml</strong> must be in the same deployed folder as this page and must use the exact same lowercase file names.
           </p>
         </form>
       </div>
@@ -526,17 +526,33 @@
     bookingDate.min = today;
     bookingDate.value = today;
 
+    function getXMLFileURL(fileName) {
+      return new URL(fileName, window.location.href).href;
+    }
+
+    async function fetchXMLDocument(fileName) {
+      const xmlURL = getXMLFileURL(fileName);
+      const response = await fetch(`${xmlURL}?v=${Date.now()}`, { cache: 'no-store' });
+
+      if (!response.ok) {
+        throw new Error(`${fileName} could not be loaded from ${xmlURL}. HTTP status: ${response.status}`);
+      }
+
+      const xmlText = await response.text();
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(xmlText, 'application/xml');
+      const parserError = xmlDoc.querySelector('parsererror');
+
+      if (parserError) {
+        throw new Error(`${fileName} contains invalid XML. Please check the XML file structure.`);
+      }
+
+      return xmlDoc;
+    }
+
     async function loadUsersFromXML() {
       try {
-        const response = await fetch('./users.xml', { cache: 'no-store' });
-        if (!response.ok) throw new Error('users.xml could not be loaded.');
-
-        const xmlText = await response.text();
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(xmlText, 'application/xml');
-        const parserError = xmlDoc.querySelector('parsererror');
-
-        if (parserError) throw new Error('users.xml contains invalid XML.');
+        const xmlDoc = await fetchXMLDocument('users.xml');
 
         usersDatabase = Array.from(xmlDoc.getElementsByTagName('name'))
           .map(nameNode => nameNode.textContent.trim())
@@ -556,15 +572,7 @@
 
     async function loadLocationsFromXML() {
       try {
-        const response = await fetch('./locations.xml', { cache: 'no-store' });
-        if (!response.ok) throw new Error('locations.xml could not be loaded.');
-
-        const xmlText = await response.text();
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(xmlText, 'application/xml');
-        const parserError = xmlDoc.querySelector('parsererror');
-
-        if (parserError) throw new Error('locations.xml contains invalid XML.');
+        const xmlDoc = await fetchXMLDocument('locations.xml');
 
         locationsDatabase = Array.from(xmlDoc.getElementsByTagName('location'))
           .map(locationNode => locationNode.textContent.trim())
@@ -580,6 +588,8 @@
       }
 
       populateLocationDropdown();
+      toggleCustomLocationField();
+      updateSummary();
     }
 
     function populateLocationDropdown() {
@@ -683,29 +693,26 @@
       statusMessage.innerHTML = message;
     }
 
-    fufunction validateTimes() {.0" encoding="UTF-8"?>
-<bookings>${bookingNodes}
-</bookings>`;
+    function formatAllocatedResources(allocation) {
+      const resourceIds = allocation?.resources?.resourceId || [];
+      const resources = Array.isArray(resourceIds) ? resourceIds : [resourceIds];
+
+      if (resources.length === 0) {
+        return 'No resources allocated.';
+      }
+
+      return resources.join(', ');
     }
 
-    function downloadBookingsXML(bookings) {
-      const xmlContent = convertBookingsToXML(bookings);
-      const blob = new Blob([xmlContent], { type: 'application/xml' });
-      const downloadLink = document.createElement('a');
+    function buildAllocationMessage(savedBooking) {
+      const allocation = savedBooking.allocation || {};
+      const allocatedResources = formatAllocatedResources(allocation);
 
-      downloadLink.href = URL.createObjectURL(blob);
-      downloadLink.download = 'bookings.xml';
-      document.body.appendChild(downloadLink);
-      downloadLink.click();
-      document.body.removeChild(downloadLink);
-      URL.revokeObjectURL(downloadLink.href);
-    }
+      if (savedBooking.status === 'Confirmed') {
+        return `Booking confirmed. Allocated resources: <strong>${allocatedResources}</strong>. Total allocated capacity: <strong>${allocation.totalAllocatedCapacity || 0}</strong> devices.`;
+      }
 
-    function saveBookingToLocalXMLFile(bookingData) {
-      const existingBookings = JSON.parse(localStorage.getItem('ictBookings') || '[]');
-      existingBookings.push(bookingData);
-      localStorage.setItem('ictBookings', JSON.stringify(existingBookings));
-      downloadBookingsXML(existingBookings);
+      return `Booking saved but could not be fully fulfilled with the currently available resources. Status: <strong>${savedBooking.status}</strong>.`;
     }
 
     function validateTimes() {
