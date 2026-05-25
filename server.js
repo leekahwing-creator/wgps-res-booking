@@ -5,62 +5,25 @@ const { XMLParser, XMLBuilder } = require("fast-xml-parser");
 const { allocateResources } = require("./resourceAllocator");
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 app.use(express.static(__dirname));
 
 const bookingsFile = path.join(__dirname, "bookings.xml");
 
-function ensureBookingsFile() {
-  if (!fs.existsSync(bookingsFile)) {
-    fs.writeFileSync(bookingsFile, `<?xml version="1.0" encoding="UTF-8"?>\n<bookings></bookings>`);
-  }
-}
-
-app.post("/api/bookings", (req, res) => {
-  ensureBookingsFile();
-
-  const parser = new XMLParser({ ignoreAttributes: false });
-  const builder = new XMLBuilder({
-    ignoreAttributes: false,
-    format: true,
-    suppressEmptyNode: true
-  });
-
-  const allocationResult = allocateResources(req.body);
-
-  const xmlData = fs.readFileSync(bookingsFile, "utf8");
-  const parsed = parser.parse(xmlData);
-
-  if (!parsed.bookings.booking) {
-    parsed.bookings.booking = [];
-  } else if (!Array.isArray(parsed.bookings.booking)) {
-    parsed.bookings.booking = [parsed.bookings.booking];
-  }
-
-  const newBooking = {
-    "@_id": parsed.bookings.booking.length + 1,
-    ...req.body,
-    status: allocationResult.status,
-    allocation: allocationResult.allocation
-  };
-
-  parsed.bookings.booking.push(newBooking);
-
-  const updatedXml = builder.build(parsed);
-  fs.writeFileSync(bookingsFile, updatedXml);
-
-  res.json({
-    success: true,
-    message: "Booking saved with resource allocation.",
-    booking: newBooking
-  });
-});
-
 function toArray(value) {
   if (!value) return [];
   return Array.isArray(value) ? value : [value];
+}
+
+function ensureBookingsFile() {
+  if (!fs.existsSync(bookingsFile)) {
+    fs.writeFileSync(
+      bookingsFile,
+      `<?xml version="1.0" encoding="UTF-8"?>\n<bookings></bookings>`
+    );
+  }
 }
 
 app.get("/api/users", (req, res) => {
@@ -85,9 +48,58 @@ app.get("/api/locations", (req, res) => {
 });
 
 app.post("/api/bookings", (req, res) => {
-  // booking allocation + XML save logic here
+  try {
+    ensureBookingsFile();
+
+    const parser = new XMLParser({ ignoreAttributes: false });
+    const builder = new XMLBuilder({
+      ignoreAttributes: false,
+      format: true,
+      suppressEmptyNode: true
+    });
+
+    const allocationResult = allocateResources(req.body);
+
+    const xmlData = fs.readFileSync(bookingsFile, "utf8");
+    const parsed = parser.parse(xmlData);
+
+    if (!parsed.bookings) {
+      parsed.bookings = {};
+    }
+
+    if (!parsed.bookings.booking) {
+      parsed.bookings.booking = [];
+    } else if (!Array.isArray(parsed.bookings.booking)) {
+      parsed.bookings.booking = [parsed.bookings.booking];
+    }
+
+    const newBooking = {
+      "@_id": parsed.bookings.booking.length + 1,
+      ...req.body,
+      status: allocationResult.status,
+      allocation: allocationResult.allocation
+    };
+
+    parsed.bookings.booking.push(newBooking);
+
+    const updatedXml = builder.build(parsed);
+    fs.writeFileSync(bookingsFile, updatedXml);
+
+    res.json({
+      success: true,
+      message: "Booking saved with resource allocation.",
+      booking: newBooking
+    });
+  } catch (error) {
+    console.error("Booking save error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
 });
 
 app.listen(PORT, () => {
-  console.log(`ICT booking server running at http://localhost:${PORT}`);
+  console.log(`ICT booking server running on port ${PORT}`);
 });
