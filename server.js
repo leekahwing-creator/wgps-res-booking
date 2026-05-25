@@ -10,8 +10,19 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static(__dirname));
 
+// App folder files
+const appDir = __dirname;
+const usersFile = path.join(appDir, "users.xml");
+const locationsFile = path.join(appDir, "locations.xml");
+
+// Persistent disk folder for saved bookings only
 const dataDir = process.env.DATA_DIR || path.join(__dirname, "data");
 const bookingsFile = path.join(dataDir, "bookings.xml");
+
+function toArray(value) {
+  if (!value) return [];
+  return Array.isArray(value) ? value : [value];
+}
 
 function ensureDataFolder() {
   if (!fs.existsSync(dataDir)) {
@@ -31,7 +42,7 @@ function ensureBookingsFile() {
 }
 
 app.get("/api/users", (req, res) => {
-  const xml = fs.readFileSync(path.join(__dirname, "users.xml"), "utf8");
+  const xml = fs.readFileSync(usersFile, "utf8");
   const parsed = new XMLParser().parse(xml);
 
   const users = toArray(parsed.organisationUsers?.user)
@@ -42,7 +53,7 @@ app.get("/api/users", (req, res) => {
 });
 
 app.get("/api/locations", (req, res) => {
-  const xml = fs.readFileSync(path.join(__dirname, "locations.xml"), "utf8");
+  const xml = fs.readFileSync(locationsFile, "utf8");
   const parsed = new XMLParser().parse(xml);
 
   const locations = toArray(parsed.deploymentLocations?.location)
@@ -67,9 +78,7 @@ app.post("/api/bookings", (req, res) => {
     const xmlData = fs.readFileSync(bookingsFile, "utf8");
     const parsed = parser.parse(xmlData);
 
-    if (!parsed.bookings) {
-      parsed.bookings = {};
-    }
+    if (!parsed.bookings) parsed.bookings = {};
 
     if (!parsed.bookings.booking) {
       parsed.bookings.booking = [];
@@ -106,4 +115,5 @@ app.post("/api/bookings", (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`ICT booking server running on port ${PORT}`);
+  console.log(`Bookings file path: ${bookingsFile}`);
 });
