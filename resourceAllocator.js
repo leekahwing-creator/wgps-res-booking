@@ -6,8 +6,11 @@ const parser = new XMLParser({
   ignoreAttributes: false
 });
 
-const resourcesFile = path.join(__dirname, "resources.xml");
-const bookingsFile = path.join(__dirname, "bookings.xml");
+const appDir = __dirname;
+const dataDir = process.env.DATA_DIR || path.join(__dirname, "data");
+
+const resourcesFile = path.join(appDir, "resources.xml");
+const bookingsFile = path.join(dataDir, "bookings.xml");
 
 function toArray(value) {
   if (!value) return [];
