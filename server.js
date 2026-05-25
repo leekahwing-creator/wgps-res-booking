@@ -10,14 +10,18 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static(__dirname));
 
-const bookingsFile = path.join(__dirname, "bookings.xml");
+const dataDir = process.env.DATA_DIR || path.join(__dirname, "data");
+const bookingsFile = path.join(dataDir, "bookings.xml");
 
-function toArray(value) {
-  if (!value) return [];
-  return Array.isArray(value) ? value : [value];
+function ensureDataFolder() {
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+  }
 }
 
 function ensureBookingsFile() {
+  ensureDataFolder();
+
   if (!fs.existsSync(bookingsFile)) {
     fs.writeFileSync(
       bookingsFile,
