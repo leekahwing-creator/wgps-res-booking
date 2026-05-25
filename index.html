@@ -825,13 +825,28 @@
         };
 
         try {
+          console.log('Submitting booking request to /api/bookings...', bookingData);
+
           const response = await fetch('/api/bookings', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(bookingData)
           });
 
-          const result = await response.json();
+          const responseText = await response.text();
+          const contentType = response.headers.get('content-type') || '';
+
+          console.log('Response from /api/bookings:', {
+            status: response.status,
+            contentType,
+            responseText
+          });
+
+          if (!contentType.includes('application/json')) {
+            throw new Error(`The backend returned ${contentType || 'an unknown content type'} instead of JSON. Check that POST /api/bookings exists in server.js and is placed before any catch-all/static fallback route.`);
+          }
+
+          const result = JSON.parse(responseText);
 
           if (!response.ok || !result.success) {
             throw new Error(result.message || 'Unable to save booking.');
