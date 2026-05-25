@@ -31,6 +31,61 @@
       min-height: 100vh;
     }
 
+    .portal-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 22px;
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid rgba(226, 232, 240, 0.95);
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+    }
+
+    .portal-brand {
+      font-weight: 900;
+      color: var(--primary-dark);
+    }
+
+    .portal-links {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .portal-links a {
+      text-decoration: none;
+      color: #334155;
+      font-weight: 800;
+      padding: 9px 12px;
+      border-radius: 999px;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .portal-links a.active,
+    .portal-links a:hover {
+      background: var(--primary);
+      color: #ffffff;
+    }
+
+    @media (max-width: 560px) {
+      .portal-nav {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .portal-links {
+        width: 100%;
+      }
+
+      .portal-links a {
+        flex: 1;
+        text-align: center;
+      }
+    }
+    
     .page {
       width: min(1120px, 100%);
       margin: 0 auto;
@@ -523,6 +578,22 @@
 </head>
 <body>
   <main class="page">
+    <nav class="portal-nav" aria-label="Portal navigation">
+      <div class="portal-brand">
+        ICT Resource Booking Portal
+      </div>
+
+      <div class="portal-links">
+        <a href="index.html" class="active">
+          Create Booking
+        </a>
+
+        <a href="manage-bookings.html">
+          Manage My Bookings
+        </a>
+      </div>
+    </nav>
+    
     <section class="hero" aria-label="ICT resource booking page">
       <div class="intro">
         <div class="badge">ICT Resource Booking Portal</div>
