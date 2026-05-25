@@ -154,7 +154,10 @@ function resolveConflict(newBookingRequest) {
     .filter(result => !result.booking.isNewBooking)
     .map(result => ({
       bookingId: result.booking["@_id"],
-      allocation: result.allocation,
+      allocation: {
+        ...result.allocation,
+        allocationMethod: "Reallocated"
+      },
       status: "Confirmed with Reallocation"
     }));
 
@@ -165,7 +168,10 @@ function resolveConflict(newBookingRequest) {
   return {
     success: true,
     status: "Confirmed with Reallocation",
-    allocation: newBookingResult.allocation,
+    allocation: {
+      ...newBookingResult.allocation,
+      allocationMethod: "Conflict Resolution"
+    },
     existingBookingUpdates
   };
 }
