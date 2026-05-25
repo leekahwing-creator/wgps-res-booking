@@ -844,10 +844,17 @@
       });
     }
 
+    function startBookingPage() {
+      initialiseBookingPage().catch(error => {
+        console.error('ICT Resource Booking Portal failed to initialise:', error);
+        showStatus('error', `The booking page could not fully initialise. ${error.message}`);
+      });
+    }
+
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initialiseBookingPage);
+      document.addEventListener('DOMContentLoaded', startBookingPage);
     } else {
-      initialiseBookingPage();
+      startBookingPage();
     }
     }
 
