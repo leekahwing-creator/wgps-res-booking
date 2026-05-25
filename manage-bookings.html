@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Manage My Bookings</title>
+  <style>
+    :root {
+      --primary: #0f766e;
+      --primary-dark: #115e59;
+      --primary-light: #ccfbf1;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: #dbe4ee;
+      --danger: #dc2626;
+      --warning: #92400e;
+      --shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+      --radius: 22px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: linear-gradient(135deg, #ecfeff 0%, #f8fafc 48%, #eef2ff 100%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .page {
+      width: min(1120px, 100%);
+      margin: 0 auto;
+      padding: 32px 18px;
+    }
+
+    .portal-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 22px;
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid rgba(226, 232, 240, 0.95);
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+    }
+
+    .portal-brand {
+      font-weight: 900;
+      color: var(--primary-dark);
+    }
+
+    .portal-links {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .portal-links a {
+      text-decoration: none;
+      color: #334155;
+      font-weight: 800;
+      padding: 9px 12px;
+      border-radius: 999px;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .portal-links a.active,
+    .portal-links a:hover {
+      background: var(--primary);
+      color: #ffffff;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      border: 1px solid rgba(226, 232, 240, 0.95);
+      overflow: hidden;
+    }
+
+    .card-header {
+      padding: 22px 24px;
+      background: linear-gradient(135deg, var(--primary), #164e63);
+      color: #ffffff;
+    }
+
+    .card-header h1 {
+      margin: 0 0 6px;
+      font-size: clamp(1.6rem, 3vw, 2.35rem);
+      letter-spacing: -0.03em;
+    }
+
+    .card-header p {
+      margin: 0;
+      opacity: 0.9;
+      line-height: 1.45;
+    }
+
+    .card-body {
+      padding: 24px;
+    }
+
+    .search-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: end;
+      margin-bottom: 20px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    label {
+      font-size: 0.9rem;
+      font-weight: 800;
+      color: #1e293b;
+    }
+
+    input, select {
+      width: 100%;
+      min-height: 48px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 11px 13px;
+      font-size: 1rem;
+      background: #ffffff;
+      color: var(--text);
+      outline: none;
+    }
+
+    input:focus, select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.14);
+    }
+
+    .btn {
+      border: 0;
+      min-height: 48px;
+      padding: 0 16px;
+      border-radius: 14px;
+      font-weight: 900;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #ffffff;
+    }
+
+    .btn-secondary {
+      background: #e2e8f0;
+      color: #334155;
+    }
+
+    .btn-danger {
+      background: #fee2e2;
+      color: var(--danger);
+    }
+
+    .status {
+      display: none;
+      margin-bottom: 16px;
+      padding: 13px 14px;
+      border-radius: 14px;
+      font-weight: 700;
+      font-size: 0.92rem;
+    }
+
+    .status.success { display: block; background: #dcfce7; color: #166534; }
+    .status.warning { display: block; background: #fef3c7; color: var(--warning); }
+    .status.error { display: block; background: #fee2e2; color: var(--danger); }
+
+    .booking-list {
+      display: grid;
+      gap: 14px;
+    }
+
+    .booking-card {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: #ffffff;
+      padding: 16px;
+    }
+
+    .booking-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+
+    .booking-title {
+      margin: 0;
+      font-size: 1.08rem;
+      color: #0f172a;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: var(--primary-light);
+      color: var(--primary-dark);
+      font-size: 0.8rem;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .booking-meta {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin: 12px 0;
+    }
+
+    .meta-box {
+      border-radius: 12px;
+      background: #f8fafc;
+      padding: 10px;
+      border: 1px solid #e2e8f0;
+    }
+
+    .meta-box span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+
+    .meta-box strong {
+      font-size: 0.93rem;
+    }
+
+    .booking-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    .edit-panel {
+      display: none;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px dashed #cbd5e1;
+    }
+
+    .edit-panel.show {
+      display: block;
+    }
+
+    .edit-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .empty-state {
+      padding: 24px;
+      text-align: center;
+      color: var(--muted);
+      border: 1px dashed #cbd5e1;
+      border-radius: 18px;
+      background: #f8fafc;
+    }
+
+    @media (max-width: 760px) {
+      .search-row,
+      .booking-meta,
+      .edit-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .booking-top {
+        flex-direction: column;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .page { padding: 18px 12px; }
+
+      .portal-nav {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .portal-links { width: 100%; }
+      .portal-links a { flex: 1; text-align: center; }
+      .card-body { padding: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <nav class="portal-nav" aria-label="Portal navigation">
+      <div class="portal-brand">ICT Resource Booking Portal</div>
+      <div class="portal-links">
+        <a href="index.html">Create Booking</a>
+        <a href="manage-bookings.html" class="active">Manage My Bookings</a>
+      </div>
+    </nav>
+
+    <section class="card">
+      <div class="card-header">
+        <h1>Manage My Bookings</h1>
+        <p>Search for your upcoming ICT resource bookings to modify or delete existing requests.</p>
+      </div>
+
+      <div class="card-body">
+        <div id="statusMessage" class="status" role="status" aria-live="polite"></div>
+
+        <form id="searchForm" class="search-row">
+          <div class="field">
+            <label for="nameSearch">Name</label>
+            <input id="nameSearch" name="nameSearch" type="text" placeholder="Enter your name" autocomplete="off" required />
+          </div>
+
+          <button class="btn btn-primary" type="submit">Retrieve Bookings</button>
+        </form>
+
+        <div id="bookingList" class="booking-list">
+          <div class="empty-state">Enter your name to retrieve your upcoming bookings.</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const searchForm = document.getElementById('searchForm');
+    const nameSearch = document.getElementById('nameSearch');
+    const bookingList = document.getElementById('bookingList');
+    const statusMessage = document.getElementById('statusMessage');
+
+    function showStatus(type, message) {
+      statusMessage.className = `status ${type}`;
+      statusMessage.textContent = message;
+    }
+
+    function clearStatus() {
+      statusMessage.className = 'status';
+      statusMessage.textContent = '';
+    }
+
+    function formatDate(dateString) {
+      if (!dateString) return '-';
+      return new Date(`${dateString}T00:00:00`).toLocaleDateString('en-SG', {
+        weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'
+      });
+    }
+
+    function getResourceList(booking) {
+      const resourceIds = booking.allocation?.resources?.resourceId || [];
+      const resources = Array.isArray(resourceIds) ? resourceIds : [resourceIds];
+      return resources.length ? resources.join(', ') : 'No allocation recorded';
+    }
+
+    function normaliseBookings(bookings) {
+      if (!bookings) return [];
+      return Array.isArray(bookings) ? bookings : [bookings];
+    }
+
+    function renderBookings(bookings) {
+      const normalisedBookings = normaliseBookings(bookings);
+
+      if (normalisedBookings.length === 0) {
+        bookingList.innerHTML = '<div class="empty-state">No upcoming bookings found for this name.</div>';
+        return;
+      }
+
+      bookingList.innerHTML = normalisedBookings.map(booking => {
+        const bookingId = booking.bookingId || booking['@_id'] || '';
+        const isRecurring = booking.bookingMode === 'recurring' || booking.recurringGroupId;
+
+        return `
+          <article class="booking-card" data-booking-id="${bookingId}" data-booking-date="${booking.bookingDate}">
+            <div class="booking-top">
+              <div>
+                <h2 class="booking-title">${formatDate(booking.bookingDate)} · ${booking.startTime}–${booking.endTime}</h2>
+                <div>${booking.location || '-'}</div>
+              </div>
+              <span class="pill">${isRecurring ? 'Recurring' : 'One-Time'}</span>
+            </div>
+
+            <div class="booking-meta">
+              <div class="meta-box"><span>Device</span><strong>${booking.deviceType || '-'}</strong></div>
+              <div class="meta-box"><span>Quantity</span><strong>${booking.devicesRequired || '-'}</strong></div>
+              <div class="meta-box"><span>Status</span><strong>${booking.status || '-'}</strong></div>
+              <div class="meta-box"><span>Software</span><strong>${booking.softwareRequirement || 'None'}</strong></div>
+              <div class="meta-box"><span>Resources</span><strong>${getResourceList(booking)}</strong></div>
+              <div class="meta-box"><span>Allocation</span><strong>${booking.allocation?.allocationMethod || '-'}</strong></div>
+            </div>
+
+            ${isRecurring ? `<div class="pill">Recurring group: ${booking.recurringGroupId}</div>` : ''}
+
+            <div class="booking-actions">
+              <button class="btn btn-secondary" type="button" data-action="toggle-edit">Modify</button>
+              <button class="btn btn-danger" type="button" data-action="delete-one">Delete</button>
+              ${isRecurring ? `<button class="btn btn-danger" type="button" data-action="delete-series" data-recurring-group-id="${booking.recurringGroupId}">Delete Recurring Set</button>` : ''}
+            </div>
+
+            <div class="edit-panel">
+              <div class="edit-grid">
+                <div class="field">
+                  <label>Location</label>
+                  <input data-edit-field="location" value="${booking.location || ''}" />
+                </div>
+                <div class="field">
+                  <label>Start time</label>
+                  <input data-edit-field="startTime" type="time" value="${booking.startTime || ''}" />
+                </div>
+                <div class="field">
+                  <label>End time</label>
+                  <input data-edit-field="endTime" type="time" value="${booking.endTime || ''}" />
+                </div>
+              </div>
+              <div class="booking-actions">
+                <button class="btn btn-primary" type="button" data-action="save-edit">Save Changes</button>
+                <button class="btn btn-secondary" type="button" data-action="cancel-edit">Cancel</button>
+              </div>
+            </div>
+          </article>
+        `;
+      }).join('');
+    }
+
+    async function retrieveBookings(name) {
+      clearStatus();
+      bookingList.innerHTML = '<div class="empty-state">Loading bookings...</div>';
+
+      const response = await fetch(`/api/bookings/search?name=${encodeURIComponent(name)}`, {
+        cache: 'no-store'
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Unable to retrieve bookings.');
+      }
+
+      renderBookings(result.bookings);
+    }
+
+    searchForm.addEventListener('submit', async event => {
+      event.preventDefault();
+
+      try {
+        await retrieveBookings(nameSearch.value.trim());
+      } catch (error) {
+        showStatus('error', error.message);
+        bookingList.innerHTML = '<div class="empty-state">Unable to load bookings.</div>';
+      }
+    });
+
+    bookingList.addEventListener('click', async event => {
+      const button = event.target.closest('button');
+      if (!button) return;
+
+      const card = button.closest('.booking-card');
+      const action = button.dataset.action;
+      const editPanel = card.querySelector('.edit-panel');
+      const bookingId = card.dataset.bookingId;
+      const bookingDate = card.dataset.bookingDate;
+
+      if (action === 'toggle-edit') editPanel.classList.add('show');
+      if (action === 'cancel-edit') editPanel.classList.remove('show');
+
+      if (action === 'delete-one') {
+        if (!confirm('Delete this booking occurrence?')) return;
+
+        const response = await fetch(`/api/bookings/${bookingId}?date=${bookingDate}`, {
+          method: 'DELETE'
+        });
+
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.message || 'Unable to delete booking.');
+        showStatus('success', 'Booking deleted successfully.');
+        await retrieveBookings(nameSearch.value.trim());
+      }
+
+      if (action === 'delete-series') {
+        if (!confirm('Delete the entire recurring booking set?')) return;
+
+        const recurringGroupId = button.dataset.recurringGroupId;
+        const response = await fetch(`/api/bookings/recurring/${recurringGroupId}`, {
+          method: 'DELETE'
+        });
+
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.message || 'Unable to delete recurring set.');
+        showStatus('success', 'Recurring booking set deleted successfully.');
+        await retrieveBookings(nameSearch.value.trim());
+      }
+
+      if (action === 'save-edit') {
+        const updatedBooking = {};
+        card.querySelectorAll('[data-edit-field]').forEach(input => {
+          updatedBooking[input.dataset.editField] = input.value;
+        });
+
+        const response = await fetch(`/api/bookings/${bookingId}?date=${bookingDate}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedBooking)
+        });
+
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.message || 'Unable to update booking.');
+        showStatus('success', 'Booking updated successfully.');
+        await retrieveBookings(nameSearch.value.trim());
+      }
+    });
+  </script>
+</body>
+</html>
