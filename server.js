@@ -191,6 +191,210 @@ app.get("/api/bookings", (req, res) => {
   }
 });
 
+function getAllMonthlyBookingFiles() {
+  const bookingsDir = path.join(dataDir, "bookings");
+
+  if (!fs.existsSync(bookingsDir)) {
+    fs.mkdirSync(bookingsDir, { recursive: true });
+  }
+
+  return fs.readdirSync(bookingsDir)
+    .filter(file => file.endsWith(".xml"))
+    .map(file => path.join(bookingsDir, file));
+}
+
+function readBookingsFromFile(filePath) {
+  const parser = new XMLParser({ ignoreAttributes: false });
+  const xml = fs.readFileSync(filePath, "utf8");
+  const parsed = parser.parse(xml);
+
+  return toArray(parsed.bookings?.booking);
+}
+
+function writeBookingsToFile(filePath, bookings) {
+  const builder = new XMLBuilder({
+    ignoreAttributes: false,
+    format: true,
+    suppressEmptyNode: true
+  });
+
+  const updatedXml = builder.build({
+    bookings: {
+      booking: bookings
+    }
+  });
+
+  fs.writeFileSync(filePath, updatedXml);
+}
+
+app.get("/api/bookings/search", (req, res) => {
+  try {
+    const name = (req.query.name || "").trim().toLowerCase();
+
+    if (!name) {
+      return res.status(400).json({
+        success: false,
+        message: "Name is required."
+      });
+    }
+
+    const files = getAllMonthlyBookingFiles();
+    const today = new Date().toISOString().split("T")[0];
+
+    const bookings = files.flatMap(file => readBookingsFromFile(file))
+      .filter(booking => {
+        return (
+          String(booking.name || "").toLowerCase() === name &&
+          booking.bookingDate >= today &&
+          booking.status !== "Deleted" &&
+          booking.status !== "Cancelled"
+        );
+      })
+      .sort((a, b) => {
+        return `${a.bookingDate} ${a.startTime}`.localeCompare(
+          `${b.bookingDate} ${b.startTime}`
+        );
+      });
+
+    res.json({
+      success: true,
+      bookings
+    });
+  } catch (error) {
+    console.error("Search bookings error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+app.delete("/api/bookings/:bookingId", (req, res) => {
+  try {
+    const bookingId = req.params.bookingId;
+    const bookingDate = req.query.date;
+
+    if (!bookingDate) {
+      return res.status(400).json({
+        success: false,
+        message: "Booking date is required."
+      });
+    }
+
+    const bookingsFile = ensureMonthlyBookingsFile(bookingDate);
+    const bookings = readBookingsFromFile(bookingsFile);
+
+    const updatedBookings = bookings.filter(
+      booking => String(booking["@_id"]) !== String(bookingId)
+    );
+
+    if (updatedBookings.length === bookings.length) {
+      return res.status(404).json({
+        success: false,
+        message: "Booking not found."
+      });
+    }
+
+    writeBookingsToFile(bookingsFile, updatedBookings);
+
+    res.json({
+      success: true,
+      message: "Booking deleted successfully."
+    });
+  } catch (error) {
+    console.error("Delete booking error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+app.delete("/api/bookings/recurring/:recurringGroupId", (req, res) => {
+  try {
+    const recurringGroupId = req.params.recurringGroupId;
+    const files = getAllMonthlyBookingFiles();
+
+    let deletedCount = 0;
+
+    files.forEach(file => {
+      const bookings = readBookingsFromFile(file);
+
+      const updatedBookings = bookings.filter(booking => {
+        const shouldDelete = booking.recurringGroupId === recurringGroupId;
+        if (shouldDelete) deletedCount++;
+        return !shouldDelete;
+      });
+
+      writeBookingsToFile(file, updatedBookings);
+    });
+
+    res.json({
+      success: true,
+      message: "Recurring booking set deleted successfully.",
+      deletedCount
+    });
+  } catch (error) {
+    console.error("Delete recurring booking error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+app.put("/api/bookings/:bookingId", (req, res) => {
+  try {
+    const bookingId = req.params.bookingId;
+    const bookingDate = req.query.date;
+
+    if (!bookingDate) {
+      return res.status(400).json({
+        success: false,
+        message: "Booking date is required."
+      });
+    }
+
+    const bookingsFile = ensureMonthlyBookingsFile(bookingDate);
+    const bookings = readBookingsFromFile(bookingsFile);
+
+    const bookingIndex = bookings.findIndex(
+      booking => String(booking["@_id"]) === String(bookingId)
+    );
+
+    if (bookingIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: "Booking not found."
+      });
+    }
+
+    bookings[bookingIndex] = {
+      ...bookings[bookingIndex],
+      ...req.body,
+      status: "Pending Allocation"
+    };
+
+    writeBookingsToFile(bookingsFile, bookings);
+
+    res.json({
+      success: true,
+      message: "Booking updated successfully.",
+      booking: bookings[bookingIndex]
+    });
+  } catch (error) {
+    console.error("Update booking error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`ICT booking server running on port ${PORT}`);
   console.log(`Monthly booking storage enabled.`);
