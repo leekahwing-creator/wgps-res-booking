@@ -826,11 +826,29 @@
       const min = Number(devicesRequired.min);
       const max = Number(devicesRequired.max);
       devicesRequired.value = Math.min(max, Math.max(min, current + change));
+      async function initialiseBookingPage() {
+      console.log('Initialising ICT Resource Booking Portal...');
+
       populateLocationDropdown();
-    loadUsersFromXML();
-    loadLocationsFromXML();
-    toggleCustomLocationField();
-    updateSummary();
+      toggleCustomLocationField();
+      updateSummary();
+
+      await Promise.allSettled([
+        loadUsersFromXML(),
+        loadLocationsFromXML()
+      ]);
+
+      console.log('Initialisation completed.', {
+        usersLoaded: usersDatabase.length,
+        locationsLoaded: locationsDatabase.length
+      });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initialiseBookingPage);
+    } else {
+      initialiseBookingPage();
+    }
     }
 
     increaseDevices.addEventListener('click', () => adjustDeviceCount(1));
