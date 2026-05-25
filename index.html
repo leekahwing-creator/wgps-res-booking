@@ -499,21 +499,15 @@
   </main>
 
   <script>
-    /*
-      Reusable user database file: users.xml
+    window.addEventListener('error', (event) => {
+      console.error('Frontend script error:', event.message, event.error);
+    });
 
-      Save this XML in a separate file named users.xml in the same folder as this HTML page.
-      Future pages can reuse the same file by fetching users.xml.
+    window.addEventListener('unhandledrejection', (event) => {
+      console.error('Unhandled promise rejection:', event.reason);
+    });
 
-      Example structure:
-
-      <?xml version="1.0" encoding="UTF-8"?>
-      <organisationUsers>
-        <user><name>Aaron Tan</name></user>
-        <user><name>Abigail Lim</name></user>
-        <user><name>Adam Lee</name></user>
-      </organisationUsers>
-    */
+    console.log('ICT Resource Booking Portal script loaded.');
 
     let usersDatabase = [];
     let locationsDatabase = [];
@@ -537,49 +531,50 @@
       'Other'
     ];
 
-    const form = document.getElementById('bookingForm');
-    const summary = document.getElementById('bookingSummary');
-    const statusMessage = document.getElementById('statusMessage');
-    const bookingDate = document.getElementById('bookingDate');
-    const startTime = document.getElementById('startTime');
-    const endTime = document.getElementById('endTime');
-    const devicesRequired = document.getElementById('devicesRequired');
-    const increaseDevices = document.getElementById('increaseDevices');
-    const nameInput = document.getElementById('name');
-    const userSuggestions = document.getElementById('userSuggestions');
-    const locationSelect = document.getElementById('location');
-    const customLocationField = document.getElementById('customLocationField');
-    const customLocationInput = document.getElementById('customLocation');
-    const deviceTypeSelect = document.getElementById('deviceType');
-    const softwareProcreate = document.getElementById('softwareProcreate');
-    const decreaseDevices = document.getElementById('decreaseDevices');
+    let form;
+    let summary;
+    let statusMessage;
+    let bookingDate;
+    let startTime;
+    let endTime;
+    let devicesRequired;
+    let increaseDevices;
+    let decreaseDevices;
+    let nameInput;
+    let userSuggestions;
+    let locationSelect;
+    let customLocationField;
+    let customLocationInput;
+    let deviceTypeSelect;
+    let softwareProcreate;
 
-    const today = new Date().toISOString().split('T')[0];
-    bookingDate.min = today;
-    bookingDate.value = today;
+    function getRequiredElement(id) {
+      const element = document.getElementById(id);
 
-    function getXMLFileURL(fileName) {
-      return new URL(fileName, window.location.href).href;
+      if (!element) {
+        throw new Error(`Missing required HTML element: #${id}`);
+      }
+
+      return element;
     }
 
-    async function fetchXMLDocument(fileName) {
-      const xmlURL = getXMLFileURL(fileName);
-      const response = await fetch(`${xmlURL}?v=${Date.now()}`, { cache: 'no-store' });
-
-      if (!response.ok) {
-        throw new Error(`${fileName} could not be loaded from ${xmlURL}. HTTP status: ${response.status}`);
-      }
-
-      const xmlText = await response.text();
-      const parser = new DOMParser();
-      const xmlDoc = parser.parseFromString(xmlText, 'application/xml');
-      const parserError = xmlDoc.querySelector('parsererror');
-
-      if (parserError) {
-        throw new Error(`${fileName} contains invalid XML. Please check the XML file structure.`);
-      }
-
-      return xmlDoc;
+    function cacheDOMElements() {
+      form = getRequiredElement('bookingForm');
+      summary = getRequiredElement('bookingSummary');
+      statusMessage = getRequiredElement('statusMessage');
+      bookingDate = getRequiredElement('bookingDate');
+      startTime = getRequiredElement('startTime');
+      endTime = getRequiredElement('endTime');
+      devicesRequired = getRequiredElement('devicesRequired');
+      increaseDevices = getRequiredElement('increaseDevices');
+      decreaseDevices = getRequiredElement('decreaseDevices');
+      nameInput = getRequiredElement('name');
+      userSuggestions = getRequiredElement('userSuggestions');
+      locationSelect = getRequiredElement('location');
+      customLocationField = getRequiredElement('customLocationField');
+      customLocationInput = getRequiredElement('customLocation');
+      deviceTypeSelect = getRequiredElement('deviceType');
+      softwareProcreate = getRequiredElement('softwareProcreate');
     }
 
     async function fetchJSONList(endpoint, key) {
@@ -593,70 +588,33 @@
 
       const data = await response.json();
       console.log(`Response received from ${endpoint}:`, data);
-      return data[key] || [];
-    }
 
-    async function loadUsersFromXML() {
-      try {
-        usersDatabase = await fetchJSONList('/api/users', 'users');
-
-        if (usersDatabase.length === 0) {
-          throw new Error('No users returned from /api/users.');
-        }
-
-        usersDatabase = usersDatabase.sort((a, b) => a.localeCompare(b));
-        console.log(`${usersDatabase.length} users loaded from backend API`, usersDatabase);
-      } catch (apiError) {
-        console.warn('Unable to load users from backend API. Trying users.xml directly:', apiError.message);
-
-        try {
-          const xmlDoc = await fetchXMLDocument('users.xml');
-
-          usersDatabase = Array.from(xmlDoc.getElementsByTagName('name'))
-            .map(nameNode => nameNode.textContent.trim())
-            .filter(Boolean)
-            .sort((a, b) => a.localeCompare(b));
-
-          if (usersDatabase.length === 0) throw new Error('No users found in users.xml.');
-
-          console.log(`${usersDatabase.length} users loaded from users.xml`, usersDatabase);
-        } catch (xmlError) {
-          console.warn('Unable to load users.xml. Using fallback user database instead:', xmlError.message);
-          usersDatabase = fallbackUsersDatabase;
-        }
+      if (!Array.isArray(data[key])) {
+        throw new Error(`${endpoint} did not return an array named ${key}.`);
       }
 
-      updateUserSuggestions(nameInput.value);
+      return data[key];
     }
 
-    async function loadLocationsFromXML() {
+    async function loadUsers() {
+      try {
+        usersDatabase = await fetchJSONList('/api/users', 'users');
+        usersDatabase = usersDatabase.filter(Boolean).sort((a, b) => a.localeCompare(b));
+        console.log(`${usersDatabase.length} users loaded.`);
+      } catch (error) {
+        console.warn('Unable to load users from /api/users. Using fallback list.', error);
+        usersDatabase = fallbackUsersDatabase;
+      }
+    }
+
+    async function loadLocations() {
       try {
         locationsDatabase = await fetchJSONList('/api/locations', 'locations');
-
-        if (locationsDatabase.length === 0) {
-          throw new Error('No locations returned from /api/locations.');
-        }
-
-        locationsDatabase = locationsDatabase.sort((a, b) => a.localeCompare(b));
-        console.log(`${locationsDatabase.length} locations loaded from backend API`, locationsDatabase);
-      } catch (apiError) {
-        console.warn('Unable to load locations from backend API. Trying locations.xml directly:', apiError.message);
-
-        try {
-          const xmlDoc = await fetchXMLDocument('locations.xml');
-
-          locationsDatabase = Array.from(xmlDoc.getElementsByTagName('location'))
-            .map(locationNode => locationNode.textContent.trim())
-            .filter(Boolean)
-            .sort((a, b) => a.localeCompare(b));
-
-          if (locationsDatabase.length === 0) throw new Error('No locations found in locations.xml.');
-
-          console.log(`${locationsDatabase.length} locations loaded from locations.xml`, locationsDatabase);
-        } catch (xmlError) {
-          console.warn('Unable to load locations.xml. Using fallback location database instead:', xmlError.message);
-          locationsDatabase = fallbackLocationsDatabase;
-        }
+        locationsDatabase = locationsDatabase.filter(Boolean).sort((a, b) => a.localeCompare(b));
+        console.log(`${locationsDatabase.length} locations loaded.`);
+      } catch (error) {
+        console.warn('Unable to load locations from /api/locations. Using fallback list.', error);
+        locationsDatabase = fallbackLocationsDatabase;
       }
 
       populateLocationDropdown();
@@ -665,13 +623,11 @@
     }
 
     function populateLocationDropdown() {
-      if (!locationsDatabase || locationsDatabase.length === 0) {
-        locationsDatabase = fallbackLocationsDatabase;
-      }
+      const source = locationsDatabase.length > 0 ? locationsDatabase : fallbackLocationsDatabase;
 
       locationSelect.innerHTML = '<option value="">Select location</option>';
 
-      locationsDatabase.forEach(location => {
+      source.forEach(location => {
         const option = document.createElement('option');
         option.value = location;
         option.textContent = location;
@@ -698,47 +654,29 @@
         return;
       }
 
-      userSuggestions.innerHTML = filteredUsers
-        .map(user => `<div class="suggestion-item" role="option" data-name="${user}">${user}</div>`)
-        .join('');
+      userSuggestions.innerHTML = '';
+
+      filteredUsers.forEach(user => {
+        const item = document.createElement('div');
+        item.className = 'suggestion-item';
+        item.setAttribute('role', 'option');
+        item.textContent = user;
+        item.dataset.name = user;
+        userSuggestions.appendChild(item);
+      });
 
       userSuggestions.classList.add('show');
     }
 
-    userSuggestions.addEventListener('click', (event) => {
-      const selectedItem = event.target.closest('.suggestion-item');
-      if (!selectedItem) return;
-
-      nameInput.value = selectedItem.dataset.name;
-      userSuggestions.classList.remove('show');
-      userSuggestions.innerHTML = '';
-      updateSummary();
-    });
-
-    document.addEventListener('click', (event) => {
-      if (!nameInput.contains(event.target) && !userSuggestions.contains(event.target)) {
-        userSuggestions.classList.remove('show');
-      }
-    });
-
-    nameInput.addEventListener('input', (event) => {
-      updateUserSuggestions(event.target.value);
-    });
-
-    nameInput.addEventListener('focus', () => {
-      updateUserSuggestions(nameInput.value);
-    });
-
     function getBookingData() {
       return {
-        name: document.getElementById('name').value.trim(),
+        name: nameInput.value.trim(),
         bookingDate: bookingDate.value,
         startTime: startTime.value,
         endTime: endTime.value,
-        location:
-          document.getElementById('location').value === 'Other'
-            ? customLocationInput.value.trim()
-            : document.getElementById('location').value,
+        location: locationSelect.value === 'Other'
+          ? customLocationInput.value.trim()
+          : locationSelect.value,
         deviceType: deviceTypeSelect.value,
         softwareRequirement: softwareProcreate.checked ? 'Procreate' : 'None',
         devicesRequired: Number(devicesRequired.value)
@@ -747,7 +685,8 @@
 
     function formatDate(dateString) {
       if (!dateString) return 'selected date';
-      return new Date(dateString + 'T00:00:00').toLocaleDateString('en-SG', {
+
+      return new Date(`${dateString}T00:00:00`).toLocaleDateString('en-SG', {
         weekday: 'short',
         day: 'numeric',
         month: 'short',
@@ -756,9 +695,7 @@
     }
 
     function toggleCustomLocationField() {
-      const selectedLocation = locationSelect.value;
-
-      if (selectedLocation === 'Other') {
+      if (locationSelect.value === 'Other') {
         customLocationField.style.display = 'flex';
         customLocationInput.required = true;
       } else {
@@ -767,11 +704,6 @@
         customLocationInput.value = '';
       }
     }
-
-    locationSelect.addEventListener('change', () => {
-      toggleCustomLocationField();
-      updateSummary();
-    });
 
     function updateSummary() {
       const data = getBookingData();
@@ -792,6 +724,23 @@
     function showStatus(type, message) {
       statusMessage.className = `status ${type}`;
       statusMessage.innerHTML = message;
+    }
+
+    function validateTimes() {
+      if (startTime.value && endTime.value && endTime.value <= startTime.value) {
+        showStatus('error', 'End time must be later than start time.');
+        return false;
+      }
+
+      return true;
+    }
+
+    function adjustDeviceCount(change) {
+      const current = Number(devicesRequired.value) || 1;
+      const min = Number(devicesRequired.min);
+      const max = Number(devicesRequired.max);
+      devicesRequired.value = Math.min(max, Math.max(min, current + change));
+      updateSummary();
     }
 
     function formatAllocatedResources(allocation) {
@@ -816,29 +765,107 @@
       return `Booking saved but could not be fully fulfilled with the currently available resources. Status: <strong>${savedBooking.status}</strong>.`;
     }
 
-    function validateTimes() {
-      if (startTime.value && endTime.value && endTime.value <= startTime.value) {
-        showStatus('error', 'End time must be later than start time.');
-        return false;
-      }
-      return true;
+    function bindEventListeners() {
+      increaseDevices.addEventListener('click', () => adjustDeviceCount(1));
+      decreaseDevices.addEventListener('click', () => adjustDeviceCount(-1));
+
+      nameInput.addEventListener('input', event => {
+        updateUserSuggestions(event.target.value);
+        updateSummary();
+      });
+
+      nameInput.addEventListener('focus', () => updateUserSuggestions(nameInput.value));
+
+      userSuggestions.addEventListener('click', event => {
+        const selectedItem = event.target.closest('.suggestion-item');
+        if (!selectedItem) return;
+
+        nameInput.value = selectedItem.dataset.name;
+        userSuggestions.classList.remove('show');
+        userSuggestions.innerHTML = '';
+        updateSummary();
+      });
+
+      document.addEventListener('click', event => {
+        if (!nameInput.contains(event.target) && !userSuggestions.contains(event.target)) {
+          userSuggestions.classList.remove('show');
+        }
+      });
+
+      locationSelect.addEventListener('change', () => {
+        toggleCustomLocationField();
+        updateSummary();
+      });
+
+      form.addEventListener('input', () => {
+        statusMessage.className = 'status';
+        updateSummary();
+      });
+
+      form.addEventListener('reset', () => {
+        setTimeout(() => {
+          const today = new Date().toISOString().split('T')[0];
+          bookingDate.value = today;
+          devicesRequired.value = 1;
+          statusMessage.className = 'status';
+          toggleCustomLocationField();
+          updateSummary();
+        }, 0);
+      });
+
+      form.addEventListener('submit', async event => {
+        event.preventDefault();
+
+        if (!validateTimes()) return;
+
+        const bookingData = {
+          ...getBookingData(),
+          submittedAt: new Date().toISOString(),
+          status: 'Pending Allocation'
+        };
+
+        try {
+          const response = await fetch('/api/bookings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(bookingData)
+          });
+
+          const result = await response.json();
+
+          if (!response.ok || !result.success) {
+            throw new Error(result.message || 'Unable to save booking.');
+          }
+
+          const savedBooking = result.booking;
+          localStorage.setItem('latestICTBooking', JSON.stringify(savedBooking));
+
+          const statusType = savedBooking.status === 'Confirmed' ? 'success' : 'warning';
+          showStatus(statusType, buildAllocationMessage(savedBooking));
+          console.log('Booking saved to bookings.xml with allocation:', savedBooking);
+        } catch (error) {
+          showStatus('error', `The booking could not be submitted. ${error.message}`);
+        }
+      });
     }
 
-    function adjustDeviceCount(change) {
-      const current = Number(devicesRequired.value) || 1;
-      const min = Number(devicesRequired.min);
-      const max = Number(devicesRequired.max);
-      devicesRequired.value = Math.min(max, Math.max(min, current + change));
-      async function initialiseBookingPage() {
+    async function initialiseBookingPage() {
       console.log('Initialising ICT Resource Booking Portal...');
+
+      cacheDOMElements();
+      bindEventListeners();
+
+      const today = new Date().toISOString().split('T')[0];
+      bookingDate.min = today;
+      bookingDate.value = today;
 
       populateLocationDropdown();
       toggleCustomLocationField();
       updateSummary();
 
       await Promise.allSettled([
-        loadUsersFromXML(),
-        loadLocationsFromXML()
+        loadUsers(),
+        loadLocations()
       ]);
 
       console.log('Initialisation completed.', {
@@ -850,7 +877,9 @@
     function startBookingPage() {
       initialiseBookingPage().catch(error => {
         console.error('ICT Resource Booking Portal failed to initialise:', error);
-        showStatus('error', `The booking page could not fully initialise. ${error.message}`);
+        if (statusMessage) {
+          showStatus('error', `The booking page could not fully initialise. ${error.message}`);
+        }
       });
     }
 
@@ -859,61 +888,6 @@
     } else {
       startBookingPage();
     }
-    }
-
-    increaseDevices.addEventListener('click', () => adjustDeviceCount(1));
-    decreaseDevices.addEventListener('click', () => adjustDeviceCount(-1));
-
-    form.addEventListener('input', () => {
-      statusMessage.className = 'status';
-      updateSummary();
-    });
-
-    form.addEventListener('reset', () => {
-      setTimeout(() => {
-        bookingDate.value = today;
-        devicesRequired.value = 1;
-        statusMessage.className = 'status';
-        updateSummary();
-      }, 0);
-    });
-
-    form.addEventListener('submit', async (event) => {
-      event.preventDefault();
-
-      if (!validateTimes()) return;
-
-      const bookingData = {
-        ...getBookingData(),
-        submittedAt: new Date().toISOString(),
-        status: 'Pending Allocation'
-      };
-
-      try {
-        const response = await fetch('/api/bookings', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(bookingData)
-        });
-
-        const result = await response.json();
-
-        if (!response.ok || !result.success) {
-          throw new Error(result.message || 'Unable to save booking.');
-        }
-
-        const savedBooking = result.booking;
-        localStorage.setItem('latestICTBooking', JSON.stringify(savedBooking));
-
-        const statusType = savedBooking.status === 'Confirmed' ? 'success' : 'warning';
-        showStatus(statusType, buildAllocationMessage(savedBooking));
-        console.log('Booking saved to bookings.xml with allocation:', savedBooking);
-      } catch (error) {
-        showStatus('error', `The booking could not be submitted. ${error.message}`);
-      }
-    });
-
-    updateSummary();
   </script>
 </body>
 </html>
