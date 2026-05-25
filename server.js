@@ -10,6 +10,20 @@ const PORT = 3000;
 app.use(express.json());
 app.use(express.static(__dirname));
 
+app.get("/api/users", (req, res) => {
+  const xml = fs.readFileSync(path.join(__dirname, "users.xml"), "utf8");
+  const parsed = new XMLParser().parse(xml);
+  const users = parsed.organisationUsers.user.map(u => u.name);
+  res.json({ users });
+});
+
+app.get("/api/locations", (req, res) => {
+  const xml = fs.readFileSync(path.join(__dirname, "locations.xml"), "utf8");
+  const parsed = new XMLParser().parse(xml);
+  const locations = parsed.deploymentLocations.location;
+  res.json({ locations });
+});
+
 const bookingsFile = path.join(__dirname, "bookings.xml");
 
 function ensureBookingsFile() {
