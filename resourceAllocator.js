@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const { XMLParser } = require("fast-xml-parser");
+const { ensureMonthlyBookingsFile } = require("./bookingFileHelper");
 
 const parser = new XMLParser({
   ignoreAttributes: false
@@ -10,7 +11,6 @@ const appDir = __dirname;
 const dataDir = process.env.DATA_DIR || path.join(__dirname, "data");
 
 const resourcesFile = path.join(appDir, "resources.xml");
-const bookingsFile = path.join(dataDir, "bookings.xml");
 
 function toArray(value) {
   if (!value) return [];
@@ -27,6 +27,7 @@ function loadXML(filePath) {
 }
 
 function getBookedResourceIds(bookingRequest) {
+  const bookingsFile = ensureMonthlyBookingsFile(bookingRequest.bookingDate);
   const parsedBookings = loadXML(bookingsFile);
   const bookings = toArray(parsedBookings.bookings?.booking);
 
