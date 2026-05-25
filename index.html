@@ -279,6 +279,75 @@
       gap: 16px;
     }
 
+    .location-time-row {
+      display: grid;
+      grid-template-columns: 1.3fr 0.85fr 0.85fr;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .time-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .device-config-row {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr 1.25fr;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .toggle-switch {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      user-select: none;
+      min-height: 48px;
+    }
+
+    .toggle-switch input {
+      display: none;
+    }
+
+    .toggle-slider {
+      position: relative;
+      width: 52px;
+      height: 28px;
+      background: #cbd5e1;
+      border-radius: 999px;
+      transition: background 0.25s ease;
+      flex: 0 0 auto;
+    }
+
+    .toggle-slider::before {
+      content: "";
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 22px;
+      height: 22px;
+      background: #ffffff;
+      border-radius: 50%;
+      transition: transform 0.25s ease;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+    }
+
+    .toggle-switch input:checked + .toggle-slider {
+      background: var(--primary);
+    }
+
+    .toggle-switch input:checked + .toggle-slider::before {
+      transform: translateX(24px);
+    }
+
+    .toggle-label {
+      font-weight: 700;
+      color: #1e293b;
+    }
+
     .field.compact {
       gap: 8px;
     }
@@ -305,8 +374,16 @@
       padding-left: 20px;
     }
 
+    @media (max-width: 860px) {
+      .location-time-row,
+      .device-config-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
     @media (max-width: 560px) {
-      .recurrence-grid {
+      .recurrence-grid,
+      .time-row {
         grid-template-columns: 1fr;
       }
     }
@@ -498,11 +575,7 @@
               </div>
             </div>
 
-            <div
-              class="field full recurrence-section"
-              id="recurrenceSection"
-              style="display: none;"
-            >
+            <div class="field full recurrence-section" id="recurrenceSection" hidden>
               <div class="recurrence-grid">
                 <div class="field compact">
                   <label>Repeat every</label>
@@ -528,11 +601,27 @@
               </div>
             </div>
 
-            <div class="field">
-              <label for="location">Deployment location</label>
-              <select id="location" name="location" required>
-                <option value="">Loading locations...</option>
-              </select>
+            <div class="field full location-time-row">
+              <div class="field">
+                <label for="location">Deployment location</label>
+                <select id="location" name="location" required>
+                  <option value="">Loading locations...</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="startTime">Start time</label>
+                <select id="startTime" name="startTime" required>
+                  <option value="">Select start time</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="endTime">End time</label>
+                <select id="endTime" name="endTime" required>
+                  <option value="">Select end time</option>
+                </select>
+              </div>
             </div>
 
             <div class="field full" id="customLocationField" style="display: none;">
@@ -546,56 +635,41 @@
               <span class="helper">Provide additional details for locations not listed above.</span>
             </div>
 
-            <div class="field">
-              <label for="startTime">Start time</label>
-              <select id="startTime" name="startTime" required>
-                <option value="">Select start time</option>
-              </select>
-            </div>
+            <div class="field full device-config-row">
+              <div class="field">
+                <label for="deviceType">Device type</label>
+                <select id="deviceType" name="deviceType" required>
+                  <option value="">Select device type</option>
+                  <option value="iPad">iPad</option>
+                  <option value="iPad with Keyboard">iPad with keyboard</option>
+                  <option value="Laptop">Laptop</option>
+                </select>
+              </div>
 
-            <div class="field">
-              <label for="endTime">End time</label>
-              <select id="endTime" name="endTime" required>
-                <option value="">Select end time</option>
-              </select>
-            </div>
+              <div class="field">
+                <label>Software requirement</label>
 
-            <div class="field">
-              <label for="deviceType">Device type</label>
-              <select id="deviceType" name="deviceType" required>
-                <option value="">Select device type</option>
-                <option value="iPad">iPad</option>
-                <option value="iPad with Keyboard">iPad with keyboard</option>
-                <option value="Laptop">Laptop</option>
-              </select>
-            </div>
-
-            <div class="field">
-              <label>Software requirement</label>
-
-              <div style="display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 4px; background: transparent;">
-                <input
-                  id="softwareProcreate"
-                  name="softwareRequirement"
-                  type="checkbox"
-                  value="Procreate"
-                  style="width: 20px; height: 20px; accent-color: var(--primary); margin: 0;"
-                />
-
-                <label for="softwareProcreate" style="margin: 0; font-weight: 600; cursor: pointer;">
-                  Procreate
+                <label class="toggle-switch">
+                  <input
+                    id="softwareProcreate"
+                    name="softwareRequirement"
+                    type="checkbox"
+                    value="Procreate"
+                  />
+                  <span class="toggle-slider"></span>
+                  <span class="toggle-label">Procreate</span>
                 </label>
               </div>
-            </div>
 
-            <div class="field">
-              <label for="devicesRequired">Number of devices required</label>
-              <div class="device-control">
-                <button type="button" id="decreaseDevices" aria-label="Decrease number of devices">−</button>
-                <input id="devicesRequired" name="devicesRequired" type="number" min="1" max="100" value="1" inputmode="numeric" required />
-                <button type="button" id="increaseDevices" aria-label="Increase number of devices">+</button>
+              <div class="field">
+                <label for="devicesRequired">Number of devices required</label>
+                <div class="device-control">
+                  <button type="button" id="decreaseDevices" aria-label="Decrease number of devices">−</button>
+                  <input id="devicesRequired" name="devicesRequired" type="number" min="1" max="100" value="1" inputmode="numeric" required />
+                  <button type="button" id="increaseDevices" aria-label="Increase number of devices">+</button>
+                </div>
+                <span class="helper">Use the + or − buttons for quick adjustment.</span>
               </div>
-              <span class="helper">Use the + or − buttons for quick adjustment.</span>
             </div>
             </div>
           </div>
@@ -904,7 +978,7 @@
       recurringBookingBtn.classList.toggle('active', isRecurring);
       oneTimeBookingBtn.setAttribute('aria-pressed', String(!isRecurring));
       recurringBookingBtn.setAttribute('aria-pressed', String(isRecurring));
-      recurrenceSection.style.display = isRecurring ? 'block' : 'none';
+      recurrenceSection.hidden = !isRecurring;
 
       updateRecurrencePreview();
       updateSummary();
@@ -1182,7 +1256,6 @@
       populateTimeOptions();
 
       populateLocationDropdown();
-      setBookingMode('one-time');
       toggleCustomLocationField();
       updateSummary();
 
