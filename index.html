@@ -409,6 +409,7 @@
             <div class="field">
               <label for="bookingDate">Date of booking</label>
               <input id="bookingDate" name="bookingDate" type="date" required />
+              <span class="helper">Bookings can only be made from Monday to Friday, starting from the next available school day.</span>
             </div>
 
             <div class="field">
@@ -431,12 +432,16 @@
 
             <div class="field">
               <label for="startTime">Start time</label>
-              <input id="startTime" name="startTime" type="time" required />
+              <select id="startTime" name="startTime" required>
+                <option value="">Select start time</option>
+              </select>
             </div>
 
             <div class="field">
               <label for="endTime">End time</label>
-              <input id="endTime" name="endTime" type="time" required />
+              <select id="endTime" name="endTime" required>
+                <option value="">Select end time</option>
+              </select>
             </div>
 
             <div class="field">
@@ -726,7 +731,68 @@
       statusMessage.innerHTML = message;
     }
 
+    function isWeekend(dateString) {
+      const date = new Date(`${dateString}T00:00:00`);
+      const day = date.getDay();
+      return day === 0 || day === 6;
+    }
+
+    function getNextAvailableBookingDate() {
+      const date = new Date();
+      date.setDate(date.getDate() + 1);
+
+      while (date.getDay() === 0 || date.getDay() === 6) {
+        date.setDate(date.getDate() + 1);
+      }
+
+      return date.toISOString().split('T')[0];
+    }
+
+    function populateTimeOptions() {
+      const startMinutes = 7 * 60 + 45;
+      const endMinutes = 17 * 60 + 30;
+
+      startTime.innerHTML = '<option value="">Select start time</option>';
+      endTime.innerHTML = '<option value="">Select end time</option>';
+
+      for (let minutes = startMinutes; minutes <= endMinutes; minutes += 15) {
+        const hours = Math.floor(minutes / 60);
+        const mins = minutes % 60;
+        const value = `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+
+        const startOption = document.createElement('option');
+        startOption.value = value;
+        startOption.textContent = value;
+        startTime.appendChild(startOption);
+
+        const endOption = document.createElement('option');
+        endOption.value = value;
+        endOption.textContent = value;
+        endTime.appendChild(endOption);
+      }
+    }
+
+    function validateBookingDate() {
+      if (!bookingDate.value) return false;
+
+      const earliestDate = getNextAvailableBookingDate();
+
+      if (bookingDate.value < earliestDate) {
+        showStatus('error', `Same-day booking is not allowed. The earliest available booking date is ${formatDate(earliestDate)}.`);
+        return false;
+      }
+
+      if (isWeekend(bookingDate.value)) {
+        showStatus('error', 'Bookings can only be made from Monday to Friday. Please select the next available weekday.');
+        return false;
+      }
+
+      return true;
+    }
+
     function validateTimes() {
+      if (!validateBookingDate()) return false;
+
       if (startTime.value && endTime.value && endTime.value <= startTime.value) {
         showStatus('error', 'End time must be later than start time.');
         return false;
@@ -797,6 +863,13 @@
         updateSummary();
       });
 
+      bookingDate.addEventListener('change', () => {
+        if (bookingDate.value && isWeekend(bookingDate.value)) {
+          showStatus('error', 'Bookings can only be made from Monday to Friday. Please choose a weekday.');
+        }
+        updateSummary();
+      });
+
       form.addEventListener('input', () => {
         statusMessage.className = 'status';
         updateSummary();
@@ -804,8 +877,8 @@
 
       form.addEventListener('reset', () => {
         setTimeout(() => {
-          const today = new Date().toISOString().split('T')[0];
-          bookingDate.value = today;
+          const earliestBookingDate = getNextAvailableBookingDate();
+          bookingDate.value = earliestBookingDate;
           devicesRequired.value = 1;
           statusMessage.className = 'status';
           toggleCustomLocationField();
@@ -870,9 +943,10 @@
       cacheDOMElements();
       bindEventListeners();
 
-      const today = new Date().toISOString().split('T')[0];
-      bookingDate.min = today;
-      bookingDate.value = today;
+      const earliestBookingDate = getNextAvailableBookingDate();
+      bookingDate.min = earliestBookingDate;
+      bookingDate.value = earliestBookingDate;
+      populateTimeOptions();
 
       populateLocationDropdown();
       toggleCustomLocationField();
