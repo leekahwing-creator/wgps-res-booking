@@ -379,6 +379,7 @@
     const userSuggestions = document.getElementById('userSuggestions');
 
     let usersDatabase = [];
+    let locationsDatabase = [];
 
     async function loadUsers() {
       try {
@@ -395,6 +396,24 @@
       } catch (error) {
         console.warn('Unable to load users for autocomplete:', error.message);
         usersDatabase = [];
+      }
+    }
+
+    async function loadLocations() {
+      try {
+        const response = await fetch('/api/locations', { cache: 'no-store' });
+        const result = await response.json();
+
+        if (!response.ok || !Array.isArray(result.locations)) {
+          throw new Error('Unable to load locations.');
+        }
+
+        locationsDatabase = result.locations
+          .filter(Boolean)
+          .sort((a, b) => a.localeCompare(b));
+      } catch (error) {
+        console.warn('Unable to load locations for edit dropdown:', error.message);
+        locationsDatabase = [];
       }
     }
 
@@ -442,19 +461,74 @@
     }
 
     function parseLocalDate(dateString) {
-      const [year, month, day] = dateString.split("-").map(Number);
+      const [year, month, day] = dateString.split('-').map(Number);
       return new Date(year, month - 1, day);
     }
 
-    function formatDate(dateString) {
-      if (!dateString) return "-";
+    function formatLocalDateForInput(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
 
-      return parseLocalDate(dateString).toLocaleDateString("en-SG", {
-        weekday: "short",
-        day: "numeric",
-        month: "short",
-        year: "numeric"
+    function formatDate(dateString) {
+      if (!dateString) return '-';
+      return parseLocalDate(dateString).toLocaleDateString('en-SG', {
+        weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'
       });
+    }
+
+    function isWeekend(dateString) {
+      const date = parseLocalDate(dateString);
+      const day = date.getDay();
+      return day === 0 || day === 6;
+    }
+
+    function getNextAvailableBookingDate() {
+      const date = new Date();
+      date.setDate(date.getDate() + 1);
+
+      while (date.getDay() === 0 || date.getDay() === 6) {
+        date.setDate(date.getDate() + 1);
+      }
+
+      return formatLocalDateForInput(date);
+    }
+
+    function generateTimeOptions(selectedValue = '') {
+      const startMinutes = 7 * 60 + 45;
+      const endMinutes = 17 * 60 + 30;
+      let options = '<option value="">Select time</option>';
+
+      for (let minutes = startMinutes; minutes <= endMinutes; minutes += 15) {
+        const hours = Math.floor(minutes / 60);
+        const mins = minutes % 60;
+        const value = `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+        options += `<option value="${value}" ${value === selectedValue ? 'selected' : ''}>${value}</option>`;
+      }
+
+      return options;
+    }
+
+    function generateLocationOptions(selectedLocation = '') {
+      const source = locationsDatabase.length > 0 ? locationsDatabase : [selectedLocation].filter(Boolean);
+      let options = '<option value="">Select location</option>';
+
+      source.forEach(location => {
+        options += `<option value="${location}" ${location === selectedLocation ? 'selected' : ''}>${location}</option>`;
+      });
+
+      if (selectedLocation && !source.includes(selectedLocation)) {
+        options += `<option value="${selectedLocation}" selected>${selectedLocation}</option>`;
+      }
+
+      return options;
+    }
+
+    function getDateInputAttributes(selectedDate) {
+      const earliestDate = getNextAvailableBookingDate();
+      return `min="${earliestDate}" value="${selectedDate || earliestDate}"`;
     }
 
     function getResourceList(booking) {
@@ -510,16 +584,26 @@
             <div class="edit-panel">
               <div class="edit-grid">
                 <div class="field">
+                  <label>Booking date</label>
+                  <input data-edit-field="bookingDate" type="date" ${getDateInputAttributes(booking.bookingDate)} />
+                </div>
+                <div class="field">
                   <label>Location</label>
-                  <input data-edit-field="location" value="${booking.location || ''}" />
+                  <select data-edit-field="location">
+                    ${generateLocationOptions(booking.location || '')}
+                  </select>
                 </div>
                 <div class="field">
                   <label>Start time</label>
-                  <input data-edit-field="startTime" type="time" value="${booking.startTime || ''}" />
+                  <select data-edit-field="startTime">
+                    ${generateTimeOptions(booking.startTime || '')}
+                  </select>
                 </div>
                 <div class="field">
                   <label>End time</label>
-                  <input data-edit-field="endTime" type="time" value="${booking.endTime || ''}" />
+                  <select data-edit-field="endTime">
+                    ${generateTimeOptions(booking.endTime || '')}
+                  </select>
                 </div>
               </div>
               <div class="booking-actions">
@@ -573,6 +657,7 @@
     });
 
     loadUsers();
+    loadLocations();
 
     searchForm.addEventListener('submit', async event => {
       event.preventDefault();
@@ -630,6 +715,21 @@
         card.querySelectorAll('[data-edit-field]').forEach(input => {
           updatedBooking[input.dataset.editField] = input.value;
         });
+
+        if (!updatedBooking.bookingDate || updatedBooking.bookingDate < getNextAvailableBookingDate()) {
+          showStatus('error', `Same-day booking is not allowed. The earliest available booking date is ${formatDate(getNextAvailableBookingDate())}.`);
+          return;
+        }
+
+        if (isWeekend(updatedBooking.bookingDate)) {
+          showStatus('error', 'Bookings can only be made from Monday to Friday. Please select a weekday.');
+          return;
+        }
+
+        if (updatedBooking.startTime && updatedBooking.endTime && updatedBooking.endTime <= updatedBooking.startTime) {
+          showStatus('error', 'End time must be later than start time.');
+          return;
+        }
 
         const response = await fetch(`/api/bookings/${bookingId}?date=${bookingDate}`, {
           method: 'PUT',
