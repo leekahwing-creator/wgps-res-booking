@@ -84,6 +84,10 @@ app.get("/api/locations", (req, res) => {
   res.json({ locations });
 });
 
+app.post("/api/bookings", (req, res) => {
+  // booking allocation + XML save logic here
+});
+
 app.listen(PORT, () => {
   console.log(`ICT booking server running at http://localhost:${PORT}`);
 });
