@@ -233,6 +233,84 @@
       align-items: center;
     }
 
+    #devicesRequired,
+    #recurrenceCount {
+      text-align: center;
+    }
+
+    .segmented-control {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: #f8fafc;
+      padding: 4px;
+      min-height: 48px;
+      gap: 4px;
+    }
+
+    .segment {
+      border: 0;
+      border-radius: 11px;
+      background: transparent;
+      color: #475569;
+      font-weight: 800;
+      font-size: 0.94rem;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+    }
+
+    .segment.active {
+      background: var(--primary);
+      color: #ffffff;
+      box-shadow: 0 8px 18px rgba(15, 118, 110, 0.22);
+    }
+
+    .recurrence-section {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 16px;
+      background: #f8fafc;
+    }
+
+    .recurrence-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .field.compact {
+      gap: 8px;
+    }
+
+    .recurrence-preview {
+      margin-top: 16px;
+      border-radius: 14px;
+      padding: 14px;
+      background: #ffffff;
+      border: 1px dashed #cbd5e1;
+      color: #334155;
+      font-size: 0.92rem;
+      line-height: 1.55;
+    }
+
+    .recurrence-preview strong {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--primary-dark);
+    }
+
+    .recurrence-preview ul {
+      margin: 8px 0 0;
+      padding-left: 20px;
+    }
+
+    @media (max-width: 560px) {
+      .recurrence-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
     .device-control button {
       border: 0;
       border-radius: 14px;
@@ -364,57 +442,6 @@
         width: 100%;
       }
     }
-
-    #devicesRequired {
-      text-align: center;
-    }
-
-    .toggle-switch {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      cursor: pointer;
-      user-select: none;
-    }
-
-    .toggle-switch input {
-      display: none;
-    }
-
-    .toggle-slider {
-      position: relative;
-      width: 52px;
-      height: 28px;
-      background: #cbd5e1;
-      border-radius: 999px;
-      transition: background 0.25s ease;
-    }
-
-    .toggle-slider::before {
-      content: "";
-      position: absolute;
-      top: 3px;
-      left: 3px;
-      width: 22px;
-      height: 22px;
-      background: white;
-      border-radius: 50%;
-      transition: transform 0.25s ease;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-    }
-
-    .toggle-switch input:checked + .toggle-slider {
-      background: var(--primary);
-    }
-
-    .toggle-switch input:checked + .toggle-slider::before {
-      transform: translateX(24px);
-    }
-
-    .toggle-label {
-      font-size: 0.95rem;
-      font-weight: 500;
-    }
   </style>
 </head>
 <body>
@@ -464,6 +491,40 @@
             </div>
 
             <div class="field">
+              <label>Booking type</label>
+              <div class="segmented-control" role="radiogroup" aria-label="Booking type">
+                <button type="button" class="segment active" id="oneTimeBookingBtn" data-booking-type="one-time" aria-pressed="true">One-Time</button>
+                <button type="button" class="segment" id="recurringBookingBtn" data-booking-type="recurring" aria-pressed="false">Recurring</button>
+              </div>
+            </div>
+
+            <div class="field full recurrence-section" id="recurrenceSection" hidden>
+              <div class="recurrence-grid">
+                <div class="field compact">
+                  <label>Repeat every</label>
+                  <div class="segmented-control" role="radiogroup" aria-label="Repeat every">
+                    <button type="button" class="segment active" id="repeatWeeklyBtn" data-repeat-interval="1" aria-pressed="true">Week</button>
+                    <button type="button" class="segment" id="repeatFortnightlyBtn" data-repeat-interval="2" aria-pressed="false">2 Weeks</button>
+                  </div>
+                </div>
+
+                <div class="field compact">
+                  <label for="recurrenceCount">Occurrences</label>
+                  <div class="device-control recurrence-count-control">
+                    <button type="button" id="decreaseRecurrence" aria-label="Decrease number of occurrences">−</button>
+                    <input id="recurrenceCount" name="recurrenceCount" type="number" min="2" max="4" value="2" inputmode="numeric" readonly />
+                    <button type="button" id="increaseRecurrence" aria-label="Increase number of occurrences">+</button>
+                  </div>
+                  <span class="helper">Maximum 4 occurrences, including the first selected date.</span>
+                </div>
+              </div>
+
+              <div class="recurrence-preview" id="recurrencePreview">
+                Recurring dates will appear here.
+              </div>
+            </div>
+
+            <div class="field">
               <label for="location">Deployment location</label>
               <select id="location" name="location" required>
                 <option value="">Loading locations...</option>
@@ -508,20 +569,19 @@
             <div class="field">
               <label>Software requirement</label>
 
-              <label class="toggle-switch">
+              <div style="display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 4px; background: transparent;">
                 <input
                   id="softwareProcreate"
                   name="softwareRequirement"
                   type="checkbox"
                   value="Procreate"
-              />
+                  style="width: 20px; height: 20px; accent-color: var(--primary); margin: 0;"
+                />
 
-                <span class="toggle-slider"></span>
-
-                <span class="toggle-label">
+                <label for="softwareProcreate" style="margin: 0; font-weight: 600; cursor: pointer;">
                   Procreate
-                </span>
-              </label>
+                </label>
+              </div>
             </div>
 
             <div class="field">
@@ -604,6 +664,17 @@
     let customLocationInput;
     let deviceTypeSelect;
     let softwareProcreate;
+    let oneTimeBookingBtn;
+    let recurringBookingBtn;
+    let recurrenceSection;
+    let repeatWeeklyBtn;
+    let repeatFortnightlyBtn;
+    let recurrenceCount;
+    let decreaseRecurrence;
+    let increaseRecurrence;
+    let recurrencePreview;
+    let bookingMode = 'one-time';
+    let repeatIntervalWeeks = 1;
 
     function getRequiredElement(id) {
       const element = document.getElementById(id);
@@ -632,6 +703,15 @@
       customLocationInput = getRequiredElement('customLocation');
       deviceTypeSelect = getRequiredElement('deviceType');
       softwareProcreate = getRequiredElement('softwareProcreate');
+      oneTimeBookingBtn = getRequiredElement('oneTimeBookingBtn');
+      recurringBookingBtn = getRequiredElement('recurringBookingBtn');
+      recurrenceSection = getRequiredElement('recurrenceSection');
+      repeatWeeklyBtn = getRequiredElement('repeatWeeklyBtn');
+      repeatFortnightlyBtn = getRequiredElement('repeatFortnightlyBtn');
+      recurrenceCount = getRequiredElement('recurrenceCount');
+      decreaseRecurrence = getRequiredElement('decreaseRecurrence');
+      increaseRecurrence = getRequiredElement('increaseRecurrence');
+      recurrencePreview = getRequiredElement('recurrencePreview');
     }
 
     async function fetchJSONList(endpoint, key) {
@@ -736,7 +816,15 @@
           : locationSelect.value,
         deviceType: deviceTypeSelect.value,
         softwareRequirement: softwareProcreate.checked ? 'Procreate' : 'None',
-        devicesRequired: Number(devicesRequired.value)
+        devicesRequired: Number(devicesRequired.value),
+        bookingMode,
+        recurrence: bookingMode === 'recurring'
+          ? {
+              intervalWeeks: repeatIntervalWeeks,
+              occurrences: Number(recurrenceCount.value),
+              dates: generateRecurringDates()
+            }
+          : null
       };
     }
 
@@ -762,6 +850,83 @@
       }
     }
 
+    function addDays(date, days) {
+      const newDate = new Date(date);
+      newDate.setDate(newDate.getDate() + days);
+      return newDate;
+    }
+
+    function generateRecurringDates() {
+      if (!bookingDate.value) return [];
+
+      const occurrences = Number(recurrenceCount.value) || 2;
+      const dates = [];
+      const baseDate = new Date(`${bookingDate.value}T00:00:00`);
+
+      for (let index = 0; index < occurrences; index++) {
+        const recurringDate = addDays(baseDate, index * repeatIntervalWeeks * 7);
+        dates.push(recurringDate.toISOString().split('T')[0]);
+      }
+
+      return dates;
+    }
+
+    function updateRecurrencePreview() {
+      if (bookingMode !== 'recurring') {
+        recurrencePreview.innerHTML = 'Recurring dates will appear here.';
+        return;
+      }
+
+      const dates = generateRecurringDates();
+
+      if (dates.length === 0) {
+        recurrencePreview.innerHTML = 'Select a booking date to preview recurring dates.';
+        return;
+      }
+
+      recurrencePreview.innerHTML = `
+        <strong>This booking will be requested for:</strong>
+        <ul>
+          ${dates.map(date => `<li>${formatDate(date)}</li>`).join('')}
+        </ul>
+      `;
+    }
+
+    function setBookingMode(mode) {
+      bookingMode = mode;
+      const isRecurring = mode === 'recurring';
+
+      oneTimeBookingBtn.classList.toggle('active', !isRecurring);
+      recurringBookingBtn.classList.toggle('active', isRecurring);
+      oneTimeBookingBtn.setAttribute('aria-pressed', String(!isRecurring));
+      recurringBookingBtn.setAttribute('aria-pressed', String(isRecurring));
+      recurrenceSection.hidden = !isRecurring;
+
+      updateRecurrencePreview();
+      updateSummary();
+    }
+
+    function setRepeatInterval(weeks) {
+      repeatIntervalWeeks = weeks;
+      repeatWeeklyBtn.classList.toggle('active', weeks === 1);
+      repeatFortnightlyBtn.classList.toggle('active', weeks === 2);
+      repeatWeeklyBtn.setAttribute('aria-pressed', String(weeks === 1));
+      repeatFortnightlyBtn.setAttribute('aria-pressed', String(weeks === 2));
+
+      updateRecurrencePreview();
+      updateSummary();
+    }
+
+    function adjustRecurrenceCount(change) {
+      const current = Number(recurrenceCount.value) || 2;
+      const min = Number(recurrenceCount.min);
+      const max = Number(recurrenceCount.max);
+      recurrenceCount.value = Math.min(max, Math.max(min, current + change));
+
+      updateRecurrencePreview();
+      updateSummary();
+    }
+
     function updateSummary() {
       const data = getBookingData();
       const name = data.name || 'Requester';
@@ -775,7 +940,11 @@
         ? ` with <strong>${data.softwareRequirement}</strong>`
         : '';
 
-      summary.innerHTML = `<strong>${name}</strong> is requesting <strong>${devices}</strong> <strong>${deviceType}</strong> device${devices > 1 ? 's' : ''}${softwareRequirement} for <strong>${location}</strong> on <strong>${date}</strong>, from <strong>${start}</strong> to <strong>${end}</strong>.`;
+      const recurrenceText = bookingMode === 'recurring'
+        ? ` This is a recurring request with <strong>${Number(recurrenceCount.value)}</strong> occurrences.`
+        : '';
+
+      summary.innerHTML = `<strong>${name}</strong> is requesting <strong>${devices}</strong> <strong>${deviceType}</strong> device${devices > 1 ? 's' : ''}${softwareRequirement} for <strong>${location}</strong> on <strong>${date}</strong>, from <strong>${start}</strong> to <strong>${end}</strong>.${recurrenceText}`;
     }
 
     function showStatus(type, message) {
@@ -884,6 +1053,13 @@
     }
 
     function bindEventListeners() {
+      oneTimeBookingBtn.addEventListener('click', () => setBookingMode('one-time'));
+      recurringBookingBtn.addEventListener('click', () => setBookingMode('recurring'));
+      repeatWeeklyBtn.addEventListener('click', () => setRepeatInterval(1));
+      repeatFortnightlyBtn.addEventListener('click', () => setRepeatInterval(2));
+      decreaseRecurrence.addEventListener('click', () => adjustRecurrenceCount(-1));
+      increaseRecurrence.addEventListener('click', () => adjustRecurrenceCount(1));
+
       increaseDevices.addEventListener('click', () => adjustDeviceCount(1));
       decreaseDevices.addEventListener('click', () => adjustDeviceCount(-1));
 
@@ -919,6 +1095,7 @@
         if (bookingDate.value && isWeekend(bookingDate.value)) {
           showStatus('error', 'Bookings can only be made from Monday to Friday. Please choose a weekday.');
         }
+        updateRecurrencePreview();
         updateSummary();
       });
 
