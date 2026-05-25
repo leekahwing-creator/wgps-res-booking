@@ -349,41 +349,102 @@ app.delete("/api/bookings/recurring/:recurringGroupId", (req, res) => {
 app.put("/api/bookings/:bookingId", (req, res) => {
   try {
     const bookingId = req.params.bookingId;
-    const bookingDate = req.query.date;
+    const originalBookingDate = req.query.date;
 
-    if (!bookingDate) {
+    if (!originalBookingDate) {
       return res.status(400).json({
         success: false,
-        message: "Booking date is required."
+        message: "Original booking date is required."
       });
     }
 
-    const bookingsFile = ensureMonthlyBookingsFile(bookingDate);
-    const bookings = readBookingsFromFile(bookingsFile);
+    const originalBookingsFile = ensureMonthlyBookingsFile(originalBookingDate);
+    const originalBookings = readBookingsFromFile(originalBookingsFile);
 
-    const bookingIndex = bookings.findIndex(
+    const bookingIndex = originalBookings.findIndex(
       booking => String(booking["@_id"]) === String(bookingId)
     );
 
     if (bookingIndex === -1) {
       return res.status(404).json({
         success: false,
-        message: "Booking not found."
+        message: "Booking not found in original month file."
       });
     }
 
-    bookings[bookingIndex] = {
-      ...bookings[bookingIndex],
+    const existingBooking = originalBookings[bookingIndex];
+
+    const updatedBookingRequest = {
+      ...existingBooking,
       ...req.body,
+      bookingDate: req.body.bookingDate || existingBooking.bookingDate,
       status: "Pending Allocation"
     };
 
-    writeBookingsToFile(bookingsFile, bookings);
+    // Remove the existing booking from its original monthly XML first.
+    // This prevents the allocator from treating its old allocation as a conflict.
+    const remainingOriginalBookings = originalBookings.filter(
+      booking => String(booking["@_id"]) !== String(bookingId)
+    );
+
+    writeBookingsToFile(originalBookingsFile, remainingOriginalBookings);
+
+    let allocationResult = allocateResources(updatedBookingRequest);
+    let reallocationUpdates = [];
+
+    if (allocationResult.status !== "Confirmed") {
+      const conflictResolution = resolveConflict(updatedBookingRequest);
+
+      if (conflictResolution.success) {
+        allocationResult = {
+          status: conflictResolution.status,
+          allocation: conflictResolution.allocation
+        };
+
+        reallocationUpdates = conflictResolution.existingBookingUpdates;
+      }
+    }
+
+    const targetBookingsFile = ensureMonthlyBookingsFile(
+      updatedBookingRequest.bookingDate
+    );
+
+    const targetBookings = readBookingsFromFile(targetBookingsFile);
+
+    reallocationUpdates.forEach(update => {
+      const bookingToUpdate = targetBookings.find(
+        booking => String(booking["@_id"]) === String(update.bookingId)
+      );
+
+      if (bookingToUpdate) {
+        bookingToUpdate.status = update.status;
+        bookingToUpdate.allocation = update.allocation;
+      }
+    });
+
+    const newBookingId =
+      updatedBookingRequest.bookingDate === originalBookingDate
+        ? bookingId
+        : targetBookings.length + 1;
+
+    const finalUpdatedBooking = {
+      ...updatedBookingRequest,
+      "@_id": newBookingId,
+      status: allocationResult.status,
+      allocation: allocationResult.allocation,
+      modifiedAt: new Date().toISOString()
+    };
+
+    targetBookings.push(finalUpdatedBooking);
+    writeBookingsToFile(targetBookingsFile, targetBookings);
 
     res.json({
       success: true,
-      message: "Booking updated successfully.",
-      booking: bookings[bookingIndex]
+      message:
+        updatedBookingRequest.bookingDate === originalBookingDate
+          ? "Booking updated successfully."
+          : "Booking updated and moved to the correct monthly file.",
+      booking: finalUpdatedBooking
     });
   } catch (error) {
     console.error("Update booking error:", error);
