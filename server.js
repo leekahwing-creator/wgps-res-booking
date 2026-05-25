@@ -160,5 +160,6 @@ app.get("/api/bookings", (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`ICT booking server running on port ${PORT}`);
-  console.log(`Bookings file path: ${bookingsFile}`);
+  console.log(`Monthly booking storage enabled.`);
+  console.log(`Booking files directory: ${dataDir}/bookings`);
 });
