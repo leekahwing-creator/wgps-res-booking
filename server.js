@@ -65,8 +65,6 @@ app.get("/api/locations", (req, res) => {
 
 app.post("/api/bookings", (req, res) => {
   try {
-    const bookingsFile = ensureMonthlyBookingsFile(req.body.bookingDate);
-
     const parser = new XMLParser({ ignoreAttributes: false });
     const builder = new XMLBuilder({
       ignoreAttributes: false,
@@ -74,61 +72,96 @@ app.post("/api/bookings", (req, res) => {
       suppressEmptyNode: true
     });
 
-    let allocationResult = allocateResources(req.body);
+    const bookingRequest = req.body;
+    const isRecurring =
+      bookingRequest.bookingMode === "recurring" &&
+      bookingRequest.recurrence &&
+      Array.isArray(bookingRequest.recurrence.dates);
 
-    let reallocationUpdates = [];
+    const bookingDates = isRecurring
+      ? bookingRequest.recurrence.dates.slice(0, 4)
+      : [bookingRequest.bookingDate];
 
-    if (allocationResult.status !== "Confirmed") {
-      const conflictResolution = resolveConflict(req.body);
+    const recurringGroupId = isRecurring
+      ? `REC-${Date.now()}`
+      : "";
 
-      if (conflictResolution.success) {
-        allocationResult = {
-          status: conflictResolution.status,
-          allocation: conflictResolution.allocation
-        };
+    const savedBookings = [];
 
-        reallocationUpdates = conflictResolution.existingBookingUpdates;
+    for (const date of bookingDates) {
+      const singleBookingRequest = {
+        ...bookingRequest,
+        bookingDate: date,
+        bookingMode: isRecurring ? "recurring" : "one-time",
+        recurringGroupId,
+        recurrenceTotal: bookingDates.length,
+        recurrenceSequence: savedBookings.length + 1
+      };
+
+      delete singleBookingRequest.recurrence;
+
+      let allocationResult = allocateResources(singleBookingRequest);
+      let reallocationUpdates = [];
+
+      if (allocationResult.status !== "Confirmed") {
+        const conflictResolution = resolveConflict(singleBookingRequest);
+
+        if (conflictResolution.success) {
+          allocationResult = {
+            status: conflictResolution.status,
+            allocation: conflictResolution.allocation
+          };
+
+          reallocationUpdates = conflictResolution.existingBookingUpdates;
+        }
       }
-    }
 
-    const xmlData = fs.readFileSync(bookingsFile, "utf8");
-    const parsed = parser.parse(xmlData);
+      const bookingsFile = ensureMonthlyBookingsFile(date);
+      const xmlData = fs.readFileSync(bookingsFile, "utf8");
+      const parsed = parser.parse(xmlData);
 
-    if (!parsed.bookings) parsed.bookings = {};
+      if (!parsed.bookings) parsed.bookings = {};
 
-    if (!parsed.bookings.booking) {
-      parsed.bookings.booking = [];
-    } else if (!Array.isArray(parsed.bookings.booking)) {
-      parsed.bookings.booking = [parsed.bookings.booking];
-    }
-
-    const newBooking = {
-      "@_id": parsed.bookings.booking.length + 1,
-      ...req.body,
-      status: allocationResult.status,
-      allocation: allocationResult.allocation
-    };
-
-    reallocationUpdates.forEach(update => {
-      const bookingToUpdate = parsed.bookings.booking.find(
-        booking => String(booking["@_id"]) === String(update.bookingId)
-      );
-
-      if (bookingToUpdate) {
-        bookingToUpdate.status = update.status;
-        bookingToUpdate.allocation = update.allocation;
+      if (!parsed.bookings.booking) {
+        parsed.bookings.booking = [];
+      } else if (!Array.isArray(parsed.bookings.booking)) {
+        parsed.bookings.booking = [parsed.bookings.booking];
       }
-    });
 
-    parsed.bookings.booking.push(newBooking);
+      reallocationUpdates.forEach(update => {
+        const bookingToUpdate = parsed.bookings.booking.find(
+          booking => String(booking["@_id"]) === String(update.bookingId)
+        );
 
-    const updatedXml = builder.build(parsed);
-    fs.writeFileSync(bookingsFile, updatedXml);
+        if (bookingToUpdate) {
+          bookingToUpdate.status = update.status;
+          bookingToUpdate.allocation = update.allocation;
+        }
+      });
+
+      const newBooking = {
+        "@_id": parsed.bookings.booking.length + 1,
+        ...singleBookingRequest,
+        status: allocationResult.status,
+        allocation: allocationResult.allocation
+      };
+
+      parsed.bookings.booking.push(newBooking);
+
+      const updatedXml = builder.build(parsed);
+      fs.writeFileSync(bookingsFile, updatedXml);
+
+      savedBookings.push(newBooking);
+    }
 
     res.json({
       success: true,
-      message: "Booking saved with resource allocation.",
-      booking: newBooking
+      message: isRecurring
+        ? `${savedBookings.length} recurring booking records processed.`
+        : "Booking saved with resource allocation.",
+      booking: savedBookings[0],
+      bookings: savedBookings,
+      recurringGroupId
     });
   } catch (error) {
     console.error("Booking save error:", error);
