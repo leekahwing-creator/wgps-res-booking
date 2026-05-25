@@ -113,6 +113,19 @@ app.post("/api/bookings", (req, res) => {
   }
 });
 
+app.get("/api/bookings", (req, res) => {
+  try {
+    ensureBookingsFile();
+
+    const xml = fs.readFileSync(bookingsFile, "utf8");
+
+    res.set("Content-Type", "application/xml");
+    res.send(xml);
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`ICT booking server running on port ${PORT}`);
   console.log(`Bookings file path: ${bookingsFile}`);
