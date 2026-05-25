@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const { XMLParser, XMLBuilder } = require("fast-xml-parser");
 const { allocateResources } = require("./resourceAllocator");
+const { resolveConflict } = require("./conflictResolver");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -73,7 +74,22 @@ app.post("/api/bookings", (req, res) => {
       suppressEmptyNode: true
     });
 
-    const allocationResult = allocateResources(req.body);
+    let allocationResult = allocateResources(req.body);
+
+    let reallocationUpdates = [];
+
+    if (allocationResult.status !== "Confirmed") {
+      const conflictResolution = resolveConflict(req.body);
+
+      if (conflictResolution.success) {
+        allocationResult = {
+          status: conflictResolution.status,
+          allocation: conflictResolution.allocation
+        };
+
+        reallocationUpdates = conflictResolution.existingBookingUpdates;
+      }
+    }
 
     const xmlData = fs.readFileSync(bookingsFile, "utf8");
     const parsed = parser.parse(xmlData);
@@ -92,6 +108,17 @@ app.post("/api/bookings", (req, res) => {
       status: allocationResult.status,
       allocation: allocationResult.allocation
     };
+
+    reallocationUpdates.forEach(update => {
+      const bookingToUpdate = parsed.bookings.booking.find(
+        booking => String(booking["@_id"]) === String(update.bookingId)
+      );
+
+      if (bookingToUpdate) {
+        bookingToUpdate.status = update.status;
+        bookingToUpdate.allocation = update.allocation;
+      }
+    });
 
     parsed.bookings.booking.push(newBooking);
 
