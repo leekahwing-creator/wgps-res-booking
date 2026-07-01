@@ -8,10 +8,6 @@ const { allocateResources } = require("./resourceAllocator");
 const { resolveConflict } = require("./conflictResolver");
 const { ensureMonthlyBookingsFile } = require("./bookingFileHelper");
 
-const googleClient = new OAuth2Client(
-  process.env.GOOGLE_CLIENT_ID
-);
-
 const app = express();
 const PORT = process.env.PORT || 3000;
 
