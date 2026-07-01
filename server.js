@@ -674,6 +674,30 @@ app.put("/api/bookings/:bookingId", requireLogin, (req, res) => {
   }
 });
 
+app.get("/api/debug/users", (req, res) => {
+  try {
+    const users = getUsersFromXML().map(user => ({
+      userId: user.userId,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      status: user.status,
+      createdAt: user.createdAt,
+      hasPasswordHash: Boolean(user.passwordHash)
+    }));
+
+    res.json({
+      success: true,
+      users
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`ICT booking server running on port ${PORT}`);
   console.log("Monthly booking storage enabled.");
