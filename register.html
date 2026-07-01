@@ -374,6 +374,18 @@
       message.className = "message";
       message.textContent = "";
 
+      const checks = getPasswordChecks();
+
+      if (
+        !checks.lengthValid ||
+        !checks.complexityValid ||
+        !checks.identityValid ||
+        !checks.passwordsMatch
+      ) {
+        showMessage("error", "Please fulfil all password requirements before creating an account.");
+        return;
+      }
+      
       const response = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
