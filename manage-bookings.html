@@ -75,6 +75,26 @@
       color: #ffffff;
     }
 
+    #logoutBtn {
+      border: none;
+      background: #dc2626;
+      color: white;
+      font-weight: 700;
+      padding: 9px 14px;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+
+    #logoutBtn:hover {
+      background: #b91c1c;
+    }
+
+    #currentUserDisplay {
+      font-weight: 700;
+      color: #334155;
+      padding: 9px 12px;
+    }
+    
     .card {
       background: var(--card);
       border-radius: var(--radius);
@@ -338,10 +358,24 @@
 <body>
   <main class="page">
     <nav class="portal-nav" aria-label="Portal navigation">
-      <div class="portal-brand">ICT Resource Booking Portal</div>
+      <div class="portal-brand">
+        ICT Resource Booking Portal
+      </div>
+
       <div class="portal-links">
-        <a href="index.html">Create Booking</a>
-        <a href="manage-bookings.html" class="active">Manage My Bookings</a>
+        <a href="index.html" class="active">
+          Create Booking
+        </a>
+
+        <a href="manage-bookings.html">
+          Manage My Bookings
+        </a>
+
+        <span id="currentUserDisplay"></span>
+
+        <button id="logoutBtn" type="button">
+          Logout
+        </button>
       </div>
     </nav>
 
@@ -392,6 +426,23 @@
       currentUser = result.user;
       return currentUser;
     }
+
+    async function initialiseUser() {
+      const user = await requireAuthenticatedUser();
+
+      if (!user) return;
+
+      document.getElementById("currentUserDisplay").textContent =
+        `Signed in as ${user.name}`;
+    }
+
+    document.getElementById("logoutBtn").addEventListener("click", async () => {
+      await fetch("/api/logout", {
+        method: "POST"
+      });
+
+      window.location.href = "login.html";
+    });
     
     let usersDatabase = [];
     let locationsDatabase = [];
@@ -673,6 +724,7 @@
       }
     });
 
+    initialiseUser();
     loadUsers();
     loadLocations();
 
