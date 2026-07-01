@@ -252,16 +252,9 @@ app.post("/api/auth/login", async (req, res) => {
       });
     }
 
-    req.session.user = {
-      userId: user.userId,
-      name: user.name,
-      email: user.email,
-      role: user.role || "User"
-    };
-
     res.json({
       success: true,
-      user: req.session.user
+      message: "Account created successfully. Please log in."
     });
   } catch (error) {
     console.error("Login error:", error);
