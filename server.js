@@ -130,7 +130,7 @@ app.get("/api/locations", (req, res) => {
   res.json({ locations });
 });
 
-app.post("/api/bookings", requireLogin, res) => {
+app.post("/api/bookings", requireLogin, (req, res)) => {
   try {
     const parser = new XMLParser({ ignoreAttributes: false });
     const builder = new XMLBuilder({
@@ -299,7 +299,7 @@ function writeBookingsToFile(filePath, bookings) {
   fs.writeFileSync(filePath, updatedXml);
 }
 
-app.get("/api/bookings/search", requireLogin, res) => {
+app.get("/api/bookings/search", requireLogin, (req, res)) => {
   try {
     const email = req.session.user.email;
 
@@ -342,7 +342,7 @@ app.get("/api/bookings/search", requireLogin, res) => {
   }
 });
 
-app.delete("/api/bookings/:bookingId", requireLogin, res) => {
+app.delete("/api/bookings/:bookingId", requireLogin, (req, res)) => {
   try {
     const bookingId = req.params.bookingId;
     const bookingDate = req.query.date;
@@ -384,7 +384,7 @@ app.delete("/api/bookings/:bookingId", requireLogin, res) => {
   }
 });
 
-app.delete("/api/bookings/recurring/:recurringGroupId", requireLogin, res) => {
+app.delete("/api/bookings/recurring/:recurringGroupId", requireLogin, (req, res)) => {
   try {
     const recurringGroupId = req.params.recurringGroupId;
     const files = getAllMonthlyBookingFiles();
@@ -418,7 +418,7 @@ app.delete("/api/bookings/recurring/:recurringGroupId", requireLogin, res) => {
   }
 });
 
-app.put("/api/bookings/:bookingId", requireLogin, res) => {
+app.put("/api/bookings/:bookingId", requireLogin, (req, res)) => {
   try {
     const bookingId = req.params.bookingId;
     const originalBookingDate = req.query.date;
