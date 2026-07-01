@@ -20,6 +20,6 @@
     "express": "^4.19.2",
     "fast-xml-parser": "^4.5.0",
     "argon2": "^0.41.1",
-    "express-session": "^1.18.1",
+    "express-session": "^1.18.1"
   }
 }
