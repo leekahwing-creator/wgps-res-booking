@@ -329,6 +329,84 @@ function removePersonalDataFromBooking(booking) {
   return cleanedBooking;
 }
 
+function getAppBaseUrl() {
+  const baseUrl = String(process.env.APP_BASE_URL || "").trim();
+
+  if (!baseUrl) {
+    throw new Error("APP_BASE_URL is not configured in Render environment variables.");
+  }
+
+  return baseUrl.replace(/\/+$/, "");
+}
+
+function hashResetToken(token) {
+  return crypto.createHash("sha256").update(String(token), "utf8").digest("hex");
+}
+
+function clearPasswordResetFields(user) {
+  const cleanedUser = { ...user };
+  delete cleanedUser.resetPasswordTokenHash;
+  delete cleanedUser.resetPasswordExpiresAt;
+  delete cleanedUser.resetPasswordRequestedAt;
+  return cleanedUser;
+}
+
+async function sendPasswordResetEmail(user, resetLink) {
+  const requiredEnvVars = [
+    "SMTP_HOST",
+    "SMTP_PORT",
+    "SMTP_USER",
+    "SMTP_PASS",
+    "SMTP_FROM",
+    "APP_BASE_URL"
+  ];
+
+  const missingEnvVars = requiredEnvVars.filter(name => !process.env[name]);
+
+  if (missingEnvVars.length > 0) {
+    throw new Error(`Missing email configuration: ${missingEnvVars.join(", ")}`);
+  }
+
+  const nodemailer = require("nodemailer");
+
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT),
+    secure: String(process.env.SMTP_PORT) === "465",
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS
+    }
+  });
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM,
+    to: user.email,
+    subject: "ICT Resource Booking Portal Password Reset",
+    text: [
+      `Dear ${user.name},`,
+      "",
+      "A request was made to reset the password for your ICT Resource Booking Portal account.",
+      "",
+      "Use the link below to reset your password. This link is valid for 30 minutes and can be used only once.",
+      "",
+      resetLink,
+      "",
+      "If you did not request this password reset, please ignore this email and inform the portal administrator.",
+      "",
+      "Do not share this link with anyone."
+    ].join("\n"),
+    html: `
+      <p>Dear ${user.name},</p>
+      <p>A request was made to reset the password for your ICT Resource Booking Portal account.</p>
+      <p>Use the link below to reset your password. This link is valid for <strong>30 minutes</strong> and can be used only once.</p>
+      <p><a href="${resetLink}">Reset your password</a></p>
+      <p>If you did not request this password reset, please ignore this email and inform the portal administrator.</p>
+      <p><strong>Do not share this link with anyone.</strong></p>
+    `
+  });
+}
+
 /* ---------------- AUTH ROUTES ---------------- */
 
 app.post("/api/auth/check-email", (req, res) => {
@@ -440,6 +518,166 @@ app.post("/api/auth/register", (req, res) => {
     success: false,
     message: "Open registration is disabled. Please activate your pre-approved organisation account."
   });
+});
+
+
+app.post("/api/auth/forgot-password", async (req, res) => {
+  const genericMessage = "If the email address belongs to an active portal account, a password reset link will be sent.";
+
+  try {
+    const cleanedEmail = normaliseEmail(req.body.email);
+
+    if (!cleanedEmail) {
+      return res.json({
+        success: true,
+        message: genericMessage
+      });
+    }
+
+    const users = getUsersFromXML();
+    const userIndex = users.findIndex(
+      user => normaliseEmail(user.email) === cleanedEmail
+    );
+
+    if (userIndex === -1) {
+      return res.json({
+        success: true,
+        message: genericMessage
+      });
+    }
+
+    const user = users[userIndex];
+
+    if (user.status !== "Active" || !user.passwordHash) {
+      return res.json({
+        success: true,
+        message: genericMessage
+      });
+    }
+
+    const resetToken = crypto.randomBytes(32).toString("base64url");
+    const resetTokenHash = hashResetToken(resetToken);
+    const resetPasswordExpiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+
+    users[userIndex] = {
+      ...user,
+      resetPasswordTokenHash: resetTokenHash,
+      resetPasswordExpiresAt,
+      resetPasswordRequestedAt: new Date().toISOString()
+    };
+
+    saveUsersToXML(users);
+
+    const resetUrl = `${getAppBaseUrl()}/reset-password.html?token=${encodeURIComponent(resetToken)}&email=${encodeURIComponent(cleanedEmail)}`;
+
+    try {
+      await sendPasswordResetEmail(user, resetUrl);
+    } catch (emailError) {
+      console.error("Password reset email error:", emailError);
+    }
+
+    res.json({
+      success: true,
+      message: genericMessage
+    });
+  } catch (error) {
+    console.error("Forgot password error:", error);
+
+    res.json({
+      success: true,
+      message: genericMessage
+    });
+  }
+});
+
+app.post("/api/auth/reset-password", async (req, res) => {
+  try {
+    const { email, token, password } = req.body;
+    const cleanedEmail = normaliseEmail(email);
+    const cleanedToken = String(token || "").trim();
+
+    if (!cleanedEmail || !cleanedToken || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Email, reset token and new password are required."
+      });
+    }
+
+    const users = getUsersFromXML();
+    const userIndex = users.findIndex(
+      user => normaliseEmail(user.email) === cleanedEmail
+    );
+
+    if (userIndex === -1) {
+      return res.status(400).json({
+        success: false,
+        message: "The reset link is invalid or has expired."
+      });
+    }
+
+    const user = users[userIndex];
+
+    if (
+      user.status !== "Active" ||
+      !user.passwordHash ||
+      !user.resetPasswordTokenHash ||
+      !user.resetPasswordExpiresAt
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "The reset link is invalid or has expired."
+      });
+    }
+
+    const tokenHash = hashResetToken(cleanedToken);
+
+    const tokenMatches = crypto.timingSafeEqual(
+      Buffer.from(tokenHash, "hex"),
+      Buffer.from(user.resetPasswordTokenHash, "hex")
+    );
+
+    const tokenExpired = new Date(user.resetPasswordExpiresAt).getTime() < Date.now();
+
+    if (!tokenMatches || tokenExpired) {
+      return res.status(400).json({
+        success: false,
+        message: "The reset link is invalid or has expired."
+      });
+    }
+
+    const passwordErrors = validatePassword(password, user.name, cleanedEmail);
+
+    if (passwordErrors.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: passwordErrors.join(" ")
+      });
+    }
+
+    const passwordHash = await argon2.hash(password, {
+      type: argon2.argon2id
+    });
+
+    users[userIndex] = clearPasswordResetFields({
+      ...user,
+      passwordHash,
+      passwordResetAt: new Date().toISOString()
+    });
+
+    saveUsersToXML(users);
+
+    res.json({
+      success: true,
+      message: "Password reset successfully. Please sign in with your new password."
+    });
+  } catch (error) {
+    console.error("Reset password error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Unable to reset password. Please try again or contact the portal administrator."
+    });
+  }
 });
 
 app.post("/api/auth/login", async (req, res) => {
