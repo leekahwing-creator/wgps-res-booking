@@ -140,7 +140,7 @@ app.post("/api/bookings", requireLogin, (req, res) => {
     });
 
     const bookingRequest = {
-      req.body,
+      ...req.body,
       userId: req.session.user.userId,
       name: req.session.user.name,
       email: req.session.user.email
