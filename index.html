@@ -775,6 +775,21 @@
 
     console.log('ICT Resource Booking Portal script loaded.');
 
+    let currentUser = null;
+
+    async function requireAuthenticatedUser() {
+      const response = await fetch("/api/me", { cache: "no-store" });
+      const result = await response.json();
+
+      if (!result.user) {
+        window.location.href = "login.html";
+        return null;
+      }
+
+      currentUser = result.user;
+      return currentUser;
+    }
+    
     let usersDatabase = [];
     let locationsDatabase = [];
 
@@ -825,6 +840,8 @@
     let bookingMode = 'one-time';
     let repeatIntervalWeeks = 1;
 
+    await requireAuthenticatedUser();
+    
     function getRequiredElement(id) {
       const element = document.getElementById(id);
 
