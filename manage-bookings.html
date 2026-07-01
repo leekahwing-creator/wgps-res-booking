@@ -378,9 +378,26 @@
     const statusMessage = document.getElementById('statusMessage');
     const userSuggestions = document.getElementById('userSuggestions');
 
+    let currentUser = null;
+
+    async function requireAuthenticatedUser() {
+      const response = await fetch("/api/me", { cache: "no-store" });
+      const result = await response.json();
+
+      if (!result.user) {
+        window.location.href = "login.html";
+        return null;
+      }
+
+      currentUser = result.user;
+      return currentUser;
+    }
+    
     let usersDatabase = [];
     let locationsDatabase = [];
 
+    await requireAuthenticatedUser();
+    
     async function loadUsers() {
       try {
         const response = await fetch('/api/users', { cache: 'no-store' });
