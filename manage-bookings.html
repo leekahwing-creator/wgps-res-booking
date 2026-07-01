@@ -382,35 +382,33 @@
     <section class="card">
       <div class="card-header">
         <h1>Manage My Bookings</h1>
-        <p>Search for your upcoming ICT resource bookings to modify or delete existing requests.</p>
+        <p>View, modify, or delete your upcoming ICT resource bookings linked to your signed-in account.</p>
       </div>
 
       <div class="card-body">
         <div id="statusMessage" class="status" role="status" aria-live="polite"></div>
 
-        <form id="searchForm" class="search-row">
+        <div class="search-row">
           <div class="field">
-            <label for="nameSearch">Name</label>
-            <input id="nameSearch" name="nameSearch" type="text" placeholder="Enter your name" autocomplete="off" required />
-            <div id="userSuggestions" class="suggestions" role="listbox"></div>
+            <label>Booking owner</label>
+            <input id="nameSearch" name="nameSearch" type="text" value="Signed-in user" readonly />
           </div>
 
-          <button class="btn btn-primary" type="submit">Retrieve Bookings</button>
-        </form>
+          <button id="refreshBookingsBtn" class="btn btn-primary" type="button">Refresh Bookings</button>
+        </div>
 
         <div id="bookingList" class="booking-list">
-          <div class="empty-state">Enter your name to retrieve your upcoming bookings.</div>
+          <div class="empty-state">Loading your upcoming bookings...</div>
         </div>
       </div>
     </section>
   </main>
 
   <script>
-    const searchForm = document.getElementById('searchForm');
     const nameSearch = document.getElementById('nameSearch');
+    const refreshBookingsBtn = document.getElementById('refreshBookingsBtn');
     const bookingList = document.getElementById('bookingList');
     const statusMessage = document.getElementById('statusMessage');
-    const userSuggestions = document.getElementById('userSuggestions');
 
     let currentUser = null;
 
@@ -446,26 +444,7 @@
       window.location.href = "login.html";
     });
     
-    let usersDatabase = [];
     let locationsDatabase = [];
-    async function loadUsers() {
-      try {
-        const response = await fetch('/api/users', { cache: 'no-store' });
-        const result = await response.json();
-
-        if (!response.ok || !Array.isArray(result.users)) {
-          throw new Error('Unable to load users.');
-        }
-
-        usersDatabase = result.users
-          .filter(Boolean)
-          .sort((a, b) => a.localeCompare(b));
-      } catch (error) {
-        console.warn('Unable to load users for autocomplete:', error.message);
-        usersDatabase = [];
-      }
-    }
-
     async function loadLocations() {
       try {
         const response = await fetch('/api/locations', { cache: 'no-store' });
@@ -482,39 +461,6 @@
         console.warn('Unable to load locations for edit dropdown:', error.message);
         locationsDatabase = [];
       }
-    }
-
-    function updateUserSuggestions(searchTerm = '') {
-      const cleanedSearchTerm = searchTerm.trim().toLowerCase();
-
-      if (!cleanedSearchTerm || usersDatabase.length === 0) {
-        userSuggestions.classList.remove('show');
-        userSuggestions.innerHTML = '';
-        return;
-      }
-
-      const filteredUsers = usersDatabase
-        .filter(user => user.toLowerCase().startsWith(cleanedSearchTerm))
-        .slice(0, 8);
-
-      if (filteredUsers.length === 0) {
-        userSuggestions.classList.remove('show');
-        userSuggestions.innerHTML = '';
-        return;
-      }
-
-      userSuggestions.innerHTML = '';
-
-      filteredUsers.forEach(user => {
-        const item = document.createElement('div');
-        item.className = 'suggestion-item';
-        item.setAttribute('role', 'option');
-        item.textContent = user;
-        item.dataset.name = user;
-        userSuggestions.appendChild(item);
-      });
-
-      userSuggestions.classList.add('show');
     }
 
     function showStatus(type, message) {
@@ -613,7 +559,7 @@
       const normalisedBookings = normaliseBookings(bookings);
 
       if (normalisedBookings.length === 0) {
-        bookingList.innerHTML = '<div class="empty-state">No upcoming bookings found for this name.</div>';
+        bookingList.innerHTML = '<div class="empty-state">No upcoming bookings found for your account.</div>';
         return;
       }
 
@@ -683,11 +629,11 @@
       }).join('');
     }
 
-    async function retrieveBookings(name) {
+    async function retrieveBookings() {
       clearStatus();
       bookingList.innerHTML = '<div class="empty-state">Loading bookings...</div>';
 
-      const response = await fetch(`/api/bookings/search?name=${encodeURIComponent(name)}`, {
+      const response = await fetch('/api/bookings/search', {
         cache: 'no-store'
       });
 
@@ -700,43 +646,19 @@
       renderBookings(result.bookings);
     }
 
-    nameSearch.addEventListener('input', event => {
-      updateUserSuggestions(event.target.value);
-    });
-
-    nameSearch.addEventListener('focus', () => {
-      updateUserSuggestions(nameSearch.value);
-    });
-
-    userSuggestions.addEventListener('click', event => {
-      const selectedItem = event.target.closest('.suggestion-item');
-      if (!selectedItem) return;
-
-      nameSearch.value = selectedItem.dataset.name;
-      userSuggestions.classList.remove('show');
-      userSuggestions.innerHTML = '';
-    });
-
-    document.addEventListener('click', event => {
-      if (!nameSearch.contains(event.target) && !userSuggestions.contains(event.target)) {
-        userSuggestions.classList.remove('show');
-      }
-    });
-
     async function initialiseManagePage() {
       const user = await initialiseUser();
       if (!user) return;
 
-      nameSearch.value = user.name;
+      nameSearch.value = `${user.name} (${user.email})`;
       nameSearch.readOnly = true;
 
       await Promise.allSettled([
-        loadUsers(),
         loadLocations()
       ]);
 
       try {
-        await retrieveBookings(user.name);
+        await retrieveBookings();
       } catch (error) {
         showStatus('error', error.message);
         bookingList.innerHTML = '<div class="empty-state">Unable to load bookings.</div>';
@@ -745,17 +667,14 @@
 
     initialiseManagePage();
 
-    searchForm.addEventListener('submit', async event => {
-      event.preventDefault();
-
+    refreshBookingsBtn.addEventListener('click', async () => {
       try {
-        await retrieveBookings(nameSearch.value.trim());
+        await retrieveBookings();
       } catch (error) {
         showStatus('error', error.message);
         bookingList.innerHTML = '<div class="empty-state">Unable to load bookings.</div>';
       }
     });
-
     bookingList.addEventListener('click', async event => {
       const button = event.target.closest('button');
       if (!button) return;
@@ -779,7 +698,7 @@
         const result = await response.json();
         if (!response.ok || !result.success) throw new Error(result.message || 'Unable to delete booking.');
         showStatus('success', 'Booking deleted successfully.');
-        await retrieveBookings(nameSearch.value.trim());
+        await retrieveBookings();
       }
 
       if (action === 'delete-series') {
@@ -793,7 +712,7 @@
         const result = await response.json();
         if (!response.ok || !result.success) throw new Error(result.message || 'Unable to delete recurring set.');
         showStatus('success', 'Recurring booking set deleted successfully.');
-        await retrieveBookings(nameSearch.value.trim());
+        await retrieveBookings();
       }
 
       if (action === 'save-edit') {
@@ -826,7 +745,7 @@
         const result = await response.json();
         if (!response.ok || !result.success) throw new Error(result.message || 'Unable to update booking.');
         showStatus('success', 'Booking updated successfully.');
-        await retrieveBookings(nameSearch.value.trim());
+        await retrieveBookings();
       }
     });
   </script>

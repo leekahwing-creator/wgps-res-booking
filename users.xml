@@ -1,27 +1,2 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<organisationUsers>
-  <!--
-    Live user records should be stored on Render persistent disk at /data/users.xml.
-
-    For personal data protection, do not store live full names and email addresses
-    in plaintext in GitHub.
-
-    The updated server.js encrypts plaintext <name> and <email> into:
-      <encryptedName>...</encryptedName>
-      <encryptedEmail>...</encryptedEmail>
-
-    using AES-256-GCM and the PERSONAL_DATA_KEY Render environment variable.
-
-    Recommended GitHub template:
-      Keep this file empty or use it only as a non-live template.
-
-    To onboard approved users safely:
-      1. Prepare approved users in a local/private copy of users.xml using plaintext
-         <name> and <email> only in a secure environment.
-      2. Deploy with PERSONAL_DATA_KEY set.
-      3. Copy/import that file to Render persistent disk.
-      4. The server will migrate plaintext name/email to encryptedName/encryptedEmail
-         in the live /data/users.xml file.
-      5. Do not commit live /data/users.xml back to GitHub.
-  -->
-</organisationUsers>
+<organisationUsers></organisationUsers>

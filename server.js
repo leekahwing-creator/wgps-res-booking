@@ -1,7 +1,7 @@
-const crypto = require("crypto");
 const express = require("express");
 const session = require("express-session");
 const argon2 = require("argon2");
+const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const { XMLParser, XMLBuilder } = require("fast-xml-parser");
@@ -36,7 +36,7 @@ const sourceUsersFile = path.join(appDir, "users.xml");
 const liveUsersFile = path.join(dataDir, "users.xml");
 const locationsFile = path.join(appDir, "locations.xml");
 
-/* ---------------- GENERAL HELPERS ---------------- */
+const ENCRYPTION_PREFIX = "enc:v1:";
 
 function toArray(value) {
   if (!value) return [];
@@ -45,16 +45,6 @@ function toArray(value) {
 
 function normaliseEmail(email) {
   return String(email || "").trim().toLowerCase();
-}
-
-function maskEmail(email) {
-  const cleanedEmail = normaliseEmail(email);
-  const [name, domain] = cleanedEmail.split("@");
-
-  if (!name || !domain) return "";
-
-  const visiblePrefix = name.slice(0, 2);
-  return `${visiblePrefix}${"*".repeat(Math.max(2, name.length - 2))}@${domain}`;
 }
 
 function ensureDataDir() {
@@ -78,137 +68,120 @@ function ensureLiveUsersFile() {
   }
 }
 
-/* ---------------- PERSONAL DATA ENCRYPTION ----------------
-   Names and email addresses are encrypted at rest with AES-256-GCM.
-
-   Required Render environment variable:
-   PERSONAL_DATA_KEY
-
-   Generate a key with:
-   node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
-
-   Store only the generated value in Render. Do not commit it to GitHub.
------------------------------------------------------------- */
-
 function getPersonalDataKey() {
-  const encodedKey = process.env.PERSONAL_DATA_KEY;
+  const rawKey = process.env.PERSONAL_DATA_KEY;
 
-  if (!encodedKey) {
-    throw new Error(
-      "PERSONAL_DATA_KEY is missing. Add a 32-byte base64 key in Render environment variables."
-    );
+  if (!rawKey) {
+    throw new Error("PERSONAL_DATA_KEY is not configured in Render environment variables.");
   }
 
-  const key = Buffer.from(encodedKey, "base64");
+  const trimmedKey = rawKey.trim();
 
-  if (key.length !== 32) {
-    throw new Error(
-      "PERSONAL_DATA_KEY must be a base64-encoded 32-byte key. Generate one with: node -e \"console.log(require('crypto').randomBytes(32).toString('base64'))\""
-    );
+  const base64Key = Buffer.from(trimmedKey, "base64");
+  if (base64Key.length === 32) return base64Key;
+
+  if (/^[0-9a-fA-F]{64}$/.test(trimmedKey)) {
+    return Buffer.from(trimmedKey, "hex");
   }
 
-  return key;
+  const utf8Key = Buffer.from(trimmedKey, "utf8");
+  if (utf8Key.length === 32) return utf8Key;
+
+  throw new Error("PERSONAL_DATA_KEY must decode to exactly 32 bytes. Use: node -e \"console.log(require('crypto').randomBytes(32).toString('base64'))\"");
 }
 
-function encryptPersonalData(value) {
-  const text = String(value || "").trim();
+function isEncrypted(value) {
+  return typeof value === "string" && value.startsWith(ENCRYPTION_PREFIX);
+}
 
-  if (!text) return "";
+function encryptText(value) {
+  if (value === undefined || value === null || value === "") return "";
+
+  const text = String(value);
+  if (isEncrypted(text)) return text;
 
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv("aes-256-gcm", getPersonalDataKey(), iv);
-
   const encrypted = Buffer.concat([
     cipher.update(text, "utf8"),
     cipher.final()
   ]);
+  const tag = cipher.getAuthTag();
 
-  const authTag = cipher.getAuthTag();
-
-  return [
-    iv.toString("base64"),
-    authTag.toString("base64"),
-    encrypted.toString("base64")
-  ].join(":");
+  return ENCRYPTION_PREFIX + Buffer.concat([iv, tag, encrypted]).toString("base64");
 }
 
-function decryptPersonalData(encryptedValue) {
-  const value = String(encryptedValue || "").trim();
-
+function decryptText(value) {
   if (!value) return "";
 
-  const parts = value.split(":");
+  const text = String(value);
+  if (!isEncrypted(text)) return text;
 
-  if (parts.length !== 3) {
-    throw new Error("Encrypted personal data is not in the expected AES-GCM format.");
-  }
+  const packed = Buffer.from(text.slice(ENCRYPTION_PREFIX.length), "base64");
+  const iv = packed.subarray(0, 12);
+  const tag = packed.subarray(12, 28);
+  const encrypted = packed.subarray(28);
 
-  const [ivBase64, tagBase64, encryptedBase64] = parts;
-  const decipher = crypto.createDecipheriv(
-    "aes-256-gcm",
-    getPersonalDataKey(),
-    Buffer.from(ivBase64, "base64")
-  );
+  const decipher = crypto.createDecipheriv("aes-256-gcm", getPersonalDataKey(), iv);
+  decipher.setAuthTag(tag);
 
-  decipher.setAuthTag(Buffer.from(tagBase64, "base64"));
-
-  const decrypted = Buffer.concat([
-    decipher.update(Buffer.from(encryptedBase64, "base64")),
+  return Buffer.concat([
+    decipher.update(encrypted),
     decipher.final()
-  ]);
-
-  return decrypted.toString("utf8");
+  ]).toString("utf8");
 }
 
-function readRawUsersFromXML() {
+function sanitiseUserForStorage(user) {
+  const storedUser = { ...user };
+
+  if (storedUser.name && !storedUser.encryptedName) {
+    storedUser.encryptedName = encryptText(storedUser.name);
+  }
+
+  if (storedUser.email && !storedUser.encryptedEmail) {
+    storedUser.encryptedEmail = encryptText(normaliseEmail(storedUser.email));
+  }
+
+  delete storedUser.name;
+  delete storedUser.email;
+
+  return storedUser;
+}
+
+function decryptUserForUse(user) {
+  return {
+    ...user,
+    name: decryptText(user.encryptedName || user.name),
+    email: normaliseEmail(decryptText(user.encryptedEmail || user.email))
+  };
+}
+
+function readStoredUsers() {
   ensureLiveUsersFile();
 
   const xml = fs.readFileSync(liveUsersFile, "utf8");
   const parsed = new XMLParser({ ignoreAttributes: false }).parse(xml);
+  const users = toArray(parsed.organisationUsers?.user);
 
-  return toArray(parsed.organisationUsers?.user);
-}
+  let migrationNeeded = false;
+  const storedUsers = users.map(user => {
+    const needsMigration = Boolean(user.name || user.email);
+    if (needsMigration) migrationNeeded = true;
+    return sanitiseUserForStorage(user);
+  });
 
-function decryptUserRecord(user) {
-  const decryptedName = user.encryptedName
-    ? decryptPersonalData(user.encryptedName)
-    : String(user.name || "").trim();
+  if (migrationNeeded) {
+    saveStoredUsers(storedUsers);
+  }
 
-  const decryptedEmail = user.encryptedEmail
-    ? normaliseEmail(decryptPersonalData(user.encryptedEmail))
-    : normaliseEmail(user.email);
-
-  return {
-    ...user,
-    name: decryptedName,
-    email: decryptedEmail
-  };
+  return storedUsers;
 }
 
 function getUsersFromXML() {
-  return readRawUsersFromXML().map(decryptUserRecord);
+  return readStoredUsers().map(decryptUserForUse);
 }
 
-function buildEncryptedUserRecord(user) {
-  const encryptedRecord = {
-    userId: user.userId,
-    encryptedName: user.encryptedName || encryptPersonalData(user.name),
-    encryptedEmail: user.encryptedEmail || encryptPersonalData(normaliseEmail(user.email)),
-    role: user.role || "User",
-    status: user.status || "PendingActivation"
-  };
-
-  if (user.passwordHash) encryptedRecord.passwordHash = user.passwordHash;
-  if (user.createdAt) encryptedRecord.createdAt = user.createdAt;
-  if (user.activatedAt) encryptedRecord.activatedAt = user.activatedAt;
-  if (user.lastLoginAt) encryptedRecord.lastLoginAt = user.lastLoginAt;
-  if (user.failedLoginAttempts) encryptedRecord.failedLoginAttempts = user.failedLoginAttempts;
-  if (user.lockUntil) encryptedRecord.lockUntil = user.lockUntil;
-
-  return encryptedRecord;
-}
-
-function saveUsersToXML(users) {
+function saveStoredUsers(users) {
   ensureLiveUsersFile();
 
   const builder = new XMLBuilder({
@@ -217,30 +190,19 @@ function saveUsersToXML(users) {
     suppressEmptyNode: true
   });
 
-  const encryptedUsers = users.map(buildEncryptedUserRecord);
+  const storedUsers = users.map(sanitiseUserForStorage);
 
   const xml = builder.build({
     organisationUsers: {
-      user: encryptedUsers
+      user: storedUsers
     }
   });
 
   fs.writeFileSync(liveUsersFile, xml);
 }
 
-function migratePlaintextUsersToEncryptedXML() {
-  const rawUsers = readRawUsersFromXML();
-  const hasPlaintextPersonalData = rawUsers.some(user => user.name || user.email);
-
-  if (!hasPlaintextPersonalData) {
-    return false;
-  }
-
-  const hydratedUsers = rawUsers.map(decryptUserRecord);
-  saveUsersToXML(hydratedUsers);
-
-  console.log("Plaintext user names/emails migrated to encryptedName/encryptedEmail in live users.xml.");
-  return true;
+function saveUsersToXML(users) {
+  saveStoredUsers(users);
 }
 
 function requireLogin(req, res, next) {
@@ -248,6 +210,17 @@ function requireLogin(req, res, next) {
     return res.status(401).json({
       success: false,
       message: "Login required."
+    });
+  }
+
+  next();
+}
+
+function requireAdmin(req, res, next) {
+  if (!req.session.user || req.session.user.role !== "Admin") {
+    return res.status(403).json({
+      success: false,
+      message: "Admin access required."
     });
   }
 
@@ -289,8 +262,6 @@ function validatePassword(password, name, email) {
   return errors;
 }
 
-/* ---------------- BOOKING FILE HELPERS ---------------- */
-
 function readBookingsFromFile(filePath) {
   const parser = new XMLParser({ ignoreAttributes: false });
   const xml = fs.readFileSync(filePath, "utf8");
@@ -328,7 +299,16 @@ function getAllMonthlyBookingFiles() {
 }
 
 function userOwnsBooking(req, booking) {
-  return normaliseEmail(booking.email) === normaliseEmail(req.session.user.email);
+  const sameUserId = booking.userId && String(booking.userId) === String(req.session.user.userId);
+  const sameLegacyEmail = booking.email && normaliseEmail(booking.email) === normaliseEmail(req.session.user.email);
+  return Boolean(sameUserId || sameLegacyEmail);
+}
+
+function removePersonalDataFromBooking(booking) {
+  const cleanedBooking = { ...booking };
+  delete cleanedBooking.name;
+  delete cleanedBooking.email;
+  return cleanedBooking;
 }
 
 /* ---------------- AUTH ROUTES ---------------- */
@@ -451,11 +431,9 @@ app.post("/api/auth/login", async (req, res) => {
 
     const users = getUsersFromXML();
 
-    const userIndex = users.findIndex(
+    const user = users.find(
       existingUser => normaliseEmail(existingUser.email) === cleanedEmail
     );
-
-    const user = users[userIndex];
 
     if (!user || user.status !== "Active" || !user.passwordHash) {
       return res.status(401).json({
@@ -472,13 +450,6 @@ app.post("/api/auth/login", async (req, res) => {
         message: "Invalid email or password."
       });
     }
-
-    users[userIndex] = {
-      ...user,
-      lastLoginAt: new Date().toISOString()
-    };
-
-    saveUsersToXML(users);
 
     req.session.user = {
       userId: user.userId,
@@ -517,11 +488,7 @@ app.post("/api/logout", (req, res) => {
 /* ---------------- BASIC DATA ROUTES ---------------- */
 
 app.get("/api/users", requireLogin, (req, res) => {
-  // Privacy-preserving legacy endpoint.
-  // The portal no longer exposes the full staff directory to normal users.
-  res.json({
-    users: [req.session.user.name].filter(Boolean)
-  });
+  res.json({ users: [req.session.user.name] });
 });
 
 app.get("/api/locations", (req, res) => {
@@ -545,12 +512,10 @@ app.post("/api/bookings", requireLogin, (req, res) => {
       suppressEmptyNode: true
     });
 
-    const bookingRequest = {
+    const bookingRequest = removePersonalDataFromBooking({
       ...req.body,
-      userId: req.session.user.userId,
-      name: req.session.user.name,
-      email: req.session.user.email
-    };
+      userId: req.session.user.userId
+    });
 
     const isRecurring =
       bookingRequest.bookingMode === "recurring" &&
@@ -647,7 +612,7 @@ app.post("/api/bookings", requireLogin, (req, res) => {
   }
 });
 
-app.get("/api/bookings", (req, res) => {
+app.get("/api/bookings", requireLogin, requireAdmin, (req, res) => {
   try {
     const bookingDate = req.query.date;
 
@@ -667,14 +632,13 @@ app.get("/api/bookings", (req, res) => {
 
 app.get("/api/bookings/search", requireLogin, (req, res) => {
   try {
-    const email = req.session.user.email;
     const files = getAllMonthlyBookingFiles();
     const today = new Date().toISOString().split("T")[0];
 
     const bookings = files.flatMap(file => readBookingsFromFile(file))
       .filter(booking => {
         return (
-          normaliseEmail(booking.email) === normaliseEmail(email) &&
+          userOwnsBooking(req, booking) &&
           booking.bookingDate >= today &&
           booking.status !== "Deleted" &&
           booking.status !== "Cancelled"
@@ -826,15 +790,13 @@ app.put("/api/bookings/:bookingId", requireLogin, (req, res) => {
       });
     }
 
-    const updatedBookingRequest = {
+    const updatedBookingRequest = removePersonalDataFromBooking({
       ...existingBooking,
       ...req.body,
       userId: req.session.user.userId,
-      name: req.session.user.name,
-      email: req.session.user.email,
       bookingDate: req.body.bookingDate || existingBooking.bookingDate,
       status: "Pending Allocation"
-    };
+    });
 
     const remainingOriginalBookings = originalBookings.filter(
       booking => String(booking["@_id"]) !== String(bookingId)
@@ -906,45 +868,38 @@ app.put("/api/bookings/:bookingId", requireLogin, (req, res) => {
   }
 });
 
-/* ---------------- DEBUG ROUTE ---------------- */
-/* Disabled by default. Enable only temporarily with ENABLE_DEBUG_ROUTES=true. */
+/* ---------------- ADMIN DEBUG ROUTE ---------------- */
+/* Requires an authenticated Admin account. Does not reveal names, emails, or password hashes. */
 
-if (process.env.ENABLE_DEBUG_ROUTES === "true") {
-  app.get("/api/debug/users", requireLogin, (req, res) => {
-    try {
-      const users = getUsersFromXML().map(user => ({
-        userId: user.userId,
-        maskedEmail: maskEmail(user.email),
-        role: user.role,
-        status: user.status,
-        activatedAt: user.activatedAt,
-        hasPasswordHash: Boolean(user.passwordHash)
-      }));
+app.get("/api/debug/users", requireLogin, requireAdmin, (req, res) => {
+  try {
+    const users = readStoredUsers().map(user => ({
+      userId: user.userId,
+      role: user.role,
+      status: user.status,
+      activatedAt: user.activatedAt,
+      hasPasswordHash: Boolean(user.passwordHash),
+      hasEncryptedName: Boolean(user.encryptedName),
+      hasEncryptedEmail: Boolean(user.encryptedEmail)
+    }));
 
-      res.json({
-        success: true,
-        users
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: error.message
-      });
-    }
-  });
-}
+    res.json({
+      success: true,
+      users
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
 
 app.listen(PORT, () => {
   ensureLiveUsersFile();
 
-  try {
-    migratePlaintextUsersToEncryptedXML();
-  } catch (error) {
-    console.warn(`User XML encryption migration skipped: ${error.message}`);
-  }
-
   console.log(`ICT booking server running on port ${PORT}`);
   console.log("Monthly booking storage enabled.");
   console.log(`Booking files directory: ${path.join(dataDir, "bookings")}`);
-  console.log(`Live encrypted users file: ${liveUsersFile}`);
+  console.log(`Live users file: ${liveUsersFile}`);
 });
