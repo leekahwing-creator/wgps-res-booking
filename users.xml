@@ -1,3 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <organisationUsers>
+  <!--
+    Pre-populate approved organisation users here.
+    Users can only activate accounts for email addresses listed in this file.
+
+    Example:
+    <user>
+      <userId>U0001</userId>
+      <name>Official Staff Name</name>
+      <email>staff.name@example.edu.sg</email>
+      <role>User</role>
+      <status>PendingActivation</status>
+    </user>
+  -->
 </organisationUsers>
