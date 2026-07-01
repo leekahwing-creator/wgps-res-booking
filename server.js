@@ -1,3 +1,5 @@
+const session = require("express-session");
+const argon2 = require("argon2");
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
@@ -60,6 +62,56 @@ function ensureBookingsFile() {
   }
 }
 
+function requireLogin(req, res, next) {
+  if (!req.session.user) {
+    return res.status(401).json({
+      success: false,
+      message: "Login required."
+    });
+  }
+
+  next();
+}
+
+function normaliseEmail(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
+function validatePassword(password, name, email) {
+  const errors = [];
+
+  if (!password || password.length < 12) {
+    errors.push("Password must be at least 12 characters long.");
+  }
+
+  if (password.length > 128) {
+    errors.push("Password must not exceed 128 characters.");
+  }
+
+  const checks = [
+    /[a-z]/.test(password),
+    /[A-Z]/.test(password),
+    /\d/.test(password),
+    /[^A-Za-z0-9]/.test(password)
+  ];
+
+  if (checks.filter(Boolean).length < 3) {
+    errors.push("Password must include at least 3 of: uppercase, lowercase, number, symbol.");
+  }
+
+  const emailPrefix = normaliseEmail(email).split("@")[0];
+
+  if (emailPrefix && password.toLowerCase().includes(emailPrefix)) {
+    errors.push("Password must not contain your email name.");
+  }
+
+  if (name && password.toLowerCase().includes(String(name).toLowerCase())) {
+    errors.push("Password must not contain your name.");
+  }
+
+  return errors;
+}
+
 app.get("/api/users", (req, res) => {
   const xml = fs.readFileSync(usersFile, "utf8");
   const parsed = new XMLParser().parse(xml);
@@ -90,7 +142,12 @@ app.post("/api/bookings", requireLogin, res) => {
       suppressEmptyNode: true
     });
 
-    const bookingRequest = req.body;
+    const bookingRequest = {
+      req.body,
+      userId: req.session.user.userId,
+      name: req.session.user.name,
+      email: req.session.user.email
+    };
     const isRecurring =
       bookingRequest.bookingMode === "recurring" &&
       bookingRequest.recurrence &&
@@ -247,12 +304,12 @@ function writeBookingsToFile(filePath, bookings) {
 
 app.get("/api/bookings/search", requireLogin, res) => {
   try {
-    const name = (req.query.name || "").trim().toLowerCase();
+    const email = req.session.user.email;
 
-    if (!name) {
+    if (!email) {
       return res.status(400).json({
         success: false,
-        message: "Name is required."
+        message: "Email is required."
       });
     }
 
@@ -262,7 +319,7 @@ app.get("/api/bookings/search", requireLogin, res) => {
     const bookings = files.flatMap(file => readBookingsFromFile(file))
       .filter(booking => {
         return (
-          String(booking.name || "").toLowerCase() === name &&
+          String(booking.email || "").toLowerCase() === email.toLowerCase() &&
           booking.bookingDate >= today &&
           booking.status !== "Deleted" &&
           booking.status !== "Cancelled"
@@ -548,6 +605,164 @@ app.post("/api/logout", (req, res) => {
     res.json({
       success: true
     });
+  });
+});
+
+app.post("/api/auth/register", async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+
+    const cleanedName = String(name || "").trim();
+    const cleanedEmail = normaliseEmail(email);
+
+    if (!cleanedName || !cleanedEmail || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Name, email and password are required."
+      });
+    }
+
+    const passwordErrors = validatePassword(password, cleanedName, cleanedEmail);
+
+    if (passwordErrors.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: passwordErrors.join(" ")
+      });
+    }
+
+    const parser = new XMLParser({ ignoreAttributes: false });
+    const builder = new XMLBuilder({
+      ignoreAttributes: false,
+      format: true,
+      suppressEmptyNode: true
+    });
+
+    const xml = fs.readFileSync(usersFile, "utf8");
+    const parsed = parser.parse(xml);
+
+    if (!parsed.organisationUsers) {
+      parsed.organisationUsers = {};
+    }
+
+    if (!parsed.organisationUsers.user) {
+      parsed.organisationUsers.user = [];
+    } else if (!Array.isArray(parsed.organisationUsers.user)) {
+      parsed.organisationUsers.user = [parsed.organisationUsers.user];
+    }
+
+    const existingUser = parsed.organisationUsers.user.find(
+      user => normaliseEmail(user.email) === cleanedEmail
+    );
+
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        message: "An account with this email already exists."
+      });
+    }
+
+    const passwordHash = await argon2.hash(password, {
+      type: argon2.argon2id
+    });
+
+    const newUser = {
+      userId: `U${String(parsed.organisationUsers.user.length + 1).padStart(4, "0")}`,
+      name: cleanedName,
+      email: cleanedEmail,
+      passwordHash,
+      role: "User",
+      status: "Active",
+      createdAt: new Date().toISOString()
+    };
+
+    parsed.organisationUsers.user.push(newUser);
+
+    fs.writeFileSync(usersFile, builder.build(parsed));
+
+    req.session.user = {
+      userId: newUser.userId,
+      name: newUser.name,
+      email: newUser.email,
+      role: newUser.role
+    };
+
+    res.json({
+      success: true,
+      user: req.session.user
+    });
+  } catch (error) {
+    console.error("Register error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const cleanedEmail = normaliseEmail(email);
+
+    const parser = new XMLParser({ ignoreAttributes: false });
+    const xml = fs.readFileSync(usersFile, "utf8");
+    const parsed = parser.parse(xml);
+
+    const users = toArray(parsed.organisationUsers?.user);
+
+    const user = users.find(
+      existingUser => normaliseEmail(existingUser.email) === cleanedEmail
+    );
+
+    if (!user || user.status !== "Active") {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password."
+      });
+    }
+
+    const passwordMatches = await argon2.verify(user.passwordHash, password || "");
+
+    if (!passwordMatches) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password."
+      });
+    }
+
+    req.session.user = {
+      userId: user.userId,
+      name: user.name,
+      email: user.email,
+      role: user.role || "User"
+    };
+
+    res.json({
+      success: true,
+      user: req.session.user
+    });
+  } catch (error) {
+    console.error("Login error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+app.get("/api/me", (req, res) => {
+  res.json({
+    success: true,
+    user: req.session.user || null
+  });
+});
+
+app.post("/api/logout", (req, res) => {
+  req.session.destroy(() => {
+    res.json({ success: true });
   });
 });
 
