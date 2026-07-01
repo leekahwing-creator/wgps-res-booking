@@ -939,6 +939,29 @@ app.get("/api/debug/users", requireLogin, requireAdmin, (req, res) => {
   }
 });
 
+app.post("/api/debug/reset-users-file", (req, res) => {
+  try {
+    if (fs.existsSync(liveUsersFile)) {
+      fs.unlinkSync(liveUsersFile);
+    }
+
+    ensureLiveUsersFile();
+    readStoredUsers();
+
+    res.json({
+      success: true,
+      message: "Live users file reset and re-seeded.",
+      liveUsersFile,
+      liveUsersFileSizeBytes: fs.statSync(liveUsersFile).size
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
 app.listen(PORT, () => {
   try {
     const userCount = initialiseUserStorage();
