@@ -363,11 +363,11 @@
       </div>
 
       <div class="portal-links">
-        <a href="index.html" class="active">
+        <a href="index.html">
           Create Booking
         </a>
 
-        <a href="manage-bookings.html">
+        <a href="manage-bookings.html" class="active">
           Manage My Bookings
         </a>
 
@@ -430,10 +430,12 @@
     async function initialiseUser() {
       const user = await requireAuthenticatedUser();
 
-      if (!user) return;
+      if (!user) return null;
 
       document.getElementById("currentUserDisplay").textContent =
         `Signed in as ${user.name}`;
+
+      return user;
     }
 
     document.getElementById("logoutBtn").addEventListener("click", async () => {
@@ -446,9 +448,6 @@
     
     let usersDatabase = [];
     let locationsDatabase = [];
-
-    await requireAuthenticatedUser();
-    
     async function loadUsers() {
       try {
         const response = await fetch('/api/users', { cache: 'no-store' });
@@ -724,9 +723,27 @@
       }
     });
 
-    initialiseUser();
-    loadUsers();
-    loadLocations();
+    async function initialiseManagePage() {
+      const user = await initialiseUser();
+      if (!user) return;
+
+      nameSearch.value = user.name;
+      nameSearch.readOnly = true;
+
+      await Promise.allSettled([
+        loadUsers(),
+        loadLocations()
+      ]);
+
+      try {
+        await retrieveBookings(user.name);
+      } catch (error) {
+        showStatus('error', error.message);
+        bookingList.innerHTML = '<div class="empty-state">Unable to load bookings.</div>';
+      }
+    }
+
+    initialiseManagePage();
 
     searchForm.addEventListener('submit', async event => {
       event.preventDefault();
