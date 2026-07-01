@@ -12,7 +12,6 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
-
 app.set("trust proxy", 1);
 
 app.use(session({
@@ -30,9 +29,11 @@ app.use(session({
 app.use(express.static(__dirname));
 
 const appDir = __dirname;
-const usersFile = path.join(appDir, "users.xml");
-const locationsFile = path.join(appDir, "locations.xml");
 const dataDir = process.env.DATA_DIR || path.join(__dirname, "data");
+
+const sourceUsersFile = path.join(appDir, "users.xml");
+const liveUsersFile = path.join(dataDir, "users.xml");
+const locationsFile = path.join(appDir, "locations.xml");
 
 function toArray(value) {
   if (!value) return [];
@@ -41,6 +42,54 @@ function toArray(value) {
 
 function normaliseEmail(email) {
   return String(email || "").trim().toLowerCase();
+}
+
+function ensureDataDir() {
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+  }
+}
+
+function ensureLiveUsersFile() {
+  ensureDataDir();
+
+  if (!fs.existsSync(liveUsersFile)) {
+    if (fs.existsSync(sourceUsersFile)) {
+      fs.copyFileSync(sourceUsersFile, liveUsersFile);
+    } else {
+      fs.writeFileSync(
+        liveUsersFile,
+        `<?xml version="1.0" encoding="UTF-8"?>\n<organisationUsers></organisationUsers>`
+      );
+    }
+  }
+}
+
+function getUsersFromXML() {
+  ensureLiveUsersFile();
+
+  const xml = fs.readFileSync(liveUsersFile, "utf8");
+  const parsed = new XMLParser({ ignoreAttributes: false }).parse(xml);
+
+  return toArray(parsed.organisationUsers?.user);
+}
+
+function saveUsersToXML(users) {
+  ensureLiveUsersFile();
+
+  const builder = new XMLBuilder({
+    ignoreAttributes: false,
+    format: true,
+    suppressEmptyNode: true
+  });
+
+  const xml = builder.build({
+    organisationUsers: {
+      user: users
+    }
+  });
+
+  fs.writeFileSync(liveUsersFile, xml);
 }
 
 function requireLogin(req, res, next) {
@@ -125,47 +174,80 @@ function getAllMonthlyBookingFiles() {
     .map(file => path.join(bookingsDir, file));
 }
 
-function getUsersFromXML() {
-  const xml = fs.readFileSync(usersFile, "utf8");
-  const parsed = new XMLParser({ ignoreAttributes: false }).parse(xml);
-  return toArray(parsed.organisationUsers?.user);
-}
-
-function saveUsersToXML(users) {
-  const builder = new XMLBuilder({
-    ignoreAttributes: false,
-    format: true,
-    suppressEmptyNode: true
-  });
-
-  const xml = builder.build({
-    organisationUsers: {
-      user: users
-    }
-  });
-
-  fs.writeFileSync(usersFile, xml);
-}
-
 function userOwnsBooking(req, booking) {
   return normaliseEmail(booking.email) === normaliseEmail(req.session.user.email);
 }
 
-app.post("/api/auth/register", async (req, res) => {
+/* ---------------- AUTH ROUTES ---------------- */
+
+app.post("/api/auth/check-email", (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const cleanedEmail = normaliseEmail(req.body.email);
+    const users = getUsersFromXML();
 
-    const cleanedName = String(name || "").trim();
-    const cleanedEmail = normaliseEmail(email);
+    const user = users.find(
+      existingUser => normaliseEmail(existingUser.email) === cleanedEmail
+    );
 
-    if (!cleanedName || !cleanedEmail || !password) {
-      return res.status(400).json({
+    if (!user) {
+      return res.status(404).json({
         success: false,
-        message: "Name, email and password are required."
+        message: "This email address is not registered with the organisation."
       });
     }
 
-    const passwordErrors = validatePassword(password, cleanedName, cleanedEmail);
+    res.json({
+      success: true,
+      name: user.name,
+      email: user.email,
+      status: user.status || "PendingActivation",
+      isActivated: user.status === "Active" && Boolean(user.passwordHash)
+    });
+  } catch (error) {
+    console.error("Check email error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+app.post("/api/auth/activate", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const cleanedEmail = normaliseEmail(email);
+
+    if (!cleanedEmail || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and password are required."
+      });
+    }
+
+    const users = getUsersFromXML();
+
+    const userIndex = users.findIndex(
+      user => normaliseEmail(user.email) === cleanedEmail
+    );
+
+    if (userIndex === -1) {
+      return res.status(403).json({
+        success: false,
+        message: "This email address is not registered with the organisation."
+      });
+    }
+
+    const user = users[userIndex];
+
+    if (user.status === "Active" && user.passwordHash) {
+      return res.status(409).json({
+        success: false,
+        message: "This account has already been activated. Please sign in."
+      });
+    }
+
+    const passwordErrors = validatePassword(password, user.name, cleanedEmail);
 
     if (passwordErrors.length > 0) {
       return res.status(400).json({
@@ -174,55 +256,40 @@ app.post("/api/auth/register", async (req, res) => {
       });
     }
 
-    const users = getUsersFromXML();
-
-    const existingUser = users.find(
-      user => normaliseEmail(user.email) === cleanedEmail
-    );
-
-    if (existingUser) {
-      return res.status(409).json({
-        success: false,
-        message: "An account with this email already exists."
-      });
-    }
-
     const passwordHash = await argon2.hash(password, {
       type: argon2.argon2id
     });
 
-    const newUser = {
-      userId: `U${String(users.length + 1).padStart(4, "0")}`,
-      name: cleanedName,
+    users[userIndex] = {
+      ...user,
       email: cleanedEmail,
       passwordHash,
-      role: "User",
+      role: user.role || "User",
       status: "Active",
-      createdAt: new Date().toISOString()
+      activatedAt: new Date().toISOString()
     };
 
-    users.push(newUser);
     saveUsersToXML(users);
-
-    req.session.user = {
-      userId: newUser.userId,
-      name: newUser.name,
-      email: newUser.email,
-      role: newUser.role
-    };
 
     res.json({
       success: true,
-      user: req.session.user
+      message: "Account activated successfully. Please sign in."
     });
   } catch (error) {
-    console.error("Register error:", error);
+    console.error("Activate account error:", error);
 
     res.status(500).json({
       success: false,
       message: error.message
     });
   }
+});
+
+app.post("/api/auth/register", (req, res) => {
+  res.status(410).json({
+    success: false,
+    message: "Open registration is disabled. Please activate your pre-approved organisation account."
+  });
 });
 
 app.post("/api/auth/login", async (req, res) => {
@@ -236,7 +303,7 @@ app.post("/api/auth/login", async (req, res) => {
       existingUser => normaliseEmail(existingUser.email) === cleanedEmail
     );
 
-    if (!user || user.status !== "Active") {
+    if (!user || user.status !== "Active" || !user.passwordHash) {
       return res.status(401).json({
         success: false,
         message: "Invalid email or password."
@@ -252,9 +319,16 @@ app.post("/api/auth/login", async (req, res) => {
       });
     }
 
+    req.session.user = {
+      userId: user.userId,
+      name: user.name,
+      email: user.email,
+      role: user.role || "User"
+    };
+
     res.json({
       success: true,
-      message: "Account created successfully. Please log in."
+      user: req.session.user
     });
   } catch (error) {
     console.error("Login error:", error);
@@ -279,6 +353,8 @@ app.post("/api/logout", (req, res) => {
   });
 });
 
+/* ---------------- BASIC DATA ROUTES ---------------- */
+
 app.get("/api/users", (req, res) => {
   const users = getUsersFromXML()
     .map(user => user.name)
@@ -296,6 +372,8 @@ app.get("/api/locations", (req, res) => {
 
   res.json({ locations });
 });
+
+/* ---------------- BOOKING ROUTES ---------------- */
 
 app.post("/api/bookings", requireLogin, (req, res) => {
   try {
@@ -667,6 +745,9 @@ app.put("/api/bookings/:bookingId", requireLogin, (req, res) => {
   }
 });
 
+/* ---------------- DEBUG ROUTE ---------------- */
+/* Remove or protect this route before full production use. */
+
 app.get("/api/debug/users", (req, res) => {
   try {
     const users = getUsersFromXML().map(user => ({
@@ -675,7 +756,7 @@ app.get("/api/debug/users", (req, res) => {
       email: user.email,
       role: user.role,
       status: user.status,
-      createdAt: user.createdAt,
+      activatedAt: user.activatedAt,
       hasPasswordHash: Boolean(user.passwordHash)
     }));
 
@@ -692,7 +773,10 @@ app.get("/api/debug/users", (req, res) => {
 });
 
 app.listen(PORT, () => {
+  ensureLiveUsersFile();
+
   console.log(`ICT booking server running on port ${PORT}`);
   console.log("Monthly booking storage enabled.");
   console.log(`Booking files directory: ${path.join(dataDir, "bookings")}`);
+  console.log(`Live users file: ${liveUsersFile}`);
 });
