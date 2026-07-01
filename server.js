@@ -1,6 +1,6 @@
+const express = require("express");
 const session = require("express-session");
 const argon2 = require("argon2");
-const express = require("express");
 const fs = require("fs");
 const path = require("path");
 const { XMLParser, XMLBuilder } = require("fast-xml-parser");
@@ -12,6 +12,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
+
+app.set("trust proxy", 1);
+
 app.use(session({
   secret: process.env.SESSION_SECRET || "change-this-secret",
   resave: false,
@@ -23,14 +26,12 @@ app.use(session({
     maxAge: 1000 * 60 * 60 * 8
   }
 }));
+
 app.use(express.static(__dirname));
 
-// App folder files
 const appDir = __dirname;
 const usersFile = path.join(appDir, "users.xml");
 const locationsFile = path.join(appDir, "locations.xml");
-
-// Persistent disk folder for saved bookings only
 const dataDir = process.env.DATA_DIR || path.join(__dirname, "data");
 
 function toArray(value) {
@@ -38,21 +39,8 @@ function toArray(value) {
   return Array.isArray(value) ? value : [value];
 }
 
-function ensureDataFolder() {
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
-  }
-}
-
-function ensureBookingsFile() {
-  ensureDataFolder();
-
-  if (!fs.existsSync(bookingsFile)) {
-    fs.writeFileSync(
-      bookingsFile,
-      `<?xml version="1.0" encoding="UTF-8"?>\n<bookings></bookings>`
-    );
-  }
+function normaliseEmail(email) {
+  return String(email || "").trim().toLowerCase();
 }
 
 function requireLogin(req, res, next) {
@@ -64,10 +52,6 @@ function requireLogin(req, res, next) {
   }
 
   next();
-}
-
-function normaliseEmail(email) {
-  return String(email || "").trim().toLowerCase();
 }
 
 function validatePassword(password, name, email) {
@@ -105,11 +89,205 @@ function validatePassword(password, name, email) {
   return errors;
 }
 
-app.get("/api/users", (req, res) => {
-  const xml = fs.readFileSync(usersFile, "utf8");
-  const parsed = new XMLParser().parse(xml);
+function readBookingsFromFile(filePath) {
+  const parser = new XMLParser({ ignoreAttributes: false });
+  const xml = fs.readFileSync(filePath, "utf8");
+  const parsed = parser.parse(xml);
 
-  const users = toArray(parsed.organisationUsers?.user)
+  return toArray(parsed.bookings?.booking);
+}
+
+function writeBookingsToFile(filePath, bookings) {
+  const builder = new XMLBuilder({
+    ignoreAttributes: false,
+    format: true,
+    suppressEmptyNode: true
+  });
+
+  const updatedXml = builder.build({
+    bookings: {
+      booking: bookings
+    }
+  });
+
+  fs.writeFileSync(filePath, updatedXml);
+}
+
+function getAllMonthlyBookingFiles() {
+  const bookingsDir = path.join(dataDir, "bookings");
+
+  if (!fs.existsSync(bookingsDir)) {
+    fs.mkdirSync(bookingsDir, { recursive: true });
+  }
+
+  return fs.readdirSync(bookingsDir)
+    .filter(file => file.endsWith(".xml"))
+    .map(file => path.join(bookingsDir, file));
+}
+
+function getUsersFromXML() {
+  const xml = fs.readFileSync(usersFile, "utf8");
+  const parsed = new XMLParser({ ignoreAttributes: false }).parse(xml);
+  return toArray(parsed.organisationUsers?.user);
+}
+
+function saveUsersToXML(users) {
+  const builder = new XMLBuilder({
+    ignoreAttributes: false,
+    format: true,
+    suppressEmptyNode: true
+  });
+
+  const xml = builder.build({
+    organisationUsers: {
+      user: users
+    }
+  });
+
+  fs.writeFileSync(usersFile, xml);
+}
+
+function userOwnsBooking(req, booking) {
+  return normaliseEmail(booking.email) === normaliseEmail(req.session.user.email);
+}
+
+app.post("/api/auth/register", async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+
+    const cleanedName = String(name || "").trim();
+    const cleanedEmail = normaliseEmail(email);
+
+    if (!cleanedName || !cleanedEmail || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Name, email and password are required."
+      });
+    }
+
+    const passwordErrors = validatePassword(password, cleanedName, cleanedEmail);
+
+    if (passwordErrors.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: passwordErrors.join(" ")
+      });
+    }
+
+    const users = getUsersFromXML();
+
+    const existingUser = users.find(
+      user => normaliseEmail(user.email) === cleanedEmail
+    );
+
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        message: "An account with this email already exists."
+      });
+    }
+
+    const passwordHash = await argon2.hash(password, {
+      type: argon2.argon2id
+    });
+
+    const newUser = {
+      userId: `U${String(users.length + 1).padStart(4, "0")}`,
+      name: cleanedName,
+      email: cleanedEmail,
+      passwordHash,
+      role: "User",
+      status: "Active",
+      createdAt: new Date().toISOString()
+    };
+
+    users.push(newUser);
+    saveUsersToXML(users);
+
+    req.session.user = {
+      userId: newUser.userId,
+      name: newUser.name,
+      email: newUser.email,
+      role: newUser.role
+    };
+
+    res.json({
+      success: true,
+      user: req.session.user
+    });
+  } catch (error) {
+    console.error("Register error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const cleanedEmail = normaliseEmail(email);
+
+    const users = getUsersFromXML();
+
+    const user = users.find(
+      existingUser => normaliseEmail(existingUser.email) === cleanedEmail
+    );
+
+    if (!user || user.status !== "Active") {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password."
+      });
+    }
+
+    const passwordMatches = await argon2.verify(user.passwordHash, password || "");
+
+    if (!passwordMatches) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password."
+      });
+    }
+
+    req.session.user = {
+      userId: user.userId,
+      name: user.name,
+      email: user.email,
+      role: user.role || "User"
+    };
+
+    res.json({
+      success: true,
+      user: req.session.user
+    });
+  } catch (error) {
+    console.error("Login error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+app.get("/api/me", (req, res) => {
+  res.json({
+    success: true,
+    user: req.session.user || null
+  });
+});
+
+app.post("/api/logout", (req, res) => {
+  req.session.destroy(() => {
+    res.json({ success: true });
+  });
+});
+
+app.get("/api/users", (req, res) => {
+  const users = getUsersFromXML()
     .map(user => user.name)
     .filter(Boolean);
 
@@ -141,6 +319,7 @@ app.post("/api/bookings", requireLogin, (req, res) => {
       name: req.session.user.name,
       email: req.session.user.email
     };
+
     const isRecurring =
       bookingRequest.bookingMode === "recurring" &&
       bookingRequest.recurrence &&
@@ -150,10 +329,7 @@ app.post("/api/bookings", requireLogin, (req, res) => {
       ? bookingRequest.recurrence.dates.slice(0, 4)
       : [bookingRequest.bookingDate];
 
-    const recurringGroupId = isRecurring
-      ? `REC-${Date.now()}`
-      : "";
-
+    const recurringGroupId = isRecurring ? `REC-${Date.now()}` : "";
     const savedBookings = [];
 
     for (const date of bookingDates) {
@@ -216,9 +392,7 @@ app.post("/api/bookings", requireLogin, (req, res) => {
 
       parsed.bookings.booking.push(newBooking);
 
-      const updatedXml = builder.build(parsed);
-      fs.writeFileSync(bookingsFile, updatedXml);
-
+      fs.writeFileSync(bookingsFile, builder.build(parsed));
       savedBookings.push(newBooking);
     }
 
@@ -259,60 +433,16 @@ app.get("/api/bookings", (req, res) => {
   }
 });
 
-function getAllMonthlyBookingFiles() {
-  const bookingsDir = path.join(dataDir, "bookings");
-
-  if (!fs.existsSync(bookingsDir)) {
-    fs.mkdirSync(bookingsDir, { recursive: true });
-  }
-
-  return fs.readdirSync(bookingsDir)
-    .filter(file => file.endsWith(".xml"))
-    .map(file => path.join(bookingsDir, file));
-}
-
-function readBookingsFromFile(filePath) {
-  const parser = new XMLParser({ ignoreAttributes: false });
-  const xml = fs.readFileSync(filePath, "utf8");
-  const parsed = parser.parse(xml);
-
-  return toArray(parsed.bookings?.booking);
-}
-
-function writeBookingsToFile(filePath, bookings) {
-  const builder = new XMLBuilder({
-    ignoreAttributes: false,
-    format: true,
-    suppressEmptyNode: true
-  });
-
-  const updatedXml = builder.build({
-    bookings: {
-      booking: bookings
-    }
-  });
-
-  fs.writeFileSync(filePath, updatedXml);
-}
-
 app.get("/api/bookings/search", requireLogin, (req, res) => {
   try {
     const email = req.session.user.email;
-
-    if (!email) {
-      return res.status(400).json({
-        success: false,
-        message: "Email is required."
-      });
-    }
-
     const files = getAllMonthlyBookingFiles();
     const today = new Date().toISOString().split("T")[0];
 
     const bookings = files.flatMap(file => readBookingsFromFile(file))
       .filter(booking => {
         return (
-          String(booking.email || "").toLowerCase() === email.toLowerCase() &&
+          normaliseEmail(booking.email) === normaliseEmail(email) &&
           booking.bookingDate >= today &&
           booking.status !== "Deleted" &&
           booking.status !== "Cancelled"
@@ -353,16 +483,27 @@ app.delete("/api/bookings/:bookingId", requireLogin, (req, res) => {
     const bookingsFile = ensureMonthlyBookingsFile(bookingDate);
     const bookings = readBookingsFromFile(bookingsFile);
 
-    const updatedBookings = bookings.filter(
-      booking => String(booking["@_id"]) !== String(bookingId)
+    const bookingToDelete = bookings.find(
+      booking => String(booking["@_id"]) === String(bookingId)
     );
 
-    if (updatedBookings.length === bookings.length) {
+    if (!bookingToDelete) {
       return res.status(404).json({
         success: false,
         message: "Booking not found."
       });
     }
+
+    if (!userOwnsBooking(req, bookingToDelete)) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorised to delete this booking."
+      });
+    }
+
+    const updatedBookings = bookings.filter(
+      booking => String(booking["@_id"]) !== String(bookingId)
+    );
 
     writeBookingsToFile(bookingsFile, updatedBookings);
 
@@ -391,8 +532,12 @@ app.delete("/api/bookings/recurring/:recurringGroupId", requireLogin, (req, res)
       const bookings = readBookingsFromFile(file);
 
       const updatedBookings = bookings.filter(booking => {
-        const shouldDelete = booking.recurringGroupId === recurringGroupId;
+        const shouldDelete =
+          booking.recurringGroupId === recurringGroupId &&
+          userOwnsBooking(req, booking);
+
         if (shouldDelete) deletedCount++;
+
         return !shouldDelete;
       });
 
@@ -442,15 +587,23 @@ app.put("/api/bookings/:bookingId", requireLogin, (req, res) => {
 
     const existingBooking = originalBookings[bookingIndex];
 
+    if (!userOwnsBooking(req, existingBooking)) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorised to modify this booking."
+      });
+    }
+
     const updatedBookingRequest = {
       ...existingBooking,
       ...req.body,
+      userId: req.session.user.userId,
+      name: req.session.user.name,
+      email: req.session.user.email,
       bookingDate: req.body.bookingDate || existingBooking.bookingDate,
       status: "Pending Allocation"
     };
 
-    // Remove the existing booking from its original monthly XML first.
-    // This prevents the allocator from treating its old allocation as a conflict.
     const remainingOriginalBookings = originalBookings.filter(
       booking => String(booking["@_id"]) !== String(bookingId)
     );
@@ -473,10 +626,7 @@ app.put("/api/bookings/:bookingId", requireLogin, (req, res) => {
       }
     }
 
-    const targetBookingsFile = ensureMonthlyBookingsFile(
-      updatedBookingRequest.bookingDate
-    );
-
+    const targetBookingsFile = ensureMonthlyBookingsFile(updatedBookingRequest.bookingDate);
     const targetBookings = readBookingsFromFile(targetBookingsFile);
 
     reallocationUpdates.forEach(update => {
@@ -524,243 +674,8 @@ app.put("/api/bookings/:bookingId", requireLogin, (req, res) => {
   }
 });
 
-function requireLogin(req, res, next) {
-  if (!req.session.user) {
-    return res.status(401).json({
-      success: false,
-      message: "Login required."
-    });
-  }
-
-  next();
-}
-
-app.post("/api/auth/google", async (req, res) => {
-  try {
-    const { credential } = req.body;
-
-    if (!credential) {
-      return res.status(400).json({
-        success: false,
-        message: "Missing Google credential."
-      });
-    }
-
-    const ticket = await googleClient.verifyIdToken({
-      idToken: credential,
-      audience: process.env.GOOGLE_CLIENT_ID
-    });
-
-    const payload = ticket.getPayload();
-
-    const allowedDomain = process.env.ALLOWED_GOOGLE_DOMAIN;
-
-    if (allowedDomain && payload.hd !== allowedDomain) {
-      return res.status(403).json({
-        success: false,
-        message: "Unauthorised Google account."
-      });
-    }
-
-    const authenticatedUser = {
-      name: payload.name,
-      email: payload.email,
-      picture: payload.picture,
-      googleSubject: payload.sub
-    };
-
-    req.session.user = authenticatedUser;
-
-    res.json({
-      success: true,
-      user: authenticatedUser
-    });
-
-  } catch (error) {
-    console.error("Google login error:", error);
-
-    res.status(401).json({
-      success: false,
-      message: "Google login failed."
-    });
-  }
-});
-
-app.get("/api/me", (req, res) => {
-  res.json({
-    success: true,
-    user: req.session.user || null
-  });
-});
-
-app.post("/api/logout", (req, res) => {
-  req.session.destroy(() => {
-    res.json({
-      success: true
-    });
-  });
-});
-
-app.post("/api/auth/register", async (req, res) => {
-  try {
-    const { name, email, password } = req.body;
-
-    const cleanedName = String(name || "").trim();
-    const cleanedEmail = normaliseEmail(email);
-
-    if (!cleanedName || !cleanedEmail || !password) {
-      return res.status(400).json({
-        success: false,
-        message: "Name, email and password are required."
-      });
-    }
-
-    const passwordErrors = validatePassword(password, cleanedName, cleanedEmail);
-
-    if (passwordErrors.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: passwordErrors.join(" ")
-      });
-    }
-
-    const parser = new XMLParser({ ignoreAttributes: false });
-    const builder = new XMLBuilder({
-      ignoreAttributes: false,
-      format: true,
-      suppressEmptyNode: true
-    });
-
-    const xml = fs.readFileSync(usersFile, "utf8");
-    const parsed = parser.parse(xml);
-
-    if (!parsed.organisationUsers) {
-      parsed.organisationUsers = {};
-    }
-
-    if (!parsed.organisationUsers.user) {
-      parsed.organisationUsers.user = [];
-    } else if (!Array.isArray(parsed.organisationUsers.user)) {
-      parsed.organisationUsers.user = [parsed.organisationUsers.user];
-    }
-
-    const existingUser = parsed.organisationUsers.user.find(
-      user => normaliseEmail(user.email) === cleanedEmail
-    );
-
-    if (existingUser) {
-      return res.status(409).json({
-        success: false,
-        message: "An account with this email already exists."
-      });
-    }
-
-    const passwordHash = await argon2.hash(password, {
-      type: argon2.argon2id
-    });
-
-    const newUser = {
-      userId: `U${String(parsed.organisationUsers.user.length + 1).padStart(4, "0")}`,
-      name: cleanedName,
-      email: cleanedEmail,
-      passwordHash,
-      role: "User",
-      status: "Active",
-      createdAt: new Date().toISOString()
-    };
-
-    parsed.organisationUsers.user.push(newUser);
-
-    fs.writeFileSync(usersFile, builder.build(parsed));
-
-    req.session.user = {
-      userId: newUser.userId,
-      name: newUser.name,
-      email: newUser.email,
-      role: newUser.role
-    };
-
-    res.json({
-      success: true,
-      user: req.session.user
-    });
-  } catch (error) {
-    console.error("Register error:", error);
-
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
-});
-
-app.post("/api/auth/login", async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    const cleanedEmail = normaliseEmail(email);
-
-    const parser = new XMLParser({ ignoreAttributes: false });
-    const xml = fs.readFileSync(usersFile, "utf8");
-    const parsed = parser.parse(xml);
-
-    const users = toArray(parsed.organisationUsers?.user);
-
-    const user = users.find(
-      existingUser => normaliseEmail(existingUser.email) === cleanedEmail
-    );
-
-    if (!user || user.status !== "Active") {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid email or password."
-      });
-    }
-
-    const passwordMatches = await argon2.verify(user.passwordHash, password || "");
-
-    if (!passwordMatches) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid email or password."
-      });
-    }
-
-    req.session.user = {
-      userId: user.userId,
-      name: user.name,
-      email: user.email,
-      role: user.role || "User"
-    };
-
-    res.json({
-      success: true,
-      user: req.session.user
-    });
-  } catch (error) {
-    console.error("Login error:", error);
-
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
-});
-
-app.get("/api/me", (req, res) => {
-  res.json({
-    success: true,
-    user: req.session.user || null
-  });
-});
-
-app.post("/api/logout", (req, res) => {
-  req.session.destroy(() => {
-    res.json({ success: true });
-  });
-});
-
 app.listen(PORT, () => {
   console.log(`ICT booking server running on port ${PORT}`);
-  console.log(`Monthly booking storage enabled.`);
-  console.log(`Booking files directory: ${dataDir}/bookings`);
+  console.log("Monthly booking storage enabled.");
+  console.log(`Booking files directory: ${path.join(dataDir, "bookings")}`);
 });
