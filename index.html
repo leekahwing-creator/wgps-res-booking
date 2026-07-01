@@ -288,6 +288,26 @@
       align-items: center;
     }
 
+    #logoutBtn {
+      border: none;
+      background: #dc2626;
+      color: white;
+      font-weight: 700;
+      padding: 9px 14px;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+
+    #logoutBtn:hover {
+      background: #b91c1c;
+    }
+
+    #currentUserDisplay {
+      font-weight: 700;
+      color: #334155;
+      padding: 9px 12px;
+    }
+    
     #devicesRequired,
     #recurrenceCount {
       text-align: center;
@@ -591,6 +611,12 @@
         <a href="manage-bookings.html">
           Manage My Bookings
         </a>
+
+        <span id="currentUserDisplay"></span>
+
+        <button id="logoutBtn" type="button">
+          Logout
+        </button>
       </div>
     </nav>
     
@@ -789,6 +815,23 @@
       currentUser = result.user;
       return currentUser;
     }
+
+    async function initialiseUser() {
+      const user = await requireAuthenticatedUser();
+
+      if (!user) return;
+
+      document.getElementById("currentUserDisplay").textContent =
+        `Signed in as ${user.name}`;
+    }
+
+    document.getElementById("logoutBtn").addEventListener("click", async () => {
+      await fetch("/api/logout", {
+        method: "POST"
+      });
+
+      window.location.href = "login.html";
+    });
     
     let usersDatabase = [];
     let locationsDatabase = [];
@@ -1361,6 +1404,7 @@
       updateSummary();
 
       await Promise.allSettled([
+        initialiseUser(),
         loadUsers(),
         loadLocations()
       ]);
