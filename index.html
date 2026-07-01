@@ -819,10 +819,12 @@
     async function initialiseUser() {
       const user = await requireAuthenticatedUser();
 
-      if (!user) return;
+      if (!user) return null;
 
       document.getElementById("currentUserDisplay").textContent =
         `Signed in as ${user.name}`;
+
+      return user;
     }
 
     document.getElementById("logoutBtn").addEventListener("click", async () => {
@@ -882,9 +884,6 @@
     let recurrencePreview;
     let bookingMode = 'one-time';
     let repeatIntervalWeeks = 1;
-
-    await requireAuthenticatedUser();
-    
     function getRequiredElement(id) {
       const element = document.getElementById(id);
 
@@ -1175,7 +1174,7 @@
     }
 
     function isWeekend(dateString) {
-      const date = new Date(`${dateString}T00:00:00`);
+      const date = parseLocalDate(dateString);
       const day = date.getDay();
       return day === 0 || day === 6;
     }
@@ -1188,7 +1187,7 @@
         date.setDate(date.getDate() + 1);
       }
 
-      return date.toISOString().split('T')[0];
+      return formatLocalDateForInput(date);
     }
 
     function populateTimeOptions() {
@@ -1392,6 +1391,13 @@
       console.log('Initialising ICT Resource Booking Portal...');
 
       cacheDOMElements();
+
+      const user = await initialiseUser();
+      if (!user) return;
+
+      nameInput.value = user.name;
+      nameInput.readOnly = true;
+
       bindEventListeners();
 
       const earliestBookingDate = getNextAvailableBookingDate();
@@ -1404,7 +1410,6 @@
       updateSummary();
 
       await Promise.allSettled([
-        initialiseUser(),
         loadUsers(),
         loadLocations()
       ]);
