@@ -249,37 +249,30 @@
       line-height: 1.35;
     }
 
-    .suggestions {
-      display: none;
+    .requester-card {
       border: 1px solid var(--border);
-      border-radius: 14px;
-      background: #ffffff;
-      box-shadow: 0 14px 30px rgba(15, 23, 42, 0.12);
-      overflow: hidden;
-      max-height: 220px;
-      overflow-y: auto;
-      z-index: 20;
+      border-radius: 16px;
+      padding: 14px 16px;
+      background: #f8fafc;
     }
 
-    .suggestions.show {
-      display: block;
+    .requester-label {
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-weight: 800;
     }
 
-    .suggestion-item {
-      padding: 11px 13px;
-      cursor: pointer;
-      font-size: 0.95rem;
-      border-bottom: 1px solid #f1f5f9;
-    }
-
-    .suggestion-item:last-child {
-      border-bottom: 0;
-    }
-
-    .suggestion-item:hover {
-      background: var(--primary-light);
+    #requesterName {
       color: var(--primary-dark);
+      font-size: 1.05rem;
+      line-height: 1.3;
     }
+
+    #requesterEmail {
+      display: block;
+      margin-top: 2px;
+    }
+
 
     .device-control {
       display: grid;
@@ -625,7 +618,7 @@
         <div class="badge">ICT Resource Booking Portal</div>
         <h1>Book ICT resources quickly and easily.</h1>
         <p class="subtitle">
-          Submit your resource request in one simple form. The information collected here will support future automatic resource allocation, availability checks and administrator reports.
+          Submit your ICT resource request in one simple form. Your booking will be linked securely to your signed-in account and checked for suitable resource allocation.
         </p>
 
         <div class="quick-info" aria-label="Booking process highlights">
@@ -639,7 +632,7 @@
           </div>
           <div class="info-card">
             <strong>3</strong>
-            <span>Resources allocated later</span>
+            <span>Resources allocated automatically</span>
           </div>
         </div>
       </div>
@@ -652,10 +645,10 @@
 
         <form id="bookingForm">
           <div class="form-grid">
-            <div class="field full">
-              <label for="name">Name</label>
-              <input id="name" name="name" type="text" autocomplete="off" placeholder="Enter your name" required />
-              <div id="userSuggestions" class="suggestions" role="listbox"></div>
+            <div class="field full requester-card">
+              <span class="requester-label">Booking requester</span>
+              <strong id="requesterName">Signed-in user</strong>
+              <span id="requesterEmail" class="helper"></span>
             </div>
 
             <div class="field">
@@ -768,7 +761,6 @@
                 <span class="helper">Use the + or − buttons for quick adjustment.</span>
               </div>
             </div>
-            </div>
           </div>
 
           <div class="summary" id="bookingSummary">
@@ -783,7 +775,7 @@
           <div id="statusMessage" class="status" role="status" aria-live="polite"></div>
 
           <p class="admin-note">
-            Developer note: Booking submissions are sent to the backend API endpoint <strong>/api/bookings</strong>, which saves each request into <strong>bookings.xml</strong>. On GitHub Pages, XML files such as <strong>users.xml</strong> and <strong>locations.xml</strong> must be in the same deployed folder as this page and must use the exact same lowercase file names.
+            Booking submissions are sent securely to the backend and saved into the relevant monthly booking file after resource allocation is completed.
           </p>
         </form>
       </div>
@@ -824,6 +816,9 @@
       document.getElementById("currentUserDisplay").textContent =
         `Signed in as ${user.name}`;
 
+      document.getElementById("requesterName").textContent = user.name;
+      document.getElementById("requesterEmail").textContent = user.email;
+
       return user;
     }
 
@@ -835,18 +830,8 @@
       window.location.href = "login.html";
     });
     
-    let usersDatabase = [];
     let locationsDatabase = [];
 
-    const fallbackUsersDatabase = [
-      'Aaron Tan', 'Abigail Lim', 'Adam Lee', 'Adrian Chua', 'Aidan Koh', 'Alicia Ng', 'Amanda Teo', 'Amelia Goh', 'Andrew Ong', 'Angela Tay',
-      'Benjamin Ho', 'Bernice Lim', 'Brandon Tan', 'Brenda Lee', 'Bryan Chia', 'Caleb Wong', 'Carmen Yeo', 'Cassandra Lim', 'Celine Ng', 'Cheryl Tan',
-      'Christopher Lee', 'Clarence Goh', 'Claudia Tay', 'Daniel Koh', 'Daphne Lim', 'Darren Ong', 'Deborah Chua', 'Desmond Tan', 'Dominic Lee', 'Edmund Ng',
-      'Elaine Goh', 'Elizabeth Tay', 'Emily Chia', 'Ethan Lim', 'Eugene Ho', 'Felicia Tan', 'Gabriel Lee', 'Geraldine Ong', 'Grace Koh', 'Hannah Lim',
-      'Isaac Tan', 'Jasmine Lee', 'Jason Ng', 'Jeffrey Ong', 'Jolene Goh', 'Jonathan Lim', 'Josephine Tay', 'Joshua Chua', 'Joyce Tan', 'Justin Lee',
-      'Karen Ong', 'Keith Koh', 'Kenneth Lim', 'Kevin Lee', 'Kimberly Goh', 'Lawrence Tan', 'Leonard Chia', 'Lydia Ng', 'Marcus Lim', 'Melissa Ong',
-      'Nicholas Tan', 'Nicole Lee', 'Olivia Koh', 'Patrick Lim', 'Priscilla Ong', 'Rachel Goh', 'Ryan Tan', 'Samantha Lee', 'Shawn Ng', 'Vivian Koh'
-    ];
 
     const fallbackLocationsDatabase = [
       'Classroom',
@@ -866,8 +851,6 @@
     let devicesRequired;
     let increaseDevices;
     let decreaseDevices;
-    let nameInput;
-    let userSuggestions;
     let locationSelect;
     let customLocationField;
     let customLocationInput;
@@ -904,8 +887,6 @@
       devicesRequired = getRequiredElement('devicesRequired');
       increaseDevices = getRequiredElement('increaseDevices');
       decreaseDevices = getRequiredElement('decreaseDevices');
-      nameInput = getRequiredElement('name');
-      userSuggestions = getRequiredElement('userSuggestions');
       locationSelect = getRequiredElement('location');
       customLocationField = getRequiredElement('customLocationField');
       customLocationInput = getRequiredElement('customLocation');
@@ -941,17 +922,6 @@
       return data[key];
     }
 
-    async function loadUsers() {
-      try {
-        usersDatabase = await fetchJSONList('/api/users', 'users');
-        usersDatabase = usersDatabase.filter(Boolean).sort((a, b) => a.localeCompare(b));
-        console.log(`${usersDatabase.length} users loaded.`);
-      } catch (error) {
-        console.warn('Unable to load users from /api/users. Using fallback list.', error);
-        usersDatabase = fallbackUsersDatabase;
-      }
-    }
-
     async function loadLocations() {
       try {
         locationsDatabase = await fetchJSONList('/api/locations', 'locations');
@@ -981,42 +951,11 @@
       });
     }
 
-    function updateUserSuggestions(searchTerm = '') {
-      const cleanedSearchTerm = searchTerm.trim().toLowerCase();
-
-      if (!cleanedSearchTerm) {
-        userSuggestions.classList.remove('show');
-        userSuggestions.innerHTML = '';
-        return;
-      }
-
-      const filteredUsers = usersDatabase
-        .filter(user => user.toLowerCase().startsWith(cleanedSearchTerm))
-        .slice(0, 8);
-
-      if (filteredUsers.length === 0) {
-        userSuggestions.classList.remove('show');
-        userSuggestions.innerHTML = '';
-        return;
-      }
-
-      userSuggestions.innerHTML = '';
-
-      filteredUsers.forEach(user => {
-        const item = document.createElement('div');
-        item.className = 'suggestion-item';
-        item.setAttribute('role', 'option');
-        item.textContent = user;
-        item.dataset.name = user;
-        userSuggestions.appendChild(item);
-      });
-
-      userSuggestions.classList.add('show');
-    }
-
     function getBookingData() {
       return {
-        name: nameInput.value.trim(),
+        name: currentUser?.name || '',
+        email: currentUser?.email || '',
+        userId: currentUser?.userId || '',
         bookingDate: bookingDate.value,
         startTime: startTime.value,
         endTime: endTime.value,
@@ -1266,8 +1205,12 @@
       const allocation = savedBooking.allocation || {};
       const allocatedResources = formatAllocatedResources(allocation);
 
-      if (savedBooking.status === 'Confirmed') {
-        return `Booking confirmed. Allocated resources: <strong>${allocatedResources}</strong>. Total allocated capacity: <strong>${allocation.totalAllocatedCapacity || 0}</strong> devices.`;
+      if (savedBooking.status === 'Confirmed' || savedBooking.status === 'Confirmed with Reallocation') {
+        const method = allocation.allocationMethod
+          ? ` Allocation method: <strong>${allocation.allocationMethod}</strong>.`
+          : '';
+
+        return `Booking confirmed. Allocated resources: <strong>${allocatedResources}</strong>. Total allocated capacity: <strong>${allocation.totalAllocatedCapacity || 0}</strong> devices.${method}`;
       }
 
       return `Booking saved but could not be fully fulfilled with the currently available resources. Status: <strong>${savedBooking.status}</strong>.`;
@@ -1284,28 +1227,6 @@
       increaseDevices.addEventListener('click', () => adjustDeviceCount(1));
       decreaseDevices.addEventListener('click', () => adjustDeviceCount(-1));
 
-      nameInput.addEventListener('input', event => {
-        updateUserSuggestions(event.target.value);
-        updateSummary();
-      });
-
-      nameInput.addEventListener('focus', () => updateUserSuggestions(nameInput.value));
-
-      userSuggestions.addEventListener('click', event => {
-        const selectedItem = event.target.closest('.suggestion-item');
-        if (!selectedItem) return;
-
-        nameInput.value = selectedItem.dataset.name;
-        userSuggestions.classList.remove('show');
-        userSuggestions.innerHTML = '';
-        updateSummary();
-      });
-
-      document.addEventListener('click', event => {
-        if (!nameInput.contains(event.target) && !userSuggestions.contains(event.target)) {
-          userSuggestions.classList.remove('show');
-        }
-      });
 
       locationSelect.addEventListener('change', () => {
         toggleCustomLocationField();
@@ -1376,11 +1297,20 @@
           }
 
           const savedBooking = result.booking;
+          const savedBookings = Array.isArray(result.bookings) ? result.bookings : [savedBooking];
           localStorage.setItem('latestICTBooking', JSON.stringify(savedBooking));
 
-          const statusType = savedBooking.status === 'Confirmed' ? 'success' : 'warning';
-          showStatus(statusType, buildAllocationMessage(savedBooking));
-          console.log('Booking saved to bookings.xml with allocation:', savedBooking);
+          const allConfirmed = savedBookings.every(booking =>
+            booking.status === 'Confirmed' || booking.status === 'Confirmed with Reallocation'
+          );
+
+          const statusType = allConfirmed ? 'success' : 'warning';
+          const recurringMessage = savedBookings.length > 1
+            ? `${savedBookings.length} booking occurrences processed. First allocation: ${buildAllocationMessage(savedBooking)}`
+            : buildAllocationMessage(savedBooking);
+
+          showStatus(statusType, recurringMessage);
+          console.log('Booking saved with allocation:', result);
         } catch (error) {
           showStatus('error', `The booking could not be submitted. ${error.message}`);
         }
@@ -1395,9 +1325,6 @@
       const user = await initialiseUser();
       if (!user) return;
 
-      nameInput.value = user.name;
-      nameInput.readOnly = true;
-
       bindEventListeners();
 
       const earliestBookingDate = getNextAvailableBookingDate();
@@ -1410,12 +1337,10 @@
       updateSummary();
 
       await Promise.allSettled([
-        loadUsers(),
         loadLocations()
       ]);
 
       console.log('Initialisation completed.', {
-        usersLoaded: usersDatabase.length,
         locationsLoaded: locationsDatabase.length
       });
     }
