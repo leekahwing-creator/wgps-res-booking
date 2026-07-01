@@ -205,6 +205,24 @@ function saveUsersToXML(users) {
   saveStoredUsers(users);
 }
 
+function initialiseUserStorage() {
+  ensureDataDir();
+  ensureLiveUsersFile();
+
+  // Force migration/encryption during startup so /data/users.xml is protected
+  // before any user activates or logs in.
+  const storedUsers = readStoredUsers();
+  saveStoredUsers(storedUsers);
+
+  try {
+    fs.chmodSync(liveUsersFile, 0o600);
+  } catch (error) {
+    console.warn("Unable to apply restricted permissions to users.xml:", error.message);
+  }
+
+  return storedUsers.length;
+}
+
 function requireLogin(req, res, next) {
   if (!req.session.user) {
     return res.status(401).json({
@@ -868,6 +886,32 @@ app.put("/api/bookings/:bookingId", requireLogin, (req, res) => {
   }
 });
 
+/* ---------------- ADMIN STORAGE DIAGNOSTIC ROUTE ---------------- */
+/* Requires an authenticated Admin account. Remove before full production use if not needed. */
+
+app.get("/api/debug/storage", requireLogin, requireAdmin, (req, res) => {
+  try {
+    res.json({
+      success: true,
+      dataDir,
+      sourceUsersFile,
+      liveUsersFile,
+      dataDirExists: fs.existsSync(dataDir),
+      sourceUsersFileExists: fs.existsSync(sourceUsersFile),
+      liveUsersFileExists: fs.existsSync(liveUsersFile),
+      filesInDataDir: fs.existsSync(dataDir) ? fs.readdirSync(dataDir) : [],
+      liveUsersFileSizeBytes: fs.existsSync(liveUsersFile)
+        ? fs.statSync(liveUsersFile).size
+        : 0
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
 /* ---------------- ADMIN DEBUG ROUTE ---------------- */
 /* Requires an authenticated Admin account. Does not reveal names, emails, or password hashes. */
 
@@ -896,10 +940,19 @@ app.get("/api/debug/users", requireLogin, requireAdmin, (req, res) => {
 });
 
 app.listen(PORT, () => {
-  ensureLiveUsersFile();
+  try {
+    const userCount = initialiseUserStorage();
 
-  console.log(`ICT booking server running on port ${PORT}`);
-  console.log("Monthly booking storage enabled.");
-  console.log(`Booking files directory: ${path.join(dataDir, "bookings")}`);
-  console.log(`Live users file: ${liveUsersFile}`);
+    console.log(`ICT booking server running on port ${PORT}`);
+    console.log("Monthly booking storage enabled.");
+    console.log(`DATA_DIR: ${dataDir}`);
+    console.log(`Booking files directory: ${path.join(dataDir, "bookings")}`);
+    console.log(`Source users file: ${sourceUsersFile}`);
+    console.log(`Live users file: ${liveUsersFile}`);
+    console.log(`Live users file exists: ${fs.existsSync(liveUsersFile)}`);
+    console.log(`User records loaded from persistent storage: ${userCount}`);
+  } catch (error) {
+    console.error("Failed to initialise encrypted user storage:", error);
+    process.exit(1);
+  }
 });
