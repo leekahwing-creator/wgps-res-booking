@@ -3,24 +3,221 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Create Account</title>
+  <title>Create Account | ICT Resource Booking Portal</title>
+  <style>
+    :root {
+      --primary: #0f766e;
+      --primary-dark: #115e59;
+      --primary-light: #ccfbf1;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: #dbe4ee;
+      --danger: #dc2626;
+      --success: #166534;
+      --shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+      --radius: 22px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: linear-gradient(135deg, #ecfeff 0%, #f8fafc 48%, #eef2ff 100%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .page {
+      width: min(560px, 100%);
+      margin: 0 auto;
+      padding: 32px 18px;
+    }
+
+    .portal-nav {
+      margin-bottom: 22px;
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid rgba(226, 232, 240, 0.95);
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+      font-weight: 900;
+      color: var(--primary-dark);
+      text-align: center;
+    }
+
+    .card {
+      background: #ffffff;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      border: 1px solid rgba(226, 232, 240, 0.95);
+      overflow: hidden;
+    }
+
+    .card-header {
+      padding: 22px 24px;
+      background: linear-gradient(135deg, var(--primary), #164e63);
+      color: #ffffff;
+    }
+
+    .card-header h1 {
+      margin: 0 0 6px;
+      font-size: 1.8rem;
+    }
+
+    .card-header p {
+      margin: 0;
+      opacity: 0.9;
+      line-height: 1.45;
+    }
+
+    form {
+      padding: 24px;
+      display: grid;
+      gap: 16px;
+    }
+
+    .field {
+      display: grid;
+      gap: 8px;
+    }
+
+    label {
+      font-size: 0.9rem;
+      font-weight: 800;
+      color: #1e293b;
+    }
+
+    input {
+      width: 100%;
+      min-height: 48px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 11px 13px;
+      font-size: 1rem;
+      outline: none;
+    }
+
+    input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.14);
+    }
+
+    .btn {
+      border: 0;
+      min-height: 50px;
+      border-radius: 16px;
+      font-weight: 900;
+      font-size: 1rem;
+      cursor: pointer;
+      background: var(--primary);
+      color: #ffffff;
+      box-shadow: 0 12px 26px rgba(15, 118, 110, 0.22);
+    }
+
+    .btn:hover {
+      background: var(--primary-dark);
+    }
+
+    .message {
+      display: none;
+      padding: 13px 14px;
+      border-radius: 14px;
+      font-weight: 700;
+      font-size: 0.92rem;
+    }
+
+    .message.error {
+      display: block;
+      background: #fee2e2;
+      color: var(--danger);
+    }
+
+    .message.success {
+      display: block;
+      background: #dcfce7;
+      color: var(--success);
+    }
+
+    .password-rules {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+      font-size: 0.84rem;
+      line-height: 1.5;
+    }
+
+    .helper {
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.45;
+      text-align: center;
+    }
+
+    .helper a {
+      color: var(--primary-dark);
+      font-weight: 900;
+      text-decoration: none;
+    }
+  </style>
 </head>
 <body>
-  <h1>Create Account</h1>
+  <main class="page">
+    <div class="portal-nav">ICT Resource Booking Portal</div>
 
-  <form id="registerForm">
-    <input id="name" placeholder="Full name" required />
-    <input id="email" type="email" placeholder="Email address" required />
-    <input id="password" type="password" placeholder="Password" required />
-    <button type="submit">Create Account</button>
-  </form>
+    <section class="card">
+      <div class="card-header">
+        <h1>Create Account</h1>
+        <p>Create a secure account to make and manage ICT resource bookings.</p>
+      </div>
 
-  <p id="message"></p>
-  <p>Already have an account? <a href="login.html">Login</a></p>
+      <form id="registerForm">
+        <div id="message" class="message"></div>
+
+        <div class="field">
+          <label for="name">Full name</label>
+          <input id="name" type="text" autocomplete="name" required />
+        </div>
+
+        <div class="field">
+          <label for="email">Email address</label>
+          <input id="email" type="email" autocomplete="email" required />
+        </div>
+
+        <div class="field">
+          <label for="password">Password</label>
+          <input id="password" type="password" autocomplete="new-password" required />
+          <ul class="password-rules">
+            <li>At least 12 characters</li>
+            <li>Use at least 3 of: uppercase, lowercase, number, symbol</li>
+            <li>Do not include your name or email name</li>
+          </ul>
+        </div>
+
+        <button class="btn" type="submit">Create Account</button>
+
+        <p class="helper">
+          Already have an account?
+          <a href="login.html">Sign in</a>
+        </p>
+      </form>
+    </section>
+  </main>
 
   <script>
-    document.getElementById("registerForm").addEventListener("submit", async event => {
+    const registerForm = document.getElementById("registerForm");
+    const message = document.getElementById("message");
+
+    function showMessage(type, text) {
+      message.className = `message ${type}`;
+      message.textContent = text;
+    }
+
+    registerForm.addEventListener("submit", async event => {
       event.preventDefault();
+
+      message.className = "message";
+      message.textContent = "";
 
       const response = await fetch("/api/auth/register", {
         method: "POST",
@@ -35,14 +232,13 @@
       const result = await response.json();
 
       if (result.success) {
-        document.getElementById("message").textContent =
-          "Account created successfully. Please log in.";
+        showMessage("success", "Account created successfully. Please log in.");
 
         setTimeout(() => {
           window.location.href = "login.html";
         }, 1200);
       } else {
-        document.getElementById("message").textContent = result.message;
+        showMessage("error", result.message || "Unable to create account.");
       }
     });
   </script>
