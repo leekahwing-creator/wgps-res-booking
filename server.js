@@ -889,7 +889,7 @@ app.put("/api/bookings/:bookingId", requireLogin, (req, res) => {
 /* ---------------- ADMIN STORAGE DIAGNOSTIC ROUTE ---------------- */
 /* Requires an authenticated Admin account. Remove before full production use if not needed. */
 
-app.get("/api/debug/storage", (req, res) => {
+app.get("/api/debug/storage", requireLogin, requireAdmin, (req, res) => {
   try {
     res.json({
       success: true,
