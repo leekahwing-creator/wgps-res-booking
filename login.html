@@ -144,6 +144,22 @@
       font-weight: 900;
       text-decoration: none;
     }
+
+    .password-wrap {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+    }
+
+    .password-toggle {
+      border: 1px solid var(--border);
+      background: #f8fafc;
+      color: var(--primary-dark);
+      font-weight: 800;
+      border-radius: 14px;
+      padding: 0 14px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -166,7 +182,13 @@
 
         <div class="field">
           <label for="password">Password</label>
-          <input id="password" type="password" autocomplete="current-password" required />
+
+          <div class="password-wrap">
+            <input id="password" type="password" autocomplete="current-password" required />
+            <button id="togglePassword" type="button" class="password-toggle">
+              Show
+            </button>
+          </div>
         </div>
 
         <button class="btn" type="submit">Sign In</button>
@@ -188,6 +210,15 @@
       message.textContent = text;
     }
 
+    document.getElementById("togglePassword").addEventListener("click", () => {
+      const passwordInput = document.getElementById("password");
+      const toggleButton = document.getElementById("togglePassword");
+
+      const isHidden = passwordInput.type === "password";
+      passwordInput.type = isHidden ? "text" : "password";
+      toggleButton.textContent = isHidden ? "Hide" : "Show";
+    });
+    
     loginForm.addEventListener("submit", async event => {
       event.preventDefault();
 
