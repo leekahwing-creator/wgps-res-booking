@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Deployment Dashboard | ICT Resource Booking Portal</title>
+  <style>
+    :root {
+      --primary: #0f766e;
+      --primary-dark: #115e59;
+      --primary-light: #ccfbf1;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: #dbe4ee;
+      --danger: #dc2626;
+      --warning: #92400e;
+      --success: #166534;
+      --shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+      --radius: 22px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: linear-gradient(135deg, #ecfeff 0%, #f8fafc 48%, #eef2ff 100%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .page {
+      width: min(1280px, 100%);
+      margin: 0 auto;
+      padding: 32px 18px;
+    }
+
+    .portal-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 22px;
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid rgba(226, 232, 240, 0.95);
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+    }
+
+    .portal-brand {
+      font-weight: 900;
+      color: var(--primary-dark);
+    }
+
+    .portal-links {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .portal-links a {
+      text-decoration: none;
+      color: #334155;
+      font-weight: 800;
+      padding: 9px 12px;
+      border-radius: 999px;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .portal-links a.active,
+    .portal-links a:hover {
+      background: var(--primary);
+      color: #ffffff;
+    }
+
+    #logoutBtn {
+      border: none;
+      background: #dc2626;
+      color: white;
+      font-weight: 700;
+      padding: 9px 14px;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+
+    #currentUserDisplay {
+      font-weight: 700;
+      color: #334155;
+      padding: 9px 12px;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      border: 1px solid rgba(226, 232, 240, 0.95);
+      overflow: hidden;
+    }
+
+    .card-header {
+      padding: 22px 24px;
+      background: linear-gradient(135deg, var(--primary), #164e63);
+      color: #ffffff;
+    }
+
+    .card-header h1 {
+      margin: 0 0 6px;
+      font-size: clamp(1.6rem, 3vw, 2.35rem);
+      letter-spacing: -0.03em;
+    }
+
+    .card-header p {
+      margin: 0;
+      opacity: 0.9;
+      line-height: 1.45;
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: repeat(4, auto) 1fr;
+      gap: 12px;
+      align-items: end;
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+      background: #ffffff;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    label {
+      font-size: 0.85rem;
+      font-weight: 900;
+      color: #1e293b;
+    }
+
+    input {
+      min-height: 44px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 10px 12px;
+      font-size: 1rem;
+      background: #ffffff;
+      color: var(--text);
+      outline: none;
+    }
+
+    input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.14);
+    }
+
+    .btn {
+      border: 0;
+      min-height: 44px;
+      padding: 0 14px;
+      border-radius: 14px;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .btn-primary { background: var(--primary); color: #ffffff; }
+    .btn-secondary { background: #e2e8f0; color: #334155; }
+    .btn-danger { background: #fee2e2; color: var(--danger); }
+    .btn-warning { background: #fef3c7; color: var(--warning); }
+    .btn-success { background: #dcfce7; color: var(--success); }
+
+    .status {
+      display: none;
+      margin: 16px 24px 0;
+      padding: 13px 14px;
+      border-radius: 14px;
+      font-weight: 700;
+      font-size: 0.92rem;
+    }
+
+    .status.success { display: block; background: #dcfce7; color: #166534; }
+    .status.warning { display: block; background: #fef3c7; color: var(--warning); }
+    .status.error { display: block; background: #fee2e2; color: var(--danger); }
+
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 16px;
+      padding: 24px;
+    }
+
+    .lane {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: #f8fafc;
+      min-height: 260px;
+      overflow: hidden;
+    }
+
+    .lane-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      background: #ffffff;
+    }
+
+    .lane-header h2 {
+      margin: 0;
+      font-size: 1rem;
+    }
+
+    .count-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 28px;
+      min-height: 28px;
+      border-radius: 999px;
+      background: var(--primary-light);
+      color: var(--primary-dark);
+      font-weight: 900;
+      font-size: 0.82rem;
+    }
+
+    .lane-body {
+      display: grid;
+      gap: 12px;
+      padding: 14px;
+    }
+
+    .job-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      background: #ffffff;
+      padding: 14px;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
+    }
+
+    .job-title {
+      margin: 0 0 6px;
+      font-size: 1rem;
+      color: #0f172a;
+    }
+
+    .job-subtitle {
+      color: var(--muted);
+      font-size: 0.86rem;
+      line-height: 1.45;
+      margin-bottom: 10px;
+    }
+
+    .meta-grid {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .meta-row {
+      display: grid;
+      grid-template-columns: 92px 1fr;
+      gap: 8px;
+      font-size: 0.86rem;
+      line-height: 1.35;
+    }
+
+    .meta-row span {
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .meta-row strong {
+      font-weight: 800;
+      overflow-wrap: anywhere;
+    }
+
+    .job-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .job-actions .btn {
+      min-height: 38px;
+      font-size: 0.82rem;
+    }
+
+    .empty-state {
+      padding: 16px;
+      text-align: center;
+      color: var(--muted);
+      border: 1px dashed #cbd5e1;
+      border-radius: 14px;
+      background: #ffffff;
+      font-size: 0.9rem;
+    }
+
+    .refresh-note {
+      justify-self: end;
+      color: var(--muted);
+      font-size: 0.85rem;
+      line-height: 1.35;
+      text-align: right;
+    }
+
+    @media (max-width: 1100px) {
+      .dashboard-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .toolbar { grid-template-columns: 1fr 1fr; }
+      .refresh-note { justify-self: start; text-align: left; }
+    }
+
+    @media (max-width: 640px) {
+      .page { padding: 18px 12px; }
+      .portal-nav { align-items: flex-start; flex-direction: column; }
+      .portal-links { width: 100%; }
+      .portal-links a { flex: 1; text-align: center; }
+      .dashboard-grid { grid-template-columns: 1fr; padding: 18px; }
+      .toolbar { grid-template-columns: 1fr; padding: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <nav class="portal-nav" aria-label="Portal navigation">
+      <div class="portal-brand">ICT Resource Booking Portal</div>
+
+      <div class="portal-links">
+        <a href="index.html">Create Booking</a>
+        <a href="manage-bookings.html">Manage My Bookings</a>
+        <a href="de-dashboard.html" class="active">Deployment Dashboard</a>
+        <span id="currentUserDisplay"></span>
+        <button id="logoutBtn" type="button">Logout</button>
+      </div>
+    </nav>
+
+    <section class="card">
+      <div class="card-header">
+        <h1>Deployment Dashboard</h1>
+        <p>Claim, track, and complete ICT deployment jobs for the selected booking date.</p>
+      </div>
+
+      <div class="toolbar">
+        <div class="field">
+          <label for="deploymentDate">Deployment date</label>
+          <input id="deploymentDate" type="date" />
+        </div>
+        <button id="todayBtn" class="btn btn-secondary" type="button">Today</button>
+        <button id="tomorrowBtn" class="btn btn-secondary" type="button">Tomorrow</button>
+        <button id="refreshBtn" class="btn btn-primary" type="button">Refresh</button>
+        <div class="refresh-note">
+          <div id="lastUpdated">Last updated: -</div>
+          <div>Auto-refreshes every 15 seconds</div>
+        </div>
+      </div>
+
+      <div id="statusMessage" class="status" role="status" aria-live="polite"></div>
+
+      <div class="dashboard-grid">
+        <section class="lane">
+          <div class="lane-header"><h2>Pending Deployment</h2><span id="pendingCount" class="count-pill">0</span></div>
+          <div id="pendingLane" class="lane-body"></div>
+        </section>
+
+        <section class="lane">
+          <div class="lane-header"><h2>Claimed</h2><span id="claimedCount" class="count-pill">0</span></div>
+          <div id="claimedLane" class="lane-body"></div>
+        </section>
+
+        <section class="lane">
+          <div class="lane-header"><h2>Deployed</h2><span id="deployedCount" class="count-pill">0</span></div>
+          <div id="deployedLane" class="lane-body"></div>
+        </section>
+
+        <section class="lane">
+          <div class="lane-header"><h2>Unable to Deploy</h2><span id="unableCount" class="count-pill">0</span></div>
+          <div id="unableLane" class="lane-body"></div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const deploymentDate = document.getElementById('deploymentDate');
+    const statusMessage = document.getElementById('statusMessage');
+    const lastUpdated = document.getElementById('lastUpdated');
+    const lanes = {
+      'Pending Deployment': document.getElementById('pendingLane'),
+      'Claimed': document.getElementById('claimedLane'),
+      'Deployed': document.getElementById('deployedLane'),
+      'Unable to Deploy': document.getElementById('unableLane')
+    };
+    const counts = {
+      'Pending Deployment': document.getElementById('pendingCount'),
+      'Claimed': document.getElementById('claimedCount'),
+      'Deployed': document.getElementById('deployedCount'),
+      'Unable to Deploy': document.getElementById('unableCount')
+    };
+
+    let currentUser = null;
+    let refreshTimer = null;
+
+    function parseLocalDate(dateString) {
+      const [year, month, day] = dateString.split('-').map(Number);
+      return new Date(year, month - 1, day);
+    }
+
+    function formatLocalDateForInput(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    function addDays(date, days) {
+      const newDate = new Date(date);
+      newDate.setDate(newDate.getDate() + days);
+      return newDate;
+    }
+
+    function formatDateTime(value) {
+      if (!value) return '-';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return '-';
+      return date.toLocaleString('en-SG', { dateStyle: 'medium', timeStyle: 'short' });
+    }
+
+    function showStatus(type, message) {
+      statusMessage.className = `status ${type}`;
+      statusMessage.textContent = message;
+    }
+
+    function clearStatus() {
+      statusMessage.className = 'status';
+      statusMessage.textContent = '';
+    }
+
+    async function requireAuthenticatedDE() {
+      const response = await fetch('/api/me', { cache: 'no-store' });
+      const result = await response.json();
+
+      if (!result.user) {
+        window.location.href = 'login.html';
+        return null;
+      }
+
+      if (result.user.role !== 'DE' && result.user.role !== 'Admin') {
+        document.body.innerHTML = '<main class="page"><section class="card"><div class="card-header"><h1>Access Denied</h1><p>This page is only available to Desktop Engineers and Admin users.</p></div></section></main>';
+        return null;
+      }
+
+      currentUser = result.user;
+      document.getElementById('currentUserDisplay').textContent = `Signed in as ${result.user.name}`;
+      return currentUser;
+    }
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      await fetch('/api/logout', { method: 'POST' });
+      window.location.href = 'login.html';
+    });
+
+    function getResourceList(booking) {
+      const resourceIds = booking.allocation?.resources?.resourceId || [];
+      const resources = Array.isArray(resourceIds) ? resourceIds : [resourceIds];
+      return resources.length ? resources.join(', ') : 'No allocation recorded';
+    }
+
+    function getJobId(booking) {
+      return booking.bookingId || booking['@_id'] || '';
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>'"]/g, char => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+      }[char]));
+    }
+
+    function renderJobCard(booking) {
+      const status = booking.deploymentStatus || 'Pending Deployment';
+      const jobId = getJobId(booking);
+      const isClaimedByMe = String(booking.claimedByUserId || '') === String(currentUser.userId);
+      const canUpdateClaimedJob = isClaimedByMe || currentUser.role === 'Admin';
+
+      let actions = '';
+      if (status === 'Pending Deployment') {
+        actions = `<button class="btn btn-primary" data-action="claim">Claim Job</button>`;
+      } else if (status === 'Claimed') {
+        actions = canUpdateClaimedJob
+          ? `<button class="btn btn-success" data-action="complete">Mark Deployed</button><button class="btn btn-secondary" data-action="release">Release Job</button><button class="btn btn-warning" data-action="fail">Unable to Deploy</button>`
+          : '';
+      }
+
+      return `
+        <article class="job-card" data-booking-id="${escapeHtml(jobId)}" data-booking-date="${escapeHtml(booking.bookingDate)}">
+          <h3 class="job-title">${escapeHtml(booking.startTime || '-')}–${escapeHtml(booking.endTime || '-')} · ${escapeHtml(booking.location || '-')}</h3>
+          <div class="job-subtitle">Requested by ${escapeHtml(booking.requesterName || 'Requester')}</div>
+          <div class="meta-grid">
+            <div class="meta-row"><span>Device</span><strong>${escapeHtml(booking.deviceType || '-')}</strong></div>
+            <div class="meta-row"><span>Quantity</span><strong>${escapeHtml(booking.devicesRequired || '-')}</strong></div>
+            <div class="meta-row"><span>Software</span><strong>${escapeHtml(booking.softwareRequirement || 'None')}</strong></div>
+            <div class="meta-row"><span>Resources</span><strong>${escapeHtml(getResourceList(booking))}</strong></div>
+            <div class="meta-row"><span>Booking</span><strong>${escapeHtml(booking.status || '-')}</strong></div>
+            ${booking.claimedByName ? `<div class="meta-row"><span>Claimed by</span><strong>${escapeHtml(booking.claimedByName)}</strong></div>` : ''}
+            ${booking.claimedAt ? `<div class="meta-row"><span>Claimed at</span><strong>${escapeHtml(formatDateTime(booking.claimedAt))}</strong></div>` : ''}
+            ${booking.deployedByName ? `<div class="meta-row"><span>Updated by</span><strong>${escapeHtml(booking.deployedByName)}</strong></div>` : ''}
+            ${booking.deployedAt ? `<div class="meta-row"><span>Updated at</span><strong>${escapeHtml(formatDateTime(booking.deployedAt))}</strong></div>` : ''}
+            ${booking.deploymentRemarks ? `<div class="meta-row"><span>Remarks</span><strong>${escapeHtml(booking.deploymentRemarks)}</strong></div>` : ''}
+          </div>
+          <div class="job-actions">${actions}</div>
+        </article>
+      `;
+    }
+
+    function renderBookings(bookings) {
+      const grouped = {
+        'Pending Deployment': [],
+        'Claimed': [],
+        'Deployed': [],
+        'Unable to Deploy': []
+      };
+
+      bookings.forEach(booking => {
+        const status = booking.deploymentStatus || 'Pending Deployment';
+        if (!grouped[status]) grouped[status] = grouped['Pending Deployment'];
+        grouped[status].push(booking);
+      });
+
+      Object.keys(lanes).forEach(status => {
+        counts[status].textContent = grouped[status].length;
+        lanes[status].innerHTML = grouped[status].length
+          ? grouped[status].map(renderJobCard).join('')
+          : `<div class="empty-state">No ${status.toLowerCase()} jobs.</div>`;
+      });
+    }
+
+    async function loadBookings({ silent = false } = {}) {
+      if (!deploymentDate.value) return;
+      if (!silent) clearStatus();
+
+      const response = await fetch(`/api/de/bookings?date=${encodeURIComponent(deploymentDate.value)}`, { cache: 'no-store' });
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Unable to load deployment jobs.');
+      }
+
+      renderBookings(result.bookings || []);
+      lastUpdated.textContent = `Last updated: ${new Date().toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+    }
+
+    async function updateJob(card, action) {
+      const bookingId = card.dataset.bookingId;
+      const bookingDate = card.dataset.bookingDate;
+      let endpoint = '';
+      let body = { bookingDate };
+
+      if (action === 'claim') endpoint = `/api/de/bookings/${bookingId}/claim`;
+      if (action === 'release') endpoint = `/api/de/bookings/${bookingId}/release`;
+      if (action === 'complete') {
+        endpoint = `/api/de/bookings/${bookingId}/complete`;
+        const remarks = prompt('Deployment remarks (optional):', '');
+        body.remarks = remarks || '';
+      }
+      if (action === 'fail') {
+        endpoint = `/api/de/bookings/${bookingId}/fail`;
+        const remarks = prompt('Reason unable to deploy:', '');
+        if (remarks === null) return;
+        body.remarks = remarks.trim();
+      }
+
+      const response = await fetch(endpoint, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Unable to update deployment job.');
+      }
+
+      showStatus('success', result.message || 'Deployment job updated.');
+      await loadBookings({ silent: true });
+    }
+
+    document.querySelector('.dashboard-grid').addEventListener('click', async event => {
+      const button = event.target.closest('button[data-action]');
+      if (!button) return;
+
+      const card = button.closest('.job-card');
+      const action = button.dataset.action;
+
+      try {
+        await updateJob(card, action);
+      } catch (error) {
+        showStatus('error', error.message);
+        await loadBookings({ silent: true }).catch(() => {});
+      }
+    });
+
+    document.getElementById('todayBtn').addEventListener('click', async () => {
+      deploymentDate.value = formatLocalDateForInput(new Date());
+      await loadBookings().catch(error => showStatus('error', error.message));
+    });
+
+    document.getElementById('tomorrowBtn').addEventListener('click', async () => {
+      deploymentDate.value = formatLocalDateForInput(addDays(new Date(), 1));
+      await loadBookings().catch(error => showStatus('error', error.message));
+    });
+
+    document.getElementById('refreshBtn').addEventListener('click', async () => {
+      await loadBookings().catch(error => showStatus('error', error.message));
+    });
+
+    deploymentDate.addEventListener('change', async () => {
+      await loadBookings().catch(error => showStatus('error', error.message));
+    });
+
+    async function initialiseDashboard() {
+      const user = await requireAuthenticatedDE();
+      if (!user) return;
+
+      deploymentDate.value = formatLocalDateForInput(new Date());
+      await loadBookings().catch(error => showStatus('error', error.message));
+
+      refreshTimer = setInterval(() => {
+        loadBookings({ silent: true }).catch(error => {
+          console.warn('Auto-refresh failed:', error.message);
+        });
+      }, 15000);
+    }
+
+    initialiseDashboard();
+  </script>
+</body>
+</html>

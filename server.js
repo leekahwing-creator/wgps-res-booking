@@ -329,6 +329,19 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+function requireDEOrAdmin(req, res, next) {
+  const role = req.session.user?.role;
+
+  if (!req.session.user || (role !== "DE" && role !== "Admin")) {
+    return res.status(403).json({
+      success: false,
+      message: "DE or Admin access required."
+    });
+  }
+
+  next();
+}
+
 function validatePassword(password, name, email) {
   const errors = [];
 
@@ -411,6 +424,59 @@ function removePersonalDataFromBooking(booking) {
   delete cleanedBooking.name;
   delete cleanedBooking.email;
   return cleanedBooking;
+}
+
+function normaliseDeploymentStatus(booking) {
+  return booking.deploymentStatus || "Pending Deployment";
+}
+
+function getUserDisplayNameById(users, userId) {
+  if (!userId) return "";
+  const user = users.find(existingUser => String(existingUser.userId) === String(userId));
+  return user?.name || "";
+}
+
+function getDateBookingsFile(bookingDate) {
+  if (!bookingDate) {
+    throw new Error("Booking date is required.");
+  }
+
+  return ensureMonthlyBookingsFile(bookingDate);
+}
+
+function findBookingById(bookings, bookingId) {
+  return bookings.find(booking => String(booking["@_id"]) === String(bookingId));
+}
+
+function formatDeploymentBookingForResponse(booking, users) {
+  const requesterName = getUserDisplayNameById(users, booking.userId) || "Requester";
+  const claimedByName = booking.claimedByName || getUserDisplayNameById(users, booking.claimedByUserId);
+  const deployedByName = booking.deployedByName || getUserDisplayNameById(users, booking.deployedByUserId);
+
+  return {
+    ...booking,
+    requesterName,
+    deploymentStatus: normaliseDeploymentStatus(booking),
+    claimedByName: claimedByName || "",
+    deployedByName: deployedByName || ""
+  };
+}
+
+function updateDeploymentBooking(bookingDate, bookingId, updater) {
+  const bookingsFile = getDateBookingsFile(bookingDate);
+  const bookings = readBookingsFromFile(bookingsFile);
+  const booking = findBookingById(bookings, bookingId);
+
+  if (!booking) {
+    const error = new Error("Booking not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  updater(booking);
+  writeBookingsToFile(bookingsFile, bookings);
+
+  return booking;
 }
 
 /* ---------------- AUTH ROUTES ---------------- */
@@ -885,7 +951,15 @@ app.post("/api/bookings", requireLogin, (req, res) => {
         "@_id": parsed.bookings.booking.length + 1,
         ...singleBookingRequest,
         status: allocationResult.status,
-        allocation: allocationResult.allocation
+        allocation: allocationResult.allocation,
+        deploymentStatus: "Pending Deployment",
+        claimedByUserId: "",
+        claimedByName: "",
+        claimedAt: "",
+        deployedByUserId: "",
+        deployedByName: "",
+        deployedAt: "",
+        deploymentRemarks: ""
       };
 
       parsed.bookings.booking.push(newBooking);
@@ -1163,6 +1237,219 @@ app.put("/api/bookings/:bookingId", requireLogin, (req, res) => {
     console.error("Update booking error:", error);
 
     res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+/* ---------------- DE DEPLOYMENT ROUTES ---------------- */
+
+app.get("/api/de/bookings", requireLogin, requireDEOrAdmin, (req, res) => {
+  try {
+    const bookingDate = req.query.date;
+
+    if (!bookingDate) {
+      return res.status(400).json({
+        success: false,
+        message: "Booking date is required."
+      });
+    }
+
+    const bookingsFile = getDateBookingsFile(bookingDate);
+    const bookings = readBookingsFromFile(bookingsFile)
+      .filter(booking => booking.bookingDate === bookingDate)
+      .filter(booking => booking.status !== "Deleted" && booking.status !== "Cancelled")
+      .sort((a, b) => `${a.startTime || ""} ${a.location || ""}`.localeCompare(`${b.startTime || ""} ${b.location || ""}`));
+
+    const users = getUsersFromXML();
+
+    res.json({
+      success: true,
+      bookings: bookings.map(booking => formatDeploymentBookingForResponse(booking, users))
+    });
+  } catch (error) {
+    console.error("DE bookings retrieval error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+app.put("/api/de/bookings/:bookingId/claim", requireLogin, requireDEOrAdmin, (req, res) => {
+  try {
+    const bookingId = req.params.bookingId;
+    const bookingDate = req.body.bookingDate || req.query.date;
+
+    const updatedBooking = updateDeploymentBooking(bookingDate, bookingId, booking => {
+      const currentStatus = normaliseDeploymentStatus(booking);
+
+      if (currentStatus !== "Pending Deployment") {
+        const error = new Error("This job is no longer pending and cannot be claimed.");
+        error.statusCode = 409;
+        throw error;
+      }
+
+      booking.deploymentStatus = "Claimed";
+      booking.claimedByUserId = req.session.user.userId;
+      booking.claimedByName = req.session.user.name;
+      booking.claimedAt = new Date().toISOString();
+      booking.deployedByUserId = "";
+      booking.deployedByName = "";
+      booking.deployedAt = "";
+      booking.deploymentRemarks = booking.deploymentRemarks || "";
+    });
+
+    res.json({
+      success: true,
+      message: "Deployment job claimed.",
+      booking: formatDeploymentBookingForResponse(updatedBooking, getUsersFromXML())
+    });
+  } catch (error) {
+    console.error("DE claim job error:", error);
+
+    res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+app.put("/api/de/bookings/:bookingId/release", requireLogin, requireDEOrAdmin, (req, res) => {
+  try {
+    const bookingId = req.params.bookingId;
+    const bookingDate = req.body.bookingDate || req.query.date;
+
+    const updatedBooking = updateDeploymentBooking(bookingDate, bookingId, booking => {
+      const currentStatus = normaliseDeploymentStatus(booking);
+      const isClaimant = String(booking.claimedByUserId || "") === String(req.session.user.userId);
+      const isAdmin = req.session.user.role === "Admin";
+
+      if (currentStatus !== "Claimed") {
+        const error = new Error("Only claimed jobs can be released.");
+        error.statusCode = 409;
+        throw error;
+      }
+
+      if (!isClaimant && !isAdmin) {
+        const error = new Error("Only the claimant or an Admin can release this job.");
+        error.statusCode = 403;
+        throw error;
+      }
+
+      booking.deploymentStatus = "Pending Deployment";
+      booking.claimedByUserId = "";
+      booking.claimedByName = "";
+      booking.claimedAt = "";
+    });
+
+    res.json({
+      success: true,
+      message: "Deployment job released.",
+      booking: formatDeploymentBookingForResponse(updatedBooking, getUsersFromXML())
+    });
+  } catch (error) {
+    console.error("DE release job error:", error);
+
+    res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+app.put("/api/de/bookings/:bookingId/complete", requireLogin, requireDEOrAdmin, (req, res) => {
+  try {
+    const bookingId = req.params.bookingId;
+    const bookingDate = req.body.bookingDate || req.query.date;
+    const remarks = String(req.body.remarks || "").trim();
+
+    const updatedBooking = updateDeploymentBooking(bookingDate, bookingId, booking => {
+      const currentStatus = normaliseDeploymentStatus(booking);
+      const isClaimant = String(booking.claimedByUserId || "") === String(req.session.user.userId);
+      const isAdmin = req.session.user.role === "Admin";
+
+      if (currentStatus === "Deployed") {
+        const error = new Error("This job has already been marked as deployed.");
+        error.statusCode = 409;
+        throw error;
+      }
+
+      if (currentStatus === "Claimed" && !isClaimant && !isAdmin) {
+        const error = new Error("Only the claimant or an Admin can complete this job.");
+        error.statusCode = 403;
+        throw error;
+      }
+
+      booking.deploymentStatus = "Deployed";
+      booking.deployedByUserId = req.session.user.userId;
+      booking.deployedByName = req.session.user.name;
+      booking.deployedAt = new Date().toISOString();
+      booking.deploymentRemarks = remarks;
+
+      if (!booking.claimedByUserId) {
+        booking.claimedByUserId = req.session.user.userId;
+        booking.claimedByName = req.session.user.name;
+        booking.claimedAt = booking.claimedAt || new Date().toISOString();
+      }
+    });
+
+    res.json({
+      success: true,
+      message: "Deployment job marked as deployed.",
+      booking: formatDeploymentBookingForResponse(updatedBooking, getUsersFromXML())
+    });
+  } catch (error) {
+    console.error("DE complete job error:", error);
+
+    res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+app.put("/api/de/bookings/:bookingId/fail", requireLogin, requireDEOrAdmin, (req, res) => {
+  try {
+    const bookingId = req.params.bookingId;
+    const bookingDate = req.body.bookingDate || req.query.date;
+    const remarks = String(req.body.remarks || "").trim();
+
+    const updatedBooking = updateDeploymentBooking(bookingDate, bookingId, booking => {
+      const currentStatus = normaliseDeploymentStatus(booking);
+      const isClaimant = String(booking.claimedByUserId || "") === String(req.session.user.userId);
+      const isAdmin = req.session.user.role === "Admin";
+
+      if (currentStatus === "Claimed" && !isClaimant && !isAdmin) {
+        const error = new Error("Only the claimant or an Admin can update this claimed job.");
+        error.statusCode = 403;
+        throw error;
+      }
+
+      booking.deploymentStatus = "Unable to Deploy";
+      booking.deployedByUserId = req.session.user.userId;
+      booking.deployedByName = req.session.user.name;
+      booking.deployedAt = new Date().toISOString();
+      booking.deploymentRemarks = remarks || "Unable to deploy.";
+
+      if (!booking.claimedByUserId) {
+        booking.claimedByUserId = req.session.user.userId;
+        booking.claimedByName = req.session.user.name;
+        booking.claimedAt = booking.claimedAt || new Date().toISOString();
+      }
+    });
+
+    res.json({
+      success: true,
+      message: "Deployment job marked as unable to deploy.",
+      booking: formatDeploymentBookingForResponse(updatedBooking, getUsersFromXML())
+    });
+  } catch (error) {
+    console.error("DE fail job error:", error);
+
+    res.status(error.statusCode || 500).json({
       success: false,
       message: error.message
     });

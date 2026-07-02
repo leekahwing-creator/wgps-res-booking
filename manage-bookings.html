@@ -371,6 +371,10 @@
           Manage My Bookings
         </a>
 
+        <a href="de-dashboard.html" id="deDashboardLink" style="display: none;">
+          Deployment Dashboard
+        </a>
+
         <span id="currentUserDisplay"></span>
 
         <button id="logoutBtn" type="button">
@@ -432,6 +436,11 @@
 
       document.getElementById("currentUserDisplay").textContent =
         `Signed in as ${user.name}`;
+
+      const deDashboardLink = document.getElementById("deDashboardLink");
+      if (deDashboardLink && (user.role === "DE" || user.role === "Admin")) {
+        deDashboardLink.style.display = "inline-flex";
+      }
 
       return user;
     }
