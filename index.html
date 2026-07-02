@@ -587,39 +587,387 @@
         width: 100%;
       }
     }
+  
+
+    /* ---------------- Responsive Portal Navigation ---------------- */
+    .portal-nav {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 22px;
+      margin-bottom: 22px;
+      padding: 18px 22px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.86);
+      border: 1px solid rgba(226, 232, 240, 0.95);
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+      position: relative;
+      z-index: 50;
+    }
+
+    .portal-brand {
+      display: inline-grid;
+      grid-template-columns: auto 1fr;
+      align-items: center;
+      gap: 12px;
+      min-width: 260px;
+      color: var(--primary-dark);
+      text-decoration: none;
+    }
+
+    .portal-brand-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--primary-light);
+      color: var(--primary-dark);
+      font-size: 1.45rem;
+      font-weight: 900;
+    }
+
+    .portal-brand-title {
+      display: block;
+      font-weight: 900;
+      font-size: 1.05rem;
+      line-height: 1.2;
+      color: var(--primary-dark);
+    }
+
+    .portal-brand-subtitle {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    .portal-links {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: nowrap;
+      min-width: 0;
+    }
+
+    .portal-links a,
+    .portal-more-trigger,
+    .portal-drawer a {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+      color: #334155;
+      font-weight: 900;
+      padding: 10px 12px;
+      border-radius: 14px;
+      white-space: nowrap;
+      transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+    }
+
+    .nav-icon {
+      font-size: 1.05rem;
+      line-height: 1;
+    }
+
+    .portal-links a.active,
+    .portal-links a:hover,
+    .portal-more-trigger:hover,
+    .portal-drawer a.active,
+    .portal-drawer a:hover {
+      background: var(--primary);
+      color: #ffffff;
+      box-shadow: 0 10px 20px rgba(15, 118, 110, 0.18);
+    }
+
+    .portal-more {
+      display: none;
+      position: relative;
+    }
+
+    .portal-more summary {
+      list-style: none;
+      cursor: pointer;
+    }
+
+    .portal-more summary::-webkit-details-marker { display: none; }
+
+    .portal-more-menu {
+      position: absolute;
+      top: calc(100% + 10px);
+      right: 0;
+      min-width: 230px;
+      display: grid;
+      gap: 4px;
+      padding: 10px;
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: 0 18px 38px rgba(15, 23, 42, 0.14);
+    }
+
+    .portal-user-area {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      justify-content: flex-end;
+    }
+
+    .portal-user-chip {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      align-items: center;
+      gap: 10px;
+      min-width: 190px;
+      padding-left: 18px;
+      border-left: 1px solid var(--border);
+    }
+
+    .portal-avatar {
+      width: 38px;
+      height: 38px;
+      border-radius: 999px;
+      background: var(--primary);
+      color: #ffffff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      box-shadow: 0 10px 18px rgba(15, 118, 110, 0.18);
+    }
+
+    #currentUserDisplay,
+    .current-user-name {
+      display: block;
+      padding: 0;
+      font-weight: 900;
+      color: #0f172a;
+      font-size: 0.92rem;
+      line-height: 1.2;
+    }
+
+    .current-user-email {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 0.74rem;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 180px;
+    }
+
+    #logoutBtn,
+    .portal-logout {
+      border: 1px solid #fecaca;
+      background: #ffffff;
+      color: var(--danger);
+      font-weight: 900;
+      padding: 10px 14px;
+      border-radius: 14px;
+      cursor: pointer;
+      min-height: 42px;
+      box-shadow: none;
+    }
+
+    #logoutBtn:hover,
+    .portal-logout:hover {
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+
+    .portal-mobile-toggle,
+    .portal-mobile-close {
+      display: none;
+      border: 0;
+      background: transparent;
+      color: #0f172a;
+      font-size: 1.5rem;
+      font-weight: 900;
+      cursor: pointer;
+      border-radius: 12px;
+      min-width: 42px;
+      min-height: 42px;
+    }
+
+    .portal-mobile-toggle:hover,
+    .portal-mobile-close:hover { background: #f1f5f9; }
+
+    .portal-drawer-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.28);
+      z-index: 90;
+    }
+
+    .portal-drawer {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: min(360px, 88vw);
+      background: #ffffff;
+      z-index: 100;
+      box-shadow: 28px 0 60px rgba(15, 23, 42, 0.2);
+      padding: 18px;
+      transform: translateX(-105%);
+      transition: transform 0.22s ease;
+      overflow-y: auto;
+    }
+
+    .portal-drawer.open { transform: translateX(0); }
+    .portal-drawer-backdrop.open { display: block; }
+
+    .portal-drawer-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .portal-drawer-user {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 10px;
+      align-items: center;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: #f8fafc;
+      margin-bottom: 14px;
+    }
+
+    .portal-drawer-links {
+      display: grid;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      margin-bottom: 14px;
+    }
+
+    .portal-drawer-links a {
+      border-radius: 0;
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .portal-drawer-links a:last-child { border-bottom: 0; }
+
+    .nav-hidden { display: none !important; }
+
+    @media (max-width: 1199px) and (min-width: 768px) {
+      .portal-nav {
+        grid-template-columns: auto 1fr auto;
+      }
+      .portal-brand { min-width: 230px; }
+      .portal-brand-subtitle { display: none; }
+      .portal-links .nav-extra { display: none !important; }
+      .portal-more { display: inline-block; }
+      .portal-links { justify-content: center; }
+      .portal-user-chip { min-width: 160px; }
+      .current-user-email { display: none; }
+    }
+
+    @media (max-width: 767px) {
+      .page { padding-top: 16px; }
+      .portal-nav {
+        grid-template-columns: auto 1fr auto auto;
+        gap: 10px;
+        padding: 14px;
+      }
+      .portal-mobile-toggle { display: inline-flex; align-items: center; justify-content: center; }
+      .portal-brand {
+        min-width: 0;
+        justify-self: center;
+        grid-template-columns: auto 1fr;
+      }
+      .portal-brand-icon { width: 38px; height: 38px; font-size: 1.2rem; }
+      .portal-brand-title { font-size: 0.98rem; }
+      .portal-brand-subtitle { display: none; }
+      .portal-links { display: none; }
+      .portal-user-chip { display: none; }
+      .portal-user-area { gap: 8px; }
+      #logoutBtn { padding: 0; width: 42px; min-width: 42px; font-size: 0; position: relative; }
+      #logoutBtn::before { content: '↪'; font-size: 1.2rem; }
+      .portal-drawer, .portal-mobile-close { display: block; }
+    }
+
+    @media (min-width: 1200px) {
+      .portal-nav { grid-template-columns: minmax(280px, auto) 1fr auto; }
+      .portal-more { display: none !important; }
+    }
+
   </style>
 </head>
 <body>
   <main class="page">
     <nav class="portal-nav" aria-label="Portal navigation">
-      <div class="portal-brand">
-        ICT Resource Booking Portal
+      <button id="portalMobileToggle" class="portal-mobile-toggle" type="button" aria-label="Open navigation menu">☰</button>
+
+      <a class="portal-brand" href="index.html" aria-label="ICT Resource Booking Portal home">
+        <span class="portal-brand-icon">✓</span>
+        <span>
+          <span class="portal-brand-title">ICT Resource Booking Portal</span>
+          <span class="portal-brand-subtitle">Smart booking. Better learning.</span>
+        </span>
+      </a>
+
+      <div class="portal-links" aria-label="Primary navigation">
+        <a href="index.html" data-nav-page="create"><span class="nav-icon">⊞</span><span>Create Booking</span></a>
+        <a href="manage-bookings.html" data-nav-page="bookings"><span class="nav-icon">▣</span><span>My Bookings</span></a>
+        <a href="de-dashboard.html" class="nav-extra" data-nav-page="deployment"><span class="nav-icon">▰</span><span>Deployment Dashboard</span></a>
+        <a href="admin-users.html" class="nav-extra" data-nav-page="users"><span class="nav-icon">♟</span><span>Users Admin</span></a>
+
+        <details class="portal-more">
+          <summary class="portal-more-trigger"><span class="nav-icon">☰</span><span>More</span><span>⌄</span></summary>
+          <div class="portal-more-menu">
+            <a href="de-dashboard.html" data-nav-page="deployment"><span class="nav-icon">▰</span><span>Deployment Dashboard</span></a>
+            <a href="admin-users.html" data-nav-page="users"><span class="nav-icon">♟</span><span>Users Admin</span></a>
+          </div>
+        </details>
       </div>
 
-      <div class="portal-links">
-        <a href="index.html" class="active">
-          Create Booking
-        </a>
-
-        <a href="manage-bookings.html">
-          Manage My Bookings
-        </a>
-
-        <a href="de-dashboard.html" id="deDashboardLink" style="display: none;">
-          Deployment Dashboard
-        </a>
-        <a href="admin-users.html" id="adminUsersLink" style="display: none;">
-          Admin Users
-        </a>
-
-
-        <span id="currentUserDisplay"></span>
-
-        <button id="logoutBtn" type="button">
-          Logout
-        </button>
+      <div class="portal-user-area">
+        <div class="portal-user-chip" aria-label="Signed-in user">
+          <span class="portal-avatar" data-current-user-initial>U</span>
+          <span>
+            <span id="currentUserDisplay" class="current-user-name" data-current-user-name>Signed-in user</span>
+            <span class="current-user-email" data-current-user-email></span>
+          </span>
+        </div>
+        <button id="logoutBtn" class="portal-logout" type="button">Logout</button>
       </div>
     </nav>
+
+    <div id="portalDrawerBackdrop" class="portal-drawer-backdrop"></div>
+    <aside id="portalDrawer" class="portal-drawer" aria-hidden="true" aria-label="Mobile navigation">
+      <div class="portal-drawer-header">
+        <strong>Menu</strong>
+        <button id="portalMobileClose" class="portal-mobile-close" type="button" aria-label="Close navigation menu">×</button>
+      </div>
+
+      <div class="portal-drawer-user">
+        <span class="portal-avatar" data-current-user-initial>U</span>
+        <span>
+          <span class="current-user-name" data-current-user-name>Signed-in user</span>
+          <span class="current-user-email" data-current-user-email></span>
+        </span>
+      </div>
+
+      <div class="portal-drawer-links">
+        <a href="index.html" data-nav-page="create"><span class="nav-icon">⊞</span><span>Create Booking</span></a>
+        <a href="manage-bookings.html" data-nav-page="bookings"><span class="nav-icon">▣</span><span>My Bookings</span></a>
+        <a href="de-dashboard.html" data-nav-page="deployment"><span class="nav-icon">▰</span><span>Deployment Dashboard</span></a>
+        <a href="admin-users.html" data-nav-page="users"><span class="nav-icon">♟</span><span>Users Admin</span></a>
+      </div>
+    </aside>
     
     <section class="hero" aria-label="ICT resource booking page">
       <div class="intro">
@@ -791,6 +1139,83 @@
   </main>
 
   <script>
+
+    function setupPortalNavigation(user, activePage) {
+      const role = user?.role || 'User';
+      const allowedByRole = {
+        User: ['create', 'bookings'],
+        DE: ['deployment'],
+        Admin: ['create', 'bookings', 'deployment', 'users']
+      };
+      const allowedPages = allowedByRole[role] || allowedByRole.User;
+
+      document.querySelectorAll('[data-nav-page]').forEach(link => {
+        const page = link.dataset.navPage;
+        const shouldShow = allowedPages.includes(page);
+        link.classList.toggle('nav-hidden', !shouldShow);
+        link.classList.toggle('active', page === activePage);
+      });
+
+      document.querySelectorAll('.portal-more').forEach(more => {
+        const visibleExtraLinks = more.querySelectorAll('[data-nav-page]:not(.nav-hidden)').length;
+        more.classList.toggle('nav-hidden', visibleExtraLinks === 0);
+      });
+
+      const displayName = user?.name || 'Signed-in user';
+      const displayEmail = user?.email || '';
+      const initial = displayName.trim().charAt(0).toUpperCase() || 'U';
+
+      document.querySelectorAll('[data-current-user-name]').forEach(el => { el.textContent = displayName; });
+      document.querySelectorAll('[data-current-user-email]').forEach(el => { el.textContent = displayEmail; });
+      document.querySelectorAll('[data-current-user-initial]').forEach(el => { el.textContent = initial; });
+
+      const legacyDisplay = document.getElementById('currentUserDisplay');
+      if (legacyDisplay) legacyDisplay.textContent = displayName;
+    }
+
+    function bindPortalNavigation() {
+      const drawer = document.getElementById('portalDrawer');
+      const backdrop = document.getElementById('portalDrawerBackdrop');
+      const openButton = document.getElementById('portalMobileToggle');
+      const closeButton = document.getElementById('portalMobileClose');
+
+      function openDrawer() {
+        if (!drawer || !backdrop) return;
+        drawer.classList.add('open');
+        backdrop.classList.add('open');
+        drawer.setAttribute('aria-hidden', 'false');
+      }
+
+      function closeDrawer() {
+        if (!drawer || !backdrop) return;
+        drawer.classList.remove('open');
+        backdrop.classList.remove('open');
+        drawer.setAttribute('aria-hidden', 'true');
+      }
+
+      if (openButton && !openButton.dataset.bound) {
+        openButton.dataset.bound = 'true';
+        openButton.addEventListener('click', openDrawer);
+      }
+
+      if (closeButton && !closeButton.dataset.bound) {
+        closeButton.dataset.bound = 'true';
+        closeButton.addEventListener('click', closeDrawer);
+      }
+
+      if (backdrop && !backdrop.dataset.bound) {
+        backdrop.dataset.bound = 'true';
+        backdrop.addEventListener('click', closeDrawer);
+      }
+
+      document.querySelectorAll('.portal-drawer a').forEach(link => {
+        if (!link.dataset.bound) {
+          link.dataset.bound = 'true';
+          link.addEventListener('click', closeDrawer);
+        }
+      });
+    }
+
     window.addEventListener('error', (event) => {
       console.error('Frontend script error:', event.message, event.error);
     });
@@ -821,8 +1246,13 @@
 
       if (!user) return null;
 
-      document.getElementById("currentUserDisplay").textContent =
-        `Signed in as ${user.name}`;
+      if (user.role === "DE") {
+        window.location.href = "de-dashboard.html";
+        return null;
+      }
+
+      setupPortalNavigation(user, 'create');
+      bindPortalNavigation();
 
       const deDashboardLink = document.getElementById("deDashboardLink");
       if (deDashboardLink && (user.role === "DE" || user.role === "Admin")) {
