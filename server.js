@@ -1818,16 +1818,14 @@ app.post("/api/bootstrap/create-first-admin", async (req, res) => {
     });
 
     const newAdmin = {
-      userId: generateUserId(),
-      encryptedName: encryptPersonalData(name),
-      encryptedEmail: encryptPersonalData(normaliseEmail(email)),
+      userId: `U${String(users.length + 1).padStart(4, "0")}`,
+      name,
+      email: normaliseEmail(email),
       passwordHash,
       role: "Admin",
       status: "Active",
-      activated: true,
-      createdAt: new Date().toISOString(),
-      lastLoginAt: "",
-      passwordResetRequired: false
+      activatedAt: new Date().toISOString(),
+      createdAt: new Date().toISOString()
     };
 
     users.push(newAdmin);
