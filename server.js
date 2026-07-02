@@ -581,6 +581,64 @@ app.post("/api/auth/forgot-password", async (req, res) => {
   }
 });
 
+
+app.post("/api/auth/validate-reset-token", (req, res) => {
+  try {
+    const { email, token } = req.body;
+    const cleanedEmail = normaliseEmail(email);
+    const cleanedToken = String(token || "").trim();
+
+    if (!cleanedEmail || !cleanedToken) {
+      return res.status(400).json({
+        success: false,
+        message: "This password reset link is invalid or has expired."
+      });
+    }
+
+    const users = getUsersFromXML();
+
+    const user = users.find(
+      existingUser => normaliseEmail(existingUser.email) === cleanedEmail
+    );
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: "This password reset link is invalid or has expired."
+      });
+    }
+
+    const tokenHash = hashResetToken(cleanedToken);
+
+    const tokenIsValid =
+      user.resetPasswordTokenHash &&
+      user.resetPasswordTokenHash === tokenHash;
+
+    const tokenHasNotExpired =
+      user.resetPasswordExpiresAt &&
+      new Date(user.resetPasswordExpiresAt).getTime() > Date.now();
+
+    if (!tokenIsValid || !tokenHasNotExpired) {
+      return res.status(400).json({
+        success: false,
+        message: "This password reset link is invalid or has expired."
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Password reset link is valid."
+    });
+  } catch (error) {
+    console.error("Validate reset token error:", error);
+
+    return res.status(400).json({
+      success: false,
+      message: "This password reset link is invalid or has expired."
+    });
+  }
+});
+
 app.post("/api/auth/reset-password", async (req, res) => {
   try {
     const { email, token, password } = req.body;
