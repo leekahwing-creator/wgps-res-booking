@@ -246,8 +246,7 @@
       const result = await response.json();
 
       if (result.success) {
-        const role = result.user?.role || "User";
-        window.location.href = role === "DE" ? "de-dashboard.html" : "index.html";
+        window.location.href = result.user && result.user.role === "DE" ? "de-dashboard.html" : "index.html";
       } else {
         showError(result.message || "Unable to sign in.");
       }
