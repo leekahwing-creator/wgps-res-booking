@@ -641,12 +641,11 @@ app.post("/api/auth/reset-password", async (req, res) => {
     const updatedUser = {
       ...user,
       passwordHash,
-      passwordResetAt: new Date().toISOString()
+      passwordResetAt: new Date().toISOString(),
+      resetPasswordTokenHash: "",
+      resetPasswordExpiresAt: "",
+      resetPasswordRequestedAt: ""
     };
-
-    delete updatedUser.resetPasswordTokenHash;
-    delete updatedUser.resetPasswordExpiresAt;
-    delete updatedUser.resetPasswordRequestedAt;
 
     users[userIndex] = updatedUser;
 
