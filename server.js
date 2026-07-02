@@ -1786,6 +1786,69 @@ app.get("/api/debug/users", requireLogin, requireAdmin, (req, res) => {
   }
 });
 
+app.post("/api/bootstrap/create-first-admin", async (req, res) => {
+  try {
+    const users = getUsersFromXML();
+
+    // Prevent creation if an Admin already exists
+    const existingAdmin = users.find(user => user.role === "Admin");
+
+    if (existingAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: "An Admin account already exists."
+      });
+    }
+
+    const {
+      name,
+      email,
+      password
+    } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Name, email and password are required."
+      });
+    }
+
+    const passwordHash = await argon2.hash(password, {
+      type: argon2.argon2id
+    });
+
+    const newAdmin = {
+      userId: generateUserId(),
+      encryptedName: encryptPersonalData(name),
+      encryptedEmail: encryptPersonalData(normaliseEmail(email)),
+      passwordHash,
+      role: "Admin",
+      status: "Active",
+      activated: true,
+      createdAt: new Date().toISOString(),
+      lastLoginAt: "",
+      passwordResetRequired: false
+    };
+
+    users.push(newAdmin);
+
+    saveUsersToXML(users);
+
+    res.json({
+      success: true,
+      message: "Admin account created successfully."
+    });
+
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
 app.listen(PORT, () => {
   try {
     const userCount = initialiseUserStorage();
