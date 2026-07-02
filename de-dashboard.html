@@ -332,6 +332,11 @@
         <a href="index.html">Create Booking</a>
         <a href="manage-bookings.html">Manage My Bookings</a>
         <a href="de-dashboard.html" class="active">Deployment Dashboard</a>
+        
+        <a href="admin-users.html" id="adminUsersLink" style="display: none;">
+          Admin Users
+        </a>
+
         <span id="currentUserDisplay"></span>
         <button id="logoutBtn" type="button">Logout</button>
       </div>
@@ -454,6 +459,10 @@
 
       currentUser = result.user;
       document.getElementById('currentUserDisplay').textContent = `Signed in as ${result.user.name}`;
+      const adminUsersLink = document.getElementById('adminUsersLink');
+      if (adminUsersLink && result.user.role === 'Admin') {
+        adminUsersLink.style.display = 'inline-flex';
+      }
       return currentUser;
     }
 

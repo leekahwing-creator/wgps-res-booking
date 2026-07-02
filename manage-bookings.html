@@ -374,6 +374,10 @@
         <a href="de-dashboard.html" id="deDashboardLink" style="display: none;">
           Deployment Dashboard
         </a>
+        <a href="admin-users.html" id="adminUsersLink" style="display: none;">
+          Admin Users
+        </a>
+
 
         <span id="currentUserDisplay"></span>
 
@@ -440,6 +444,11 @@
       const deDashboardLink = document.getElementById("deDashboardLink");
       if (deDashboardLink && (user.role === "DE" || user.role === "Admin")) {
         deDashboardLink.style.display = "inline-flex";
+      }
+
+      const adminUsersLink = document.getElementById("adminUsersLink");
+      if (adminUsersLink && user.role === "Admin") {
+        adminUsersLink.style.display = "inline-flex";
       }
 
       return user;

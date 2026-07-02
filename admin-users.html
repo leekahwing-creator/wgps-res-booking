@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin User Management | ICT Resource Booking Portal</title>
+  <style>
+    :root {
+      --primary: #0f766e;
+      --primary-dark: #115e59;
+      --primary-light: #ccfbf1;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: #dbe4ee;
+      --danger: #dc2626;
+      --warning: #92400e;
+      --success: #166534;
+      --shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+      --radius: 22px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: linear-gradient(135deg, #ecfeff 0%, #f8fafc 48%, #eef2ff 100%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .page {
+      width: min(1280px, 100%);
+      margin: 0 auto;
+      padding: 32px 18px;
+    }
+
+    .portal-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 22px;
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid rgba(226, 232, 240, 0.95);
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+    }
+
+    .portal-brand {
+      font-weight: 900;
+      color: var(--primary-dark);
+    }
+
+    .portal-links {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .portal-links a {
+      text-decoration: none;
+      color: #334155;
+      font-weight: 800;
+      padding: 9px 12px;
+      border-radius: 999px;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .portal-links a.active,
+    .portal-links a:hover {
+      background: var(--primary);
+      color: #ffffff;
+    }
+
+    #logoutBtn {
+      border: none;
+      background: #dc2626;
+      color: white;
+      font-weight: 700;
+      padding: 9px 14px;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+
+    #logoutBtn:hover { background: #b91c1c; }
+
+    #currentUserDisplay {
+      font-weight: 700;
+      color: #334155;
+      padding: 9px 12px;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      border: 1px solid rgba(226, 232, 240, 0.95);
+      overflow: hidden;
+    }
+
+    .card-header {
+      padding: 22px 24px;
+      background: linear-gradient(135deg, var(--primary), #164e63);
+      color: #ffffff;
+    }
+
+    .card-header h1 {
+      margin: 0 0 6px;
+      font-size: clamp(1.6rem, 3vw, 2.35rem);
+      letter-spacing: -0.03em;
+    }
+
+    .card-header p {
+      margin: 0;
+      opacity: 0.9;
+      line-height: 1.45;
+    }
+
+    .card-body {
+      padding: 24px;
+      display: grid;
+      gap: 18px;
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: end;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    label {
+      font-size: 0.9rem;
+      font-weight: 800;
+      color: #1e293b;
+    }
+
+    input, select {
+      width: 100%;
+      min-height: 48px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 11px 13px;
+      font-size: 1rem;
+      background: #ffffff;
+      color: var(--text);
+      outline: none;
+    }
+
+    input:focus, select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.14);
+    }
+
+    .btn {
+      border: 0;
+      min-height: 44px;
+      padding: 0 14px;
+      border-radius: 14px;
+      font-weight: 900;
+      cursor: pointer;
+      font-size: 0.92rem;
+    }
+
+    .btn-primary { background: var(--primary); color: #ffffff; }
+    .btn-secondary { background: #e2e8f0; color: #334155; }
+    .btn-danger { background: #fee2e2; color: var(--danger); }
+    .btn-warning { background: #fef3c7; color: var(--warning); }
+
+    .status {
+      display: none;
+      padding: 13px 14px;
+      border-radius: 14px;
+      font-weight: 700;
+      font-size: 0.92rem;
+      line-height: 1.45;
+    }
+
+    .status.success { display: block; background: #dcfce7; color: var(--success); }
+    .status.warning { display: block; background: #fef3c7; color: var(--warning); }
+    .status.error { display: block; background: #fee2e2; color: var(--danger); }
+
+    .panel {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: #f8fafc;
+      padding: 16px;
+    }
+
+    .panel h2 {
+      margin: 0 0 12px;
+      color: #0f172a;
+      font-size: 1.1rem;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 1.1fr 0.7fr 0.8fr auto;
+      gap: 12px;
+      align-items: end;
+    }
+
+    .user-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .user-card {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: #ffffff;
+      padding: 16px;
+    }
+
+    .user-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+
+    .user-name {
+      margin: 0 0 4px;
+      font-size: 1.08rem;
+    }
+
+    .user-email {
+      color: var(--muted);
+      font-size: 0.9rem;
+      overflow-wrap: anywhere;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: var(--primary-light);
+      color: var(--primary-dark);
+      font-size: 0.8rem;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .pill.disabled {
+      background: #fee2e2;
+      color: var(--danger);
+    }
+
+    .pill.pending {
+      background: #fef3c7;
+      color: var(--warning);
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin: 12px 0;
+    }
+
+    .meta-box {
+      border-radius: 12px;
+      background: #f8fafc;
+      padding: 10px;
+      border: 1px solid #e2e8f0;
+    }
+
+    .meta-box span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+
+    .meta-box strong {
+      font-size: 0.92rem;
+      overflow-wrap: anywhere;
+    }
+
+    .edit-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 1.1fr 0.7fr 0.8fr;
+      gap: 12px;
+    }
+
+    .user-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .empty-state {
+      padding: 24px;
+      text-align: center;
+      color: var(--muted);
+      border: 1px dashed #cbd5e1;
+      border-radius: 18px;
+      background: #f8fafc;
+    }
+
+    .note {
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.45;
+    }
+
+    @media (max-width: 980px) {
+      .form-grid,
+      .edit-grid,
+      .meta-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .toolbar {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 620px) {
+      .page { padding: 18px 12px; }
+      .portal-nav { align-items: flex-start; flex-direction: column; }
+      .portal-links { width: 100%; }
+      .portal-links a { flex: 1; text-align: center; }
+      .form-grid,
+      .edit-grid,
+      .meta-grid {
+        grid-template-columns: 1fr;
+      }
+      .user-top {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <nav class="portal-nav" aria-label="Portal navigation">
+      <div class="portal-brand">ICT Resource Booking Portal</div>
+
+      <div class="portal-links">
+        <a href="index.html">Create Booking</a>
+        <a href="manage-bookings.html">Manage My Bookings</a>
+        <a href="de-dashboard.html" id="deDashboardLink" style="display: none;">Deployment Dashboard</a>
+        <a href="admin-users.html" id="adminUsersLink" class="active" style="display: none;">Admin Users</a>
+        <span id="currentUserDisplay"></span>
+        <button id="logoutBtn" type="button">Logout</button>
+      </div>
+    </nav>
+
+    <section class="card">
+      <div class="card-header">
+        <h1>Admin User Management</h1>
+        <p>Add, update, disable and reset user accounts without manually editing encrypted user storage.</p>
+      </div>
+
+      <div class="card-body">
+        <div id="statusMessage" class="status" role="status" aria-live="polite"></div>
+
+        <div class="toolbar">
+          <div class="field">
+            <label for="searchInput">Search users</label>
+            <input id="searchInput" type="search" placeholder="Search by name, email, role or status" />
+          </div>
+          <button id="refreshUsersBtn" class="btn btn-primary" type="button">Refresh Users</button>
+        </div>
+
+        <section class="panel">
+          <h2>Add New User</h2>
+          <form id="addUserForm" class="form-grid">
+            <div class="field">
+              <label for="newName">Official name</label>
+              <input id="newName" type="text" required />
+            </div>
+            <div class="field">
+              <label for="newEmail">Official email</label>
+              <input id="newEmail" type="email" required />
+            </div>
+            <div class="field">
+              <label for="newRole">Role</label>
+              <select id="newRole">
+                <option value="User">User</option>
+                <option value="DE">DE</option>
+                <option value="Admin">Admin</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="newStatus">Status</label>
+              <select id="newStatus">
+                <option value="PendingActivation">PendingActivation</option>
+                <option value="Active">Active</option>
+                <option value="Disabled">Disabled</option>
+              </select>
+            </div>
+            <button class="btn btn-primary" type="submit">Add User</button>
+          </form>
+          <p class="note">New users should normally be created as <strong>PendingActivation</strong>. They will activate their own account and set their own password.</p>
+        </section>
+
+        <div id="userList" class="user-list">
+          <div class="empty-state">Loading users...</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const statusMessage = document.getElementById('statusMessage');
+    const userList = document.getElementById('userList');
+    const searchInput = document.getElementById('searchInput');
+    const refreshUsersBtn = document.getElementById('refreshUsersBtn');
+    const addUserForm = document.getElementById('addUserForm');
+
+    let currentUser = null;
+    let users = [];
+
+    function showStatus(type, message) {
+      statusMessage.className = `status ${type}`;
+      statusMessage.textContent = message;
+    }
+
+    function clearStatus() {
+      statusMessage.className = 'status';
+      statusMessage.textContent = '';
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>'"]/g, char => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+      }[char]));
+    }
+
+    function formatDateTime(value) {
+      if (!value) return '-';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return '-';
+      return date.toLocaleString('en-SG', { dateStyle: 'medium', timeStyle: 'short' });
+    }
+
+    async function requireAuthenticatedAdmin() {
+      const response = await fetch('/api/me', { cache: 'no-store' });
+      const result = await response.json();
+
+      if (!result.user) {
+        window.location.href = 'login.html';
+        return null;
+      }
+
+      if (result.user.role !== 'Admin') {
+        document.body.innerHTML = '<main class="page"><section class="card"><div class="card-header"><h1>Access Denied</h1><p>This page is only available to Admin users.</p></div></section></main>';
+        return null;
+      }
+
+      currentUser = result.user;
+      document.getElementById('currentUserDisplay').textContent = `Signed in as ${result.user.name}`;
+
+      const deDashboardLink = document.getElementById('deDashboardLink');
+      const adminUsersLink = document.getElementById('adminUsersLink');
+
+      if (deDashboardLink) deDashboardLink.style.display = 'inline-flex';
+      if (adminUsersLink) adminUsersLink.style.display = 'inline-flex';
+
+      return currentUser;
+    }
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      await fetch('/api/logout', { method: 'POST' });
+      window.location.href = 'login.html';
+    });
+
+    function getFilteredUsers() {
+      const query = searchInput.value.trim().toLowerCase();
+
+      if (!query) return users;
+
+      return users.filter(user => {
+        return [
+          user.userId,
+          user.name,
+          user.email,
+          user.role,
+          user.status
+        ].some(value => String(value || '').toLowerCase().includes(query));
+      });
+    }
+
+    function getStatusPillClass(status) {
+      if (status === 'Disabled') return 'pill disabled';
+      if (status === 'PendingActivation') return 'pill pending';
+      return 'pill';
+    }
+
+    function renderUsers() {
+      const filteredUsers = getFilteredUsers();
+
+      if (filteredUsers.length === 0) {
+        userList.innerHTML = '<div class="empty-state">No users found.</div>';
+        return;
+      }
+
+      userList.innerHTML = filteredUsers.map(user => {
+        const isSelf = String(user.userId) === String(currentUser.userId);
+
+        return `
+          <article class="user-card" data-user-id="${escapeHtml(user.userId)}">
+            <div class="user-top">
+              <div>
+                <h2 class="user-name">${escapeHtml(user.name)}</h2>
+                <div class="user-email">${escapeHtml(user.email)}</div>
+              </div>
+              <span class="${getStatusPillClass(user.status)}">${escapeHtml(user.status)}</span>
+            </div>
+
+            <div class="meta-grid">
+              <div class="meta-box"><span>User ID</span><strong>${escapeHtml(user.userId)}</strong></div>
+              <div class="meta-box"><span>Role</span><strong>${escapeHtml(user.role)}</strong></div>
+              <div class="meta-box"><span>Activated</span><strong>${user.hasPasswordHash ? 'Yes' : 'No'}</strong></div>
+              <div class="meta-box"><span>Updated</span><strong>${escapeHtml(formatDateTime(user.updatedAt || user.activatedAt || user.createdAt))}</strong></div>
+            </div>
+
+            <div class="edit-grid">
+              <div class="field">
+                <label>Name</label>
+                <input data-edit-field="name" type="text" value="${escapeHtml(user.name)}" />
+              </div>
+              <div class="field">
+                <label>Email</label>
+                <input data-edit-field="email" type="email" value="${escapeHtml(user.email)}" />
+              </div>
+              <div class="field">
+                <label>Role</label>
+                <select data-edit-field="role">
+                  <option value="User" ${user.role === 'User' ? 'selected' : ''}>User</option>
+                  <option value="DE" ${user.role === 'DE' ? 'selected' : ''}>DE</option>
+                  <option value="Admin" ${user.role === 'Admin' ? 'selected' : ''}>Admin</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Status</label>
+                <select data-edit-field="status">
+                  <option value="PendingActivation" ${user.status === 'PendingActivation' ? 'selected' : ''}>PendingActivation</option>
+                  <option value="Active" ${user.status === 'Active' ? 'selected' : ''}>Active</option>
+                  <option value="Disabled" ${user.status === 'Disabled' ? 'selected' : ''}>Disabled</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="user-actions">
+              <button class="btn btn-primary" type="button" data-action="save">Save Changes</button>
+              <button class="btn btn-warning" type="button" data-action="reset-activation" ${isSelf ? 'disabled title="You cannot reset your own signed-in account."' : ''}>Reset Activation</button>
+              <button class="btn btn-danger" type="button" data-action="disable" ${isSelf ? 'disabled title="You cannot disable your own signed-in account."' : ''}>Disable User</button>
+            </div>
+          </article>
+        `;
+      }).join('');
+    }
+
+    async function loadUsers() {
+      clearStatus();
+      userList.innerHTML = '<div class="empty-state">Loading users...</div>';
+
+      const response = await fetch('/api/admin/users', { cache: 'no-store' });
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Unable to load users.');
+      }
+
+      users = result.users || [];
+      renderUsers();
+    }
+
+    async function addUser(event) {
+      event.preventDefault();
+      clearStatus();
+
+      const payload = {
+        name: document.getElementById('newName').value.trim(),
+        email: document.getElementById('newEmail').value.trim(),
+        role: document.getElementById('newRole').value,
+        status: document.getElementById('newStatus').value
+      };
+
+      const response = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Unable to add user.');
+      }
+
+      addUserForm.reset();
+      document.getElementById('newRole').value = 'User';
+      document.getElementById('newStatus').value = 'PendingActivation';
+
+      showStatus('success', result.message || 'User added successfully.');
+      await loadUsers();
+    }
+
+    async function saveUser(card) {
+      const userId = card.dataset.userId;
+      const payload = {};
+
+      card.querySelectorAll('[data-edit-field]').forEach(input => {
+        payload[input.dataset.editField] = input.value.trim();
+      });
+
+      const response = await fetch(`/api/admin/users/${encodeURIComponent(userId)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Unable to update user.');
+      }
+
+      showStatus('success', result.message || 'User updated successfully.');
+      await loadUsers();
+    }
+
+    async function disableUser(card) {
+      const userId = card.dataset.userId;
+      const user = users.find(existingUser => String(existingUser.userId) === String(userId));
+
+      if (!confirm(`Disable ${user?.name || 'this user'}? They will no longer be able to sign in.`)) {
+        return;
+      }
+
+      const response = await fetch(`/api/admin/users/${encodeURIComponent(userId)}`, {
+        method: 'DELETE'
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Unable to disable user.');
+      }
+
+      showStatus('success', result.message || 'User disabled successfully.');
+      await loadUsers();
+    }
+
+    async function resetActivation(card) {
+      const userId = card.dataset.userId;
+      const user = users.find(existingUser => String(existingUser.userId) === String(userId));
+
+      if (!confirm(`Reset activation for ${user?.name || 'this user'}? Their current password will be removed and they must activate their account again.`)) {
+        return;
+      }
+
+      const response = await fetch(`/api/admin/users/${encodeURIComponent(userId)}/reset-activation`, {
+        method: 'POST'
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Unable to reset activation.');
+      }
+
+      showStatus('success', result.message || 'Activation reset successfully.');
+      await loadUsers();
+    }
+
+    userList.addEventListener('click', async event => {
+      const button = event.target.closest('button[data-action]');
+      if (!button || button.disabled) return;
+
+      const card = button.closest('.user-card');
+      const action = button.dataset.action;
+
+      try {
+        if (action === 'save') await saveUser(card);
+        if (action === 'disable') await disableUser(card);
+        if (action === 'reset-activation') await resetActivation(card);
+      } catch (error) {
+        showStatus('error', error.message);
+      }
+    });
+
+    addUserForm.addEventListener('submit', event => {
+      addUser(event).catch(error => showStatus('error', error.message));
+    });
+
+    refreshUsersBtn.addEventListener('click', () => {
+      loadUsers().catch(error => showStatus('error', error.message));
+    });
+
+    searchInput.addEventListener('input', renderUsers);
+
+    async function initialiseAdminUsersPage() {
+      const user = await requireAuthenticatedAdmin();
+      if (!user) return;
+
+      await loadUsers().catch(error => {
+        showStatus('error', error.message);
+        userList.innerHTML = '<div class="empty-state">Unable to load users.</div>';
+      });
+    }
+
+    initialiseAdminUsersPage();
+  </script>
+</body>
+</html>

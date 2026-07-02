@@ -426,6 +426,42 @@ function removePersonalDataFromBooking(booking) {
   return cleanedBooking;
 }
 
+function generateNextUserId(users) {
+  const maxNumber = users.reduce((max, user) => {
+    const match = String(user.userId || "").match(/^U(\d+)$/i);
+    if (!match) return max;
+    return Math.max(max, Number(match[1]));
+  }, 0);
+
+  return `U${String(maxNumber + 1).padStart(4, "0")}`;
+}
+
+function normaliseUserStatus(status) {
+  const allowedStatuses = ["PendingActivation", "Active", "Disabled"];
+  return allowedStatuses.includes(status) ? status : "PendingActivation";
+}
+
+function normaliseUserRole(role) {
+  const allowedRoles = ["User", "DE", "Admin"];
+  return allowedRoles.includes(role) ? role : "User";
+}
+
+function formatAdminUserForResponse(user) {
+  return {
+    userId: user.userId,
+    name: user.name || "",
+    email: user.email || "",
+    role: normaliseUserRole(user.role),
+    status: normaliseUserStatus(user.status),
+    activatedAt: user.activatedAt || "",
+    passwordResetAt: user.passwordResetAt || "",
+    roleUpdatedAt: user.roleUpdatedAt || "",
+    updatedAt: user.updatedAt || "",
+    createdAt: user.createdAt || "",
+    hasPasswordHash: Boolean(user.passwordHash)
+  };
+}
+
 function normaliseDeploymentStatus(booking) {
   return booking.deploymentStatus || "Pending Deployment";
 }
@@ -1450,6 +1486,247 @@ app.put("/api/de/bookings/:bookingId/fail", requireLogin, requireDEOrAdmin, (req
     console.error("DE fail job error:", error);
 
     res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+
+/* ---------------- ADMIN USER MANAGEMENT ROUTES ---------------- */
+
+app.get("/api/admin/users", requireLogin, requireAdmin, (req, res) => {
+  try {
+    const users = getUsersFromXML()
+      .map(formatAdminUserForResponse)
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    res.json({
+      success: true,
+      users
+    });
+  } catch (error) {
+    console.error("Admin list users error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+app.post("/api/admin/users", requireLogin, requireAdmin, (req, res) => {
+  try {
+    const name = String(req.body.name || "").trim();
+    const email = normaliseEmail(req.body.email);
+    const role = normaliseUserRole(req.body.role || "User");
+    const status = normaliseUserStatus(req.body.status || "PendingActivation");
+
+    if (!name || !email) {
+      return res.status(400).json({
+        success: false,
+        message: "Name and official email address are required."
+      });
+    }
+
+    const users = getUsersFromXML();
+
+    const emailExists = users.some(user => normaliseEmail(user.email) === email);
+    if (emailExists) {
+      return res.status(409).json({
+        success: false,
+        message: "A user with this email address already exists."
+      });
+    }
+
+    const newUser = {
+      userId: generateNextUserId(users),
+      name,
+      email,
+      role,
+      status,
+      createdAt: new Date().toISOString(),
+      createdByUserId: req.session.user.userId
+    };
+
+    users.push(newUser);
+    saveUsersToXML(users);
+
+    res.json({
+      success: true,
+      message: "User added successfully.",
+      user: formatAdminUserForResponse(newUser)
+    });
+  } catch (error) {
+    console.error("Admin add user error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+app.put("/api/admin/users/:userId", requireLogin, requireAdmin, (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const name = String(req.body.name || "").trim();
+    const email = normaliseEmail(req.body.email);
+    const role = normaliseUserRole(req.body.role || "User");
+    const status = normaliseUserStatus(req.body.status || "PendingActivation");
+
+    if (!name || !email) {
+      return res.status(400).json({
+        success: false,
+        message: "Name and official email address are required."
+      });
+    }
+
+    const users = getUsersFromXML();
+
+    const userIndex = users.findIndex(user => String(user.userId) === String(userId));
+    if (userIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found."
+      });
+    }
+
+    const emailUsedByAnotherUser = users.some(user =>
+      String(user.userId) !== String(userId) &&
+      normaliseEmail(user.email) === email
+    );
+
+    if (emailUsedByAnotherUser) {
+      return res.status(409).json({
+        success: false,
+        message: "Another user already uses this email address."
+      });
+    }
+
+    const existingUser = users[userIndex];
+
+    if (String(existingUser.userId) === String(req.session.user.userId) && role !== "Admin") {
+      return res.status(400).json({
+        success: false,
+        message: "You cannot remove your own Admin role while signed in."
+      });
+    }
+
+    users[userIndex] = {
+      ...existingUser,
+      name,
+      email,
+      role,
+      status,
+      updatedAt: new Date().toISOString(),
+      updatedByUserId: req.session.user.userId
+    };
+
+    saveUsersToXML(users);
+
+    res.json({
+      success: true,
+      message: "User updated successfully.",
+      user: formatAdminUserForResponse(users[userIndex])
+    });
+  } catch (error) {
+    console.error("Admin update user error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+app.delete("/api/admin/users/:userId", requireLogin, requireAdmin, (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const users = getUsersFromXML();
+
+    const userIndex = users.findIndex(user => String(user.userId) === String(userId));
+    if (userIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found."
+      });
+    }
+
+    if (String(userId) === String(req.session.user.userId)) {
+      return res.status(400).json({
+        success: false,
+        message: "You cannot disable your own account while signed in."
+      });
+    }
+
+    users[userIndex] = {
+      ...users[userIndex],
+      status: "Disabled",
+      disabledAt: new Date().toISOString(),
+      disabledByUserId: req.session.user.userId
+    };
+
+    saveUsersToXML(users);
+
+    res.json({
+      success: true,
+      message: "User disabled successfully.",
+      user: formatAdminUserForResponse(users[userIndex])
+    });
+  } catch (error) {
+    console.error("Admin disable user error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+app.post("/api/admin/users/:userId/reset-activation", requireLogin, requireAdmin, (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const users = getUsersFromXML();
+
+    const userIndex = users.findIndex(user => String(user.userId) === String(userId));
+    if (userIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found."
+      });
+    }
+
+    if (String(userId) === String(req.session.user.userId)) {
+      return res.status(400).json({
+        success: false,
+        message: "You cannot reset activation for your own signed-in account."
+      });
+    }
+
+    users[userIndex] = {
+      ...users[userIndex],
+      status: "PendingActivation",
+      passwordHash: "",
+      activatedAt: "",
+      resetPasswordTokenHash: "",
+      resetPasswordExpiresAt: "",
+      resetPasswordRequestedAt: "",
+      activationResetAt: new Date().toISOString(),
+      activationResetByUserId: req.session.user.userId
+    };
+
+    saveUsersToXML(users);
+
+    res.json({
+      success: true,
+      message: "User activation reset successfully.",
+      user: formatAdminUserForResponse(users[userIndex])
+    });
+  } catch (error) {
+    console.error("Admin reset activation error:", error);
+
+    res.status(500).json({
       success: false,
       message: error.message
     });
