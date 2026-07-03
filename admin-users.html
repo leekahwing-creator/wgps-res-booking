@@ -1165,6 +1165,93 @@
       .modal-header, .drawer-header { padding: 18px; }
     }
 
+    .pagination-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      padding: 16px 18px;
+      border-top: 1px solid var(--border);
+      background: #ffffff;
+      flex-wrap: wrap;
+    }
+
+    .pagination-summary {
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-weight: 800;
+    }
+
+    .pagination-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .rows-control {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 0.86rem;
+      font-weight: 900;
+    }
+
+    .rows-control select {
+      width: auto;
+      min-height: 40px;
+      border-radius: 12px;
+      padding: 8px 34px 8px 10px;
+      font-size: 0.9rem;
+    }
+
+    .page-indicator {
+      color: #334155;
+      font-weight: 900;
+      font-size: 0.9rem;
+      min-width: 92px;
+      text-align: center;
+    }
+
+    .pagination-button {
+      min-height: 40px;
+      padding: 0 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #ffffff;
+      color: #334155;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .pagination-button:hover:not(:disabled) {
+      background: var(--primary-light);
+      color: var(--primary-dark);
+    }
+
+    .pagination-button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    @media (max-width: 680px) {
+      .pagination-bar {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .pagination-controls {
+        justify-content: space-between;
+      }
+
+      .rows-control {
+        width: 100%;
+        justify-content: space-between;
+      }
+    }
+
+
   </style>
 </head>
 <body>
@@ -1291,6 +1378,24 @@
               <tr><td colspan="7"><div class="empty-panel">Loading users...</div></td></tr>
             </tbody>
           </table>
+        </div>
+
+        <div class="pagination-bar" aria-label="User table pagination">
+          <div id="paginationSummary" class="pagination-summary">Showing 0 users</div>
+          <div class="pagination-controls">
+            <label class="rows-control" for="rowsPerPageSelect">
+              Rows per page
+              <select id="rowsPerPageSelect">
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+            </label>
+            <button id="previousPageBtn" class="pagination-button" type="button">Previous</button>
+            <span id="pageIndicator" class="page-indicator">Page 1 of 1</span>
+            <button id="nextPageBtn" class="pagination-button" type="button">Next</button>
+          </div>
         </div>
       </section>
     </section>
@@ -1560,6 +1665,11 @@
     const roleFilter = document.getElementById('roleFilter');
     const statusFilter = document.getElementById('statusFilter');
     const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+    const rowsPerPageSelect = document.getElementById('rowsPerPageSelect');
+    const previousPageBtn = document.getElementById('previousPageBtn');
+    const nextPageBtn = document.getElementById('nextPageBtn');
+    const pageIndicator = document.getElementById('pageIndicator');
+    const paginationSummary = document.getElementById('paginationSummary');
     const refreshUsersBtn = document.getElementById('refreshUsersBtn');
     const openAddUserBtn = document.getElementById('openAddUserBtn');
     const addUserModal = document.getElementById('addUserModal');
@@ -1576,6 +1686,8 @@
     let currentUser = null;
     let users = [];
     let selectedUser = null;
+    let currentPage = 1;
+    let rowsPerPage = Number(localStorage.getItem('aumRowsPerPage')) || 25;
 
     function showStatus(type, message) {
       statusMessage.className = `status ${type}`;
@@ -1642,16 +1754,59 @@
       });
     }
 
+    function getPaginatedUsers(filteredUsers) {
+      const totalPages = Math.max(1, Math.ceil(filteredUsers.length / rowsPerPage));
+
+      if (currentPage > totalPages) currentPage = totalPages;
+      if (currentPage < 1) currentPage = 1;
+
+      const startIndex = (currentPage - 1) * rowsPerPage;
+      const endIndex = startIndex + rowsPerPage;
+
+      return {
+        totalPages,
+        startIndex,
+        endIndex,
+        pageUsers: filteredUsers.slice(startIndex, endIndex)
+      };
+    }
+
+    function updatePaginationControls(filteredCount, totalPages, startIndex, pageUsersCount) {
+      if (filteredCount === 0) {
+        paginationSummary.textContent = 'Showing 0 users';
+      } else {
+        const firstVisible = startIndex + 1;
+        const lastVisible = startIndex + pageUsersCount;
+        paginationSummary.textContent = `Showing ${firstVisible}–${lastVisible} of ${filteredCount} users`;
+      }
+
+      pageIndicator.textContent = `Page ${currentPage} of ${totalPages}`;
+      previousPageBtn.disabled = currentPage <= 1;
+      nextPageBtn.disabled = currentPage >= totalPages;
+      rowsPerPageSelect.value = String(rowsPerPage);
+    }
+
+    function resetPagination() {
+      currentPage = 1;
+    }
+
     function renderUsers() {
       updateStats();
       const filteredUsers = getFilteredUsers();
+      const {
+        totalPages,
+        startIndex,
+        pageUsers
+      } = getPaginatedUsers(filteredUsers);
+
+      updatePaginationControls(filteredUsers.length, totalPages, startIndex, pageUsers.length);
 
       if (filteredUsers.length === 0) {
         userTableBody.innerHTML = '<tr><td colspan="7"><div class="empty-panel">No users match the current search or filters.</div></td></tr>';
         return;
       }
 
-      userTableBody.innerHTML = filteredUsers.map(user => `
+      userTableBody.innerHTML = pageUsers.map(user => `
         <tr data-user-id="${escapeHtml(user.userId)}">
           <td>
             <div class="user-identity">
@@ -1894,12 +2049,37 @@
       searchInput.value = '';
       roleFilter.value = 'All';
       statusFilter.value = 'All';
+      resetPagination();
       renderUsers();
     });
 
     [searchInput, roleFilter, statusFilter].forEach(input => {
-      input.addEventListener('input', renderUsers);
-      input.addEventListener('change', renderUsers);
+      input.addEventListener('input', () => {
+        resetPagination();
+        renderUsers();
+      });
+      input.addEventListener('change', () => {
+        resetPagination();
+        renderUsers();
+      });
+    });
+
+    rowsPerPageSelect.addEventListener('change', () => {
+      rowsPerPage = Number(rowsPerPageSelect.value) || 25;
+      localStorage.setItem('aumRowsPerPage', String(rowsPerPage));
+      resetPagination();
+      renderUsers();
+    });
+
+    previousPageBtn.addEventListener('click', () => {
+      if (currentPage <= 1) return;
+      currentPage -= 1;
+      renderUsers();
+    });
+
+    nextPageBtn.addEventListener('click', () => {
+      currentPage += 1;
+      renderUsers();
     });
 
     userTableBody.addEventListener('click', event => {
@@ -1919,6 +2099,8 @@
     async function initialiseAdminUsersPage() {
       const user = await requireAuthenticatedAdmin();
       if (!user) return;
+
+      rowsPerPageSelect.value = String(rowsPerPage);
 
       await loadUsers().catch(error => {
         showStatus('error', error.message);
