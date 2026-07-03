@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Admin User Management | ICT Resource Booking Portal</title>
+  <title>Users Admin | ICT Resource Booking Portal</title>
   <style>
     :root {
       --primary: #0f766e;
@@ -49,302 +49,12 @@
       box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
     }
 
-    .portal-brand {
-      font-weight: 900;
-      color: var(--primary-dark);
-    }
-
-    .portal-links {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-
-    .portal-links a {
-      text-decoration: none;
-      color: #334155;
-      font-weight: 800;
-      padding: 9px 12px;
-      border-radius: 999px;
-      transition: background 0.2s, color 0.2s;
-    }
-
-    .portal-links a.active,
-    .portal-links a:hover {
-      background: var(--primary);
-      color: #ffffff;
-    }
-
-    #logoutBtn {
-      border: none;
-      background: #dc2626;
-      color: white;
-      font-weight: 700;
-      padding: 9px 14px;
-      border-radius: 999px;
-      cursor: pointer;
-    }
-
-    #logoutBtn:hover { background: #b91c1c; }
-
-    #currentUserDisplay {
-      font-weight: 700;
-      color: #334155;
-      padding: 9px 12px;
-    }
-
-    .card {
-      background: var(--card);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      border: 1px solid rgba(226, 232, 240, 0.95);
-      overflow: hidden;
-    }
-
-    .card-header {
-      padding: 22px 24px;
-      background: linear-gradient(135deg, var(--primary), #164e63);
-      color: #ffffff;
-    }
-
-    .card-header h1 {
-      margin: 0 0 6px;
-      font-size: clamp(1.6rem, 3vw, 2.35rem);
-      letter-spacing: -0.03em;
-    }
-
-    .card-header p {
-      margin: 0;
-      opacity: 0.9;
-      line-height: 1.45;
-    }
-
-    .card-body {
-      padding: 24px;
-      display: grid;
-      gap: 18px;
-    }
-
-    .toolbar {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 12px;
-      align-items: end;
-    }
-
-    .field {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    label {
-      font-size: 0.9rem;
-      font-weight: 800;
-      color: #1e293b;
-    }
-
-    input, select {
-      width: 100%;
-      min-height: 48px;
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 11px 13px;
-      font-size: 1rem;
-      background: #ffffff;
-      color: var(--text);
-      outline: none;
-    }
-
-    input:focus, select:focus {
-      border-color: var(--primary);
-      box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.14);
-    }
-
-    .btn {
-      border: 0;
-      min-height: 44px;
-      padding: 0 14px;
-      border-radius: 14px;
-      font-weight: 900;
-      cursor: pointer;
-      font-size: 0.92rem;
-    }
-
-    .btn-primary { background: var(--primary); color: #ffffff; }
-    .btn-secondary { background: #e2e8f0; color: #334155; }
-    .btn-danger { background: #fee2e2; color: var(--danger); }
-    .btn-warning { background: #fef3c7; color: var(--warning); }
-
-    .status {
-      display: none;
-      padding: 13px 14px;
-      border-radius: 14px;
-      font-weight: 700;
-      font-size: 0.92rem;
-      line-height: 1.45;
-    }
-
-    .status.success { display: block; background: #dcfce7; color: var(--success); }
-    .status.warning { display: block; background: #fef3c7; color: var(--warning); }
-    .status.error { display: block; background: #fee2e2; color: var(--danger); }
-
-    .panel {
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      background: #f8fafc;
-      padding: 16px;
-    }
-
-    .panel h2 {
-      margin: 0 0 12px;
-      color: #0f172a;
-      font-size: 1.1rem;
-    }
-
-    .form-grid {
-      display: grid;
-      grid-template-columns: 1.1fr 1.1fr 0.7fr 0.8fr auto;
-      gap: 12px;
-      align-items: end;
-    }
-
-    .user-list {
-      display: grid;
-      gap: 12px;
-    }
-
-    .user-card {
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      background: #ffffff;
-      padding: 16px;
-    }
-
-    .user-top {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      align-items: flex-start;
-      margin-bottom: 12px;
-    }
-
-    .user-name {
-      margin: 0 0 4px;
-      font-size: 1.08rem;
-    }
-
-    .user-email {
-      color: var(--muted);
-      font-size: 0.9rem;
-      overflow-wrap: anywhere;
-    }
-
-    .pill {
-      display: inline-flex;
-      align-items: center;
-      padding: 6px 10px;
-      border-radius: 999px;
-      background: var(--primary-light);
-      color: var(--primary-dark);
-      font-size: 0.8rem;
-      font-weight: 900;
-      white-space: nowrap;
-    }
-
-    .pill.disabled {
-      background: #fee2e2;
-      color: var(--danger);
-    }
-
-    .pill.pending {
-      background: #fef3c7;
-      color: var(--warning);
-    }
-
-    .meta-grid {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 10px;
-      margin: 12px 0;
-    }
-
-    .meta-box {
-      border-radius: 12px;
-      background: #f8fafc;
-      padding: 10px;
-      border: 1px solid #e2e8f0;
-    }
-
-    .meta-box span {
-      display: block;
-      color: var(--muted);
-      font-size: 0.78rem;
-      font-weight: 800;
-      margin-bottom: 4px;
-    }
-
-    .meta-box strong {
-      font-size: 0.92rem;
-      overflow-wrap: anywhere;
-    }
-
-    .edit-grid {
-      display: grid;
-      grid-template-columns: 1.1fr 1.1fr 0.7fr 0.8fr;
-      gap: 12px;
-    }
-
-    .user-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 12px;
-    }
-
-    .empty-state {
-      padding: 24px;
-      text-align: center;
-      color: var(--muted);
-      border: 1px dashed #cbd5e1;
-      border-radius: 18px;
-      background: #f8fafc;
-    }
-
-    .note {
-      color: var(--muted);
-      font-size: 0.88rem;
-      line-height: 1.45;
-    }
-
-    @media (max-width: 980px) {
-      .form-grid,
-      .edit-grid,
-      .meta-grid {
-        grid-template-columns: 1fr 1fr;
-      }
-
-      .toolbar {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    @media (max-width: 620px) {
-      .page { padding: 18px 12px; }
-      .portal-nav { align-items: flex-start; flex-direction: column; }
-      .portal-links { width: 100%; }
-      .portal-links a { flex: 1; text-align: center; }
-      .form-grid,
-      .edit-grid,
-      .meta-grid {
-        grid-template-columns: 1fr;
-      }
-      .user-top {
-        flex-direction: column;
-      }
-    }
-  
+    .portal-brand { font-weight: 900; color: var(--primary-dark); }
+    .portal-links { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .portal-links a { text-decoration: none; color: #334155; font-weight: 800; padding: 9px 12px; border-radius: 999px; }
+    .portal-links a.active, .portal-links a:hover { background: var(--primary); color: #ffffff; }
+    #logoutBtn { border: none; background: #dc2626; color: white; font-weight: 700; padding: 9px 14px; border-radius: 999px; cursor: pointer; }
+    #currentUserDisplay { font-weight: 700; color: #334155; padding: 9px 12px; }
 
     /* Responsive Portal Navigation v3 */
     .portal-nav-v2 {
@@ -717,115 +427,363 @@
       }
     }
 
-  
-    /* Stable role-aware navigation fix */
-    .portal-nav-v2 {
-      width: 100%;
-      max-width: 100%;
-      display: grid !important;
-      grid-template-columns: auto minmax(0, 1fr) auto !important;
-      align-items: center !important;
-      flex-direction: initial !important;
-      overflow: visible !important;
+
+    .aum-shell {
+      display: grid;
+      gap: 18px;
     }
 
-    .portal-nav-v2 .nav-main {
+    .aum-hero {
+      background: linear-gradient(135deg, var(--primary), #164e63);
+      color: #ffffff;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      border: 1px solid rgba(226, 232, 240, 0.95);
+      padding: 24px;
       display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: center;
+    }
+
+    .aum-hero h1 {
+      margin: 0 0 6px;
+      font-size: clamp(1.7rem, 3vw, 2.45rem);
+      letter-spacing: -0.03em;
+    }
+
+    .aum-hero p {
+      margin: 0;
+      opacity: 0.9;
+      line-height: 1.45;
+    }
+
+    .hero-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+    .btn {
+      border: 0;
+      min-height: 44px;
+      padding: 0 15px;
+      border-radius: 14px;
+      font-weight: 900;
+      cursor: pointer;
+      font-size: 0.92rem;
+      display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: 8px;
-      min-width: 0;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .btn-primary { background: var(--primary); color: #ffffff; }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-on-dark { background: #ffffff; color: var(--primary-dark); }
+    .btn-secondary { background: #e2e8f0; color: #334155; }
+    .btn-danger { background: #fee2e2; color: var(--danger); }
+    .btn-warning { background: #fef3c7; color: var(--warning); }
+    .btn-ghost { background: transparent; color: #334155; }
+    .btn-icon { width: 40px; min-height: 40px; padding: 0; border-radius: 12px; }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .stat-card {
+      background: var(--card);
+      border: 1px solid rgba(226, 232, 240, 0.95);
+      border-radius: 18px;
+      box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+      padding: 16px;
+    }
+
+    .stat-label {
+      color: var(--muted);
+      font-weight: 900;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .stat-value {
+      display: block;
+      margin-top: 8px;
+      color: var(--primary-dark);
+      font-size: 1.85rem;
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    .workspace-card {
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      border: 1px solid rgba(226, 232, 240, 0.95);
       overflow: visible;
-      flex-wrap: nowrap;
     }
 
-    .portal-nav-v2 .nav-link,
-    .portal-nav-v2 .more-button {
+    .workspace-toolbar {
+      display: grid;
+      grid-template-columns: minmax(240px, 1fr) auto auto auto;
+      gap: 12px;
+      padding: 18px;
+      border-bottom: 1px solid var(--border);
+      align-items: end;
+      background: rgba(248, 250, 252, 0.72);
+    }
+
+    .field { display: flex; flex-direction: column; gap: 8px; }
+    label { font-size: 0.86rem; font-weight: 900; color: #1e293b; }
+
+    input, select {
+      width: 100%;
+      min-height: 44px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 10px 12px;
+      font-size: 0.98rem;
+      background: #ffffff;
+      color: var(--text);
+      outline: none;
+    }
+
+    input:focus, select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.14);
+    }
+
+    .status {
+      display: none;
+      margin: 16px 18px 0;
+      padding: 13px 14px;
+      border-radius: 14px;
+      font-weight: 700;
+      font-size: 0.92rem;
+      line-height: 1.45;
+    }
+
+    .status.success { display: block; background: #dcfce7; color: var(--success); }
+    .status.warning { display: block; background: #fef3c7; color: var(--warning); }
+    .status.error { display: block; background: #fee2e2; color: var(--danger); }
+
+    .table-wrap { overflow-x: auto; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 860px;
+    }
+
+    thead th {
+      text-align: left;
+      color: #334155;
+      background: #f8fafc;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 13px 16px;
+      border-bottom: 1px solid var(--border);
       white-space: nowrap;
-      font-size: clamp(0.82rem, 0.72vw, 0.92rem);
-      padding-left: clamp(8px, 0.7vw, 12px);
-      padding-right: clamp(8px, 0.7vw, 12px);
     }
 
-    .portal-nav-v2 .nav-brand {
-      min-width: 0 !important;
-      max-width: clamp(190px, 23vw, 280px);
+    tbody td {
+      padding: 14px 16px;
+      border-bottom: 1px solid #edf2f7;
+      vertical-align: middle;
     }
 
-    .portal-nav-v2 .brand-title {
-      max-width: 230px;
+    tbody tr:hover { background: #f8fafc; }
+
+    .identity-cell { display: flex; align-items: center; gap: 12px; min-width: 260px; }
+    .table-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 999px;
+      background: var(--primary-light);
+      color: var(--primary-dark);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      flex: 0 0 auto;
+    }
+
+    .identity-main { min-width: 0; }
+    .aum-user-name { font-weight: 900; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .aum-user-email { color: var(--muted); font-size: 0.84rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 360px; }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: var(--primary-light);
+      color: var(--primary-dark);
+      font-size: 0.8rem;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .pill.role-admin { background: #e0e7ff; color: #3730a3; }
+    .pill.role-de { background: #fef3c7; color: #92400e; }
+    .pill.disabled { background: #fee2e2; color: var(--danger); }
+    .pill.pending { background: #fef3c7; color: var(--warning); }
+    .pill.active { background: #dcfce7; color: var(--success); }
+
+    .row-actions { position: relative; display: inline-flex; }
+    .action-menu {
+      display: none;
+      position: absolute;
+      right: 0;
+      top: calc(100% + 8px);
+      min-width: 210px;
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.14);
+      padding: 6px;
+      z-index: 40;
+    }
+    .row-actions.open .action-menu { display: grid; gap: 4px; }
+    .action-menu button {
+      border: 0;
+      background: transparent;
+      text-align: left;
+      padding: 10px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 800;
+      color: #334155;
+    }
+    .action-menu button:hover { background: #f1f5f9; }
+    .action-menu button.danger { color: var(--danger); }
+
+    .empty-state {
+      padding: 34px 20px;
+      text-align: center;
+      color: var(--muted);
+      border: 1px dashed #cbd5e1;
+      border-radius: 18px;
+      background: #f8fafc;
+      margin: 18px;
+    }
+
+    .modal-backdrop, .drawer-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.42);
+      z-index: 90;
+    }
+
+    .modal-backdrop.show, .drawer-backdrop.show { display: block; }
+
+    .modal {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      z-index: 100;
+    }
+
+    .modal.show { display: flex; }
+
+    .modal-card {
+      width: min(560px, 100%);
+      background: #ffffff;
+      border-radius: 22px;
+      box-shadow: 0 28px 70px rgba(15, 23, 42, 0.28);
       overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
     }
 
-    .portal-nav-v2 .user-meta {
-      max-width: clamp(86px, 10vw, 150px);
+    .modal-header, .drawer-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 20px 22px;
+      border-bottom: 1px solid var(--border);
     }
 
-    .portal-nav-v2 .more-dropdown {
-      display: none !important;
+    .modal-header h2, .drawer-header h2 { margin: 0 0 4px; font-size: 1.25rem; }
+    .modal-header p, .drawer-header p { margin: 0; color: var(--muted); line-height: 1.4; font-size: 0.9rem; }
+
+    .modal-body { padding: 22px; display: grid; gap: 14px; }
+    .modal-actions, .drawer-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      padding: 18px 22px;
+      border-top: 1px solid var(--border);
+      background: #f8fafc;
     }
 
-    .portal-nav-v2.nav-compact .more-dropdown.has-items {
-      display: inline-flex !important;
+    .drawer {
+      display: block;
+      position: fixed;
+      top: 0;
+      right: 0;
+      height: 100vh;
+      width: min(460px, 100%);
+      background: #ffffff;
+      box-shadow: -24px 0 60px rgba(15, 23, 42, 0.22);
+      z-index: 100;
+      transform: translateX(104%);
+      transition: transform 0.2s ease;
+      overflow-y: auto;
     }
 
-    .portal-nav-v2.nav-compact .nav-main > .desktop-extra {
-      display: none !important;
+    .drawer.show { transform: translateX(0); }
+    .drawer-body { padding: 22px; display: grid; gap: 16px; }
+    .drawer-section {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: #f8fafc;
+      padding: 16px;
+      display: grid;
+      gap: 14px;
+    }
+    .drawer-section h3 { margin: 0; font-size: 1rem; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .detail-box { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px; }
+    .detail-box span { display: block; color: var(--muted); font-size: 0.76rem; font-weight: 900; margin-bottom: 5px; }
+    .detail-box strong { overflow-wrap: anywhere; }
+
+    .close-button {
+      border: 0;
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: #f1f5f9;
+      color: #334155;
+      font-weight: 900;
+      cursor: pointer;
     }
 
-    @media (min-width: 901px) {
-      .portal-nav-v2 .mobile-menu-button,
-      .portal-nav-v2 .mobile-drawer {
-        display: none !important;
-      }
+    @media (max-width: 980px) {
+      .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .workspace-toolbar { grid-template-columns: 1fr 1fr; }
+      .aum-hero { flex-direction: column; align-items: flex-start; }
     }
 
-    @media (max-width: 1100px) {
-      .portal-nav-v2 .brand-subtitle {
-        display: none;
-      }
+    @media (max-width: 620px) {
+      .page { padding: 18px 12px; }
+      .portal-nav { align-items: flex-start; flex-direction: column; }
+      .stats-grid, .workspace-toolbar, .detail-grid { grid-template-columns: 1fr; }
+      .hero-actions, .modal-actions, .drawer-actions { width: 100%; flex-direction: column-reverse; }
+      .btn { width: 100%; }
+      .table-wrap { display: none; }
+      .mobile-user-list { display: grid; gap: 12px; padding: 18px; }
+      .mobile-user-card { border: 1px solid var(--border); border-radius: 18px; padding: 16px; background: #ffffff; }
     }
 
-    @media (max-width: 900px) {
-      .portal-nav-v2 {
-        grid-template-columns: auto 1fr auto !important;
-      }
-
-      .portal-nav-v2 .nav-main {
-        display: none !important;
-      }
-
-      .portal-nav-v2 .nav-brand {
-        justify-self: center;
-      }
-
-      .portal-nav-v2 .nav-user-zone {
-        border-left: 0;
-        padding-left: 0;
-      }
-
-      .portal-nav-v2 .nav-user-zone .user-meta {
-        display: none;
-      }
-
-      .portal-nav-v2 .logout-button {
-        padding: 9px 10px !important;
-      }
-
-      .portal-nav-v2 .logout-button span {
-        display: none;
-      }
-
-      .portal-nav-v2 .mobile-menu-button {
-        display: inline-flex !important;
-        justify-content: center;
-        width: 44px;
-        height: 44px;
-      }
+    @media (min-width: 621px) {
+      .mobile-user-list { display: none; }
     }
-
   </style>
 </head>
 <body>
@@ -848,7 +806,7 @@
         <a href="admin-users.html" id="adminUsersLink" class="nav-link desktop-extra active" data-page="users" data-role-link="admin"><span class="nav-icon">♟</span>Users Admin</a>
 
         <div id="moreDropdown" class="more-dropdown">
-          <button id="moreButton" class="more-button" type="button">More ▾</button>
+          <button id="moreButton" class="more-button" type="button">☰ More ▾</button>
           <div class="more-menu" role="menu">
             <a href="de-dashboard.html" class="nav-link" data-page="deployment" data-role-link="de"><span class="nav-icon">▰</span>Deployment Dashboard</a>
             <a href="admin-users.html" class="nav-link active" data-page="users" data-role-link="admin"><span class="nav-icon">♟</span>Users Admin</a>
@@ -887,79 +845,223 @@
       </div>
     </nav>
 
-    <section class="card">
-      <div class="card-header">
-        <h1>Admin User Management</h1>
-        <p>Add, update, disable and reset user accounts without manually editing encrypted user storage.</p>
-      </div>
+    <section class="aum-shell" aria-label="Users Admin workspace">
+      <header class="aum-hero">
+        <div>
+          <h1>Users Admin</h1>
+          <p>Search, review and manage portal user access without editing encrypted user storage manually.</p>
+        </div>
+        <div class="hero-actions">
+          <button id="openAddUserBtn" class="btn btn-on-dark" type="button">＋ Add User</button>
+          <button id="refreshUsersBtn" class="btn btn-secondary" type="button">↻ Refresh</button>
+        </div>
+      </header>
 
-      <div class="card-body">
-        <div id="statusMessage" class="status" role="status" aria-live="polite"></div>
+      <section class="stats-grid" aria-label="User account summary">
+        <article class="stat-card"><span class="stat-label">Total Users</span><strong id="totalUsers" class="stat-value">0</strong></article>
+        <article class="stat-card"><span class="stat-label">Active</span><strong id="activeUsers" class="stat-value">0</strong></article>
+        <article class="stat-card"><span class="stat-label">Pending Activation</span><strong id="pendingUsers" class="stat-value">0</strong></article>
+        <article class="stat-card"><span class="stat-label">Disabled</span><strong id="disabledUsers" class="stat-value">0</strong></article>
+      </section>
 
-        <div class="toolbar">
+      <section class="workspace-card">
+        <div class="workspace-toolbar">
           <div class="field">
             <label for="searchInput">Search users</label>
-            <input id="searchInput" type="search" placeholder="Search by name, email, role or status" />
+            <input id="searchInput" type="search" placeholder="Search by name, email, role or status" autocomplete="off" />
           </div>
-          <button id="refreshUsersBtn" class="btn btn-primary" type="button">Refresh Users</button>
+          <div class="field">
+            <label for="roleFilter">Role</label>
+            <select id="roleFilter">
+              <option value="All">All Roles</option>
+              <option value="User">User</option>
+              <option value="DE">DE</option>
+              <option value="Admin">Admin</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="statusFilter">Status</label>
+            <select id="statusFilter">
+              <option value="All">All Statuses</option>
+              <option value="PendingActivation">PendingActivation</option>
+              <option value="Active">Active</option>
+              <option value="Disabled">Disabled</option>
+            </select>
+          </div>
+          <button id="clearFiltersBtn" class="btn btn-secondary" type="button">Clear Filters</button>
         </div>
 
-        <section class="panel">
-          <h2>Add New User</h2>
-          <form id="addUserForm" class="form-grid">
-            <div class="field">
-              <label for="newName">Official name</label>
-              <input id="newName" type="text" required />
-            </div>
-            <div class="field">
-              <label for="newEmail">Official email</label>
-              <input id="newEmail" type="email" required />
-            </div>
-            <div class="field">
-              <label for="newRole">Role</label>
-              <select id="newRole">
-                <option value="User">User</option>
-                <option value="DE">DE</option>
-                <option value="Admin">Admin</option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="newStatus">Status</label>
-              <select id="newStatus">
-                <option value="PendingActivation">PendingActivation</option>
-                <option value="Active">Active</option>
-                <option value="Disabled">Disabled</option>
-              </select>
-            </div>
-            <button class="btn btn-primary" type="submit">Add User</button>
-          </form>
-          <p class="note">New users should normally be created as <strong>PendingActivation</strong>. They will activate their own account and set their own password.</p>
-        </section>
+        <div id="statusMessage" class="status" role="status" aria-live="polite"></div>
 
-        <div id="userList" class="user-list">
-          <div class="empty-state">Loading users...</div>
+        <div class="table-wrap">
+          <table aria-label="Portal users">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Activated</th>
+                <th>Updated</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="userTableBody">
+              <tr><td colspan="6">Loading users...</td></tr>
+            </tbody>
+          </table>
         </div>
-      </div>
+
+        <div id="mobileUserList" class="mobile-user-list"></div>
+        <div id="emptyState" class="empty-state" style="display:none;">No users found.</div>
+      </section>
     </section>
   </main>
 
-  <script>
+  <div id="modalBackdrop" class="modal-backdrop"></div>
+  <section id="addUserModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="addUserTitle">
+    <form id="addUserForm" class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h2 id="addUserTitle">Add New User</h2>
+          <p>Create a pre-approved account record. The user will activate and set their own password.</p>
+        </div>
+        <button class="close-button" type="button" data-close-modal>✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <label for="newName">Official name</label>
+          <input id="newName" type="text" required />
+        </div>
+        <div class="field">
+          <label for="newEmail">Official email</label>
+          <input id="newEmail" type="email" required />
+        </div>
+        <div class="field">
+          <label for="newRole">Role</label>
+          <select id="newRole">
+            <option value="User">User</option>
+            <option value="DE">DE</option>
+            <option value="Admin">Admin</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="newStatus">Status</label>
+          <select id="newStatus">
+            <option value="PendingActivation">PendingActivation</option>
+            <option value="Active">Active</option>
+            <option value="Disabled">Disabled</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" type="button" data-close-modal>Cancel</button>
+        <button class="btn btn-primary" type="submit">Create User</button>
+      </div>
+    </form>
+  </section>
 
+  <div id="drawerBackdrop" class="drawer-backdrop"></div>
+  <aside id="userDrawer" class="drawer" aria-label="Edit user drawer">
+    <div class="drawer-header">
+      <div>
+        <h2 id="drawerUserName">Edit User</h2>
+        <p id="drawerUserEmail">Review and update user access details.</p>
+      </div>
+      <button id="closeDrawerBtn" class="close-button" type="button">✕</button>
+    </div>
+
+    <form id="editUserForm">
+      <div class="drawer-body">
+        <section class="drawer-section">
+          <h3>Account Details</h3>
+          <div class="detail-grid">
+            <div class="detail-box"><span>User ID</span><strong id="drawerUserId">-</strong></div>
+            <div class="detail-box"><span>Activated</span><strong id="drawerActivated">-</strong></div>
+            <div class="detail-box"><span>Created</span><strong id="drawerCreated">-</strong></div>
+            <div class="detail-box"><span>Updated</span><strong id="drawerUpdated">-</strong></div>
+          </div>
+        </section>
+
+        <section class="drawer-section">
+          <h3>Edit Access</h3>
+          <div class="field">
+            <label for="editName">Official name</label>
+            <input id="editName" type="text" required />
+          </div>
+          <div class="field">
+            <label for="editEmail">Official email</label>
+            <input id="editEmail" type="email" required />
+          </div>
+          <div class="field">
+            <label for="editRole">Role</label>
+            <select id="editRole">
+              <option value="User">User</option>
+              <option value="DE">DE</option>
+              <option value="Admin">Admin</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="editStatus">Status</label>
+            <select id="editStatus">
+              <option value="PendingActivation">PendingActivation</option>
+              <option value="Active">Active</option>
+              <option value="Disabled">Disabled</option>
+            </select>
+          </div>
+        </section>
+
+        <section class="drawer-section">
+          <h3>Account Actions</h3>
+          <button id="resetActivationBtn" class="btn btn-warning" type="button">Reset Activation</button>
+          <button id="disableUserBtn" class="btn btn-danger" type="button">Disable User</button>
+        </section>
+      </div>
+
+      <div class="drawer-actions">
+        <button class="btn btn-secondary" type="button" id="cancelEditBtn">Cancel</button>
+        <button class="btn btn-primary" type="submit">Save Changes</button>
+      </div>
+    </form>
+  </aside>
+
+  <script>
     function configurePortalNavigation(user, activePage) {
       const nav = document.querySelector('.portal-nav-v2');
       if (!nav || !user) return;
 
       const role = user.role || 'User';
+      const isTeacherView = role === 'User' || role === 'Admin';
+      const isDeploymentView = role === 'DE' || role === 'Admin';
       const isAdmin = role === 'Admin';
-      const isDE = role === 'DE';
-      const isTeacherView = role === 'User' || isAdmin;
-      const isDeploymentView = isDE || isAdmin;
 
       function shouldShowRole(linkRole) {
         if (linkRole === 'teacher') return isTeacherView;
         if (linkRole === 'de') return isDeploymentView;
         if (linkRole === 'admin') return isAdmin;
         return false;
+      }
+
+      function applyRoleVisibility() {
+        nav.querySelectorAll('[data-role-link]').forEach(link => {
+          const shouldShow = shouldShowRole(link.dataset.roleLink);
+          link.dataset.roleVisible = shouldShow ? 'true' : 'false';
+
+          /*
+            DE users only need Deployment Dashboard.
+            For them, keep Deployment Dashboard as a direct primary link instead
+            of hiding it behind More on desktop/laptop.
+          */
+          if (role === 'DE' && link.dataset.page === 'deployment') {
+            link.classList.remove('desktop-extra');
+          }
+
+          link.style.display = shouldShow ? 'inline-flex' : 'none';
+        });
+
+        nav.querySelectorAll('[data-mobile-role-link]').forEach(link => {
+          const shouldShow = shouldShowRole(link.dataset.mobileRoleLink);
+          link.style.display = shouldShow ? 'flex' : 'none';
+        });
       }
 
       function setActiveState() {
@@ -983,58 +1085,67 @@
         }
       }
 
-      function applyRoleVisibility() {
-        const primaryLinks = Array.from(nav.querySelectorAll('.nav-main > [data-role-link]'));
+      function moreHasVisibleItems() {
+        const moreMenu = nav.querySelector('.more-menu');
+        if (!moreMenu) return false;
 
-        primaryLinks.forEach(link => {
+        let hasItems = false;
+        moreMenu.querySelectorAll('[data-role-link]').forEach(link => {
           const shouldShow = shouldShowRole(link.dataset.roleLink);
-          link.dataset.roleVisible = shouldShow ? 'true' : 'false';
-
-          if (isDE && link.dataset.page === 'deployment') {
-            link.classList.remove('desktop-extra');
-          }
-
           link.style.display = shouldShow ? 'inline-flex' : 'none';
+          if (shouldShow) hasItems = true;
         });
 
-        nav.querySelectorAll('.more-menu [data-role-link]').forEach(link => {
-          const shouldShow = isAdmin && shouldShowRole(link.dataset.roleLink);
-          link.style.display = shouldShow ? 'inline-flex' : 'none';
-        });
-
-        nav.querySelectorAll('[data-mobile-role-link]').forEach(link => {
-          const shouldShow = shouldShowRole(link.dataset.mobileRoleLink);
-          link.style.display = shouldShow ? 'flex' : 'none';
-        });
+        return hasItems;
       }
 
-      function applyNavigationLayout() {
-        const mobileMode = window.matchMedia('(max-width: 900px)').matches;
+      function setCompactMode(isCompact) {
         const moreDropdown = nav.querySelector('#moreDropdown');
+        const hasMoreItems = moreHasVisibleItems();
 
-        nav.classList.toggle('nav-compact', !mobileMode && isAdmin);
+        nav.classList.toggle('nav-compact', isCompact && hasMoreItems);
 
-        nav.querySelectorAll('.nav-main > .desktop-extra').forEach(link => {
+        nav.querySelectorAll('.desktop-extra').forEach(link => {
           const shouldShow = link.dataset.roleVisible === 'true';
-          link.style.display = (!mobileMode && !isAdmin && shouldShow) ? 'inline-flex' : 'none';
+          link.style.display = (!isCompact && shouldShow) ? 'inline-flex' : 'none';
         });
 
         if (moreDropdown) {
-          const showMore = !mobileMode && isAdmin;
-          moreDropdown.classList.toggle('has-items', showMore);
-          moreDropdown.style.display = showMore ? 'inline-flex' : 'none';
-          if (!showMore) moreDropdown.classList.remove('open');
+          moreDropdown.classList.toggle('has-items', isCompact && hasMoreItems);
+          moreDropdown.style.display = (isCompact && hasMoreItems) ? 'inline-flex' : 'none';
+          if (!isCompact) moreDropdown.classList.remove('open');
+        }
+      }
+
+      function applyAvailableWidthLayout() {
+        const mobileMode = window.matchMedia('(max-width: 900px)').matches;
+
+        if (mobileMode) {
+          setCompactMode(false);
+          return;
         }
 
-        if (!mobileMode) {
-          nav.classList.remove('mobile-open');
-        }
+        /*
+          Measure actual available width instead of relying only on viewport width.
+          This fixes extended-monitor / laptop-window cases where the viewport is
+          wide but the portal container itself is still too narrow for every link.
+        */
+        setCompactMode(false);
+
+        window.requestAnimationFrame(() => {
+          const tolerance = 6;
+          const isOverflowing =
+            nav.scrollWidth > nav.clientWidth + tolerance ||
+            nav.getBoundingClientRect().width < 1220 && isAdmin;
+
+          setCompactMode(isOverflowing);
+        });
       }
 
       applyRoleVisibility();
       setActiveState();
       updateUserDisplay();
-      applyNavigationLayout();
+      applyAvailableWidthLayout();
 
       const mobileButton = nav.querySelector('#mobileMenuButton');
       const mobileCloseButton = nav.querySelector('#mobileCloseButton');
@@ -1059,7 +1170,7 @@
         moreButton.dataset.bound = 'true';
         moreButton.addEventListener('click', event => {
           event.stopPropagation();
-          if (moreDropdown) moreDropdown.classList.toggle('open');
+          moreDropdown.classList.toggle('open');
         });
       }
 
@@ -1069,7 +1180,7 @@
         let resizeTimer = null;
         const scheduleLayoutUpdate = () => {
           window.clearTimeout(resizeTimer);
-          resizeTimer = window.setTimeout(applyNavigationLayout, 80);
+          resizeTimer = window.setTimeout(applyAvailableWidthLayout, 80);
         };
 
         window.addEventListener('resize', scheduleLayoutUpdate);
@@ -1091,14 +1202,27 @@
     }
 
 
+
     const statusMessage = document.getElementById('statusMessage');
-    const userList = document.getElementById('userList');
+    const userTableBody = document.getElementById('userTableBody');
+    const mobileUserList = document.getElementById('mobileUserList');
+    const emptyState = document.getElementById('emptyState');
     const searchInput = document.getElementById('searchInput');
+    const roleFilter = document.getElementById('roleFilter');
+    const statusFilter = document.getElementById('statusFilter');
+    const clearFiltersBtn = document.getElementById('clearFiltersBtn');
     const refreshUsersBtn = document.getElementById('refreshUsersBtn');
+    const openAddUserBtn = document.getElementById('openAddUserBtn');
     const addUserForm = document.getElementById('addUserForm');
+    const addUserModal = document.getElementById('addUserModal');
+    const modalBackdrop = document.getElementById('modalBackdrop');
+    const userDrawer = document.getElementById('userDrawer');
+    const drawerBackdrop = document.getElementById('drawerBackdrop');
+    const editUserForm = document.getElementById('editUserForm');
 
     let currentUser = null;
     let users = [];
+    let selectedUserId = null;
 
     function showStatus(type, message) {
       statusMessage.className = `status ${type}`;
@@ -1123,6 +1247,26 @@
       return date.toLocaleString('en-SG', { dateStyle: 'medium', timeStyle: 'short' });
     }
 
+    function getInitial(name) {
+      return String(name || 'U').trim().charAt(0).toUpperCase() || 'U';
+    }
+
+    function getRolePillClass(role) {
+      if (role === 'Admin') return 'pill role-admin';
+      if (role === 'DE') return 'pill role-de';
+      return 'pill';
+    }
+
+    function getStatusPillClass(status) {
+      if (status === 'Disabled') return 'pill disabled';
+      if (status === 'PendingActivation') return 'pill pending';
+      return 'pill active';
+    }
+
+    function isSelf(user) {
+      return String(user?.userId) === String(currentUser?.userId);
+    }
+
     async function requireAuthenticatedAdmin() {
       const response = await fetch('/api/me', { cache: 'no-store' });
       const result = await response.json();
@@ -1133,15 +1277,13 @@
       }
 
       if (result.user.role !== 'Admin') {
-        document.body.innerHTML = '<main class="page"><section class="card"><div class="card-header"><h1>Access Denied</h1><p>This page is only available to Admin users.</p></div></section></main>';
+        document.body.innerHTML = '<main class="page"><section class="workspace-card"><div class="aum-hero"><div><h1>Access Denied</h1><p>This page is only available to Admin users.</p></div></div></section></main>';
         return null;
       }
 
       currentUser = result.user;
-      
-      configurePortalNavigation(result.user, "users");
-document.getElementById('currentUserDisplay').textContent = `Signed in as ${result.user.name}`;
-return currentUser;
+      configurePortalNavigation(result.user, 'users');
+      return currentUser;
     }
 
     document.getElementById('logoutBtn').addEventListener('click', async () => {
@@ -1149,96 +1291,103 @@ return currentUser;
       window.location.href = 'login.html';
     });
 
+    function updateStats() {
+      document.getElementById('totalUsers').textContent = users.length;
+      document.getElementById('activeUsers').textContent = users.filter(user => user.status === 'Active').length;
+      document.getElementById('pendingUsers').textContent = users.filter(user => user.status === 'PendingActivation').length;
+      document.getElementById('disabledUsers').textContent = users.filter(user => user.status === 'Disabled').length;
+    }
+
     function getFilteredUsers() {
       const query = searchInput.value.trim().toLowerCase();
-
-      if (!query) return users;
+      const selectedRole = roleFilter.value;
+      const selectedStatus = statusFilter.value;
 
       return users.filter(user => {
-        return [
-          user.userId,
-          user.name,
-          user.email,
-          user.role,
-          user.status
-        ].some(value => String(value || '').toLowerCase().includes(query));
+        const matchesQuery = !query || [user.userId, user.name, user.email, user.role, user.status]
+          .some(value => String(value || '').toLowerCase().includes(query));
+
+        const matchesRole = selectedRole === 'All' || user.role === selectedRole;
+        const matchesStatus = selectedStatus === 'All' || user.status === selectedStatus;
+
+        return matchesQuery && matchesRole && matchesStatus;
       });
     }
 
-    function getStatusPillClass(status) {
-      if (status === 'Disabled') return 'pill disabled';
-      if (status === 'PendingActivation') return 'pill pending';
-      return 'pill';
+    function renderTableRow(user) {
+      return `
+        <tr data-user-id="${escapeHtml(user.userId)}">
+          <td>
+            <div class="identity-cell">
+              <span class="table-avatar">${escapeHtml(getInitial(user.name))}</span>
+              <div class="identity-main">
+                <div class="aum-user-name">${escapeHtml(user.name)}</div>
+                <div class="aum-user-email">${escapeHtml(user.email)}</div>
+              </div>
+            </div>
+          </td>
+          <td><span class="${getRolePillClass(user.role)}">${escapeHtml(user.role)}</span></td>
+          <td><span class="${getStatusPillClass(user.status)}">${escapeHtml(user.status)}</span></td>
+          <td>${user.hasPasswordHash ? 'Yes' : 'No'}</td>
+          <td>${escapeHtml(formatDateTime(user.updatedAt || user.activatedAt || user.createdAt))}</td>
+          <td>
+            <div class="row-actions">
+              <button class="btn btn-secondary btn-icon" type="button" data-action="toggle-menu" aria-label="Open actions">⋯</button>
+              <div class="action-menu">
+                <button type="button" data-action="edit">Edit User</button>
+                <button type="button" data-action="reset-activation" ${isSelf(user) ? 'disabled' : ''}>Reset Activation</button>
+                <button type="button" class="danger" data-action="disable" ${isSelf(user) ? 'disabled' : ''}>Disable User</button>
+              </div>
+            </div>
+          </td>
+        </tr>
+      `;
+    }
+
+    function renderMobileCard(user) {
+      return `
+        <article class="mobile-user-card" data-user-id="${escapeHtml(user.userId)}">
+          <div class="identity-cell">
+            <span class="table-avatar">${escapeHtml(getInitial(user.name))}</span>
+            <div class="identity-main">
+              <div class="aum-user-name">${escapeHtml(user.name)}</div>
+              <div class="aum-user-email">${escapeHtml(user.email)}</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin:14px 0;">
+            <span class="${getRolePillClass(user.role)}">${escapeHtml(user.role)}</span>
+            <span class="${getStatusPillClass(user.status)}">${escapeHtml(user.status)}</span>
+            <span class="pill">Activated: ${user.hasPasswordHash ? 'Yes' : 'No'}</span>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-primary" type="button" data-action="edit">Edit</button>
+            <button class="btn btn-warning" type="button" data-action="reset-activation" ${isSelf(user) ? 'disabled' : ''}>Reset Activation</button>
+            <button class="btn btn-danger" type="button" data-action="disable" ${isSelf(user) ? 'disabled' : ''}>Disable</button>
+          </div>
+        </article>
+      `;
     }
 
     function renderUsers() {
       const filteredUsers = getFilteredUsers();
+      updateStats();
 
       if (filteredUsers.length === 0) {
-        userList.innerHTML = '<div class="empty-state">No users found.</div>';
+        userTableBody.innerHTML = '';
+        mobileUserList.innerHTML = '';
+        emptyState.style.display = 'block';
         return;
       }
 
-      userList.innerHTML = filteredUsers.map(user => {
-        const isSelf = String(user.userId) === String(currentUser.userId);
-
-        return `
-          <article class="user-card" data-user-id="${escapeHtml(user.userId)}">
-            <div class="user-top">
-              <div>
-                <h2 class="user-name">${escapeHtml(user.name)}</h2>
-                <div class="user-email">${escapeHtml(user.email)}</div>
-              </div>
-              <span class="${getStatusPillClass(user.status)}">${escapeHtml(user.status)}</span>
-            </div>
-
-            <div class="meta-grid">
-              <div class="meta-box"><span>User ID</span><strong>${escapeHtml(user.userId)}</strong></div>
-              <div class="meta-box"><span>Role</span><strong>${escapeHtml(user.role)}</strong></div>
-              <div class="meta-box"><span>Activated</span><strong>${user.hasPasswordHash ? 'Yes' : 'No'}</strong></div>
-              <div class="meta-box"><span>Updated</span><strong>${escapeHtml(formatDateTime(user.updatedAt || user.activatedAt || user.createdAt))}</strong></div>
-            </div>
-
-            <div class="edit-grid">
-              <div class="field">
-                <label>Name</label>
-                <input data-edit-field="name" type="text" value="${escapeHtml(user.name)}" />
-              </div>
-              <div class="field">
-                <label>Email</label>
-                <input data-edit-field="email" type="email" value="${escapeHtml(user.email)}" />
-              </div>
-              <div class="field">
-                <label>Role</label>
-                <select data-edit-field="role">
-                  <option value="User" ${user.role === 'User' ? 'selected' : ''}>User</option>
-                  <option value="DE" ${user.role === 'DE' ? 'selected' : ''}>DE</option>
-                  <option value="Admin" ${user.role === 'Admin' ? 'selected' : ''}>Admin</option>
-                </select>
-              </div>
-              <div class="field">
-                <label>Status</label>
-                <select data-edit-field="status">
-                  <option value="PendingActivation" ${user.status === 'PendingActivation' ? 'selected' : ''}>PendingActivation</option>
-                  <option value="Active" ${user.status === 'Active' ? 'selected' : ''}>Active</option>
-                  <option value="Disabled" ${user.status === 'Disabled' ? 'selected' : ''}>Disabled</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="user-actions">
-              <button class="btn btn-primary" type="button" data-action="save">Save Changes</button>
-              <button class="btn btn-warning" type="button" data-action="reset-activation" ${isSelf ? 'disabled title="You cannot reset your own signed-in account."' : ''}>Reset Activation</button>
-              <button class="btn btn-danger" type="button" data-action="disable" ${isSelf ? 'disabled title="You cannot disable your own signed-in account."' : ''}>Disable User</button>
-            </div>
-          </article>
-        `;
-      }).join('');
+      emptyState.style.display = 'none';
+      userTableBody.innerHTML = filteredUsers.map(renderTableRow).join('');
+      mobileUserList.innerHTML = filteredUsers.map(renderMobileCard).join('');
     }
 
     async function loadUsers() {
       clearStatus();
-      userList.innerHTML = '<div class="empty-state">Loading users...</div>';
+      userTableBody.innerHTML = '<tr><td colspan="6">Loading users...</td></tr>';
+      mobileUserList.innerHTML = '<div class="empty-state">Loading users...</div>';
 
       const response = await fetch('/api/admin/users', { cache: 'no-store' });
       const result = await response.json();
@@ -1249,6 +1398,20 @@ return currentUser;
 
       users = result.users || [];
       renderUsers();
+    }
+
+    function openAddModal() {
+      addUserForm.reset();
+      document.getElementById('newRole').value = 'User';
+      document.getElementById('newStatus').value = 'PendingActivation';
+      modalBackdrop.classList.add('show');
+      addUserModal.classList.add('show');
+      document.getElementById('newName').focus();
+    }
+
+    function closeAddModal() {
+      modalBackdrop.classList.remove('show');
+      addUserModal.classList.remove('show');
     }
 
     async function addUser(event) {
@@ -1274,107 +1437,168 @@ return currentUser;
         throw new Error(result.message || 'Unable to add user.');
       }
 
-      addUserForm.reset();
-      document.getElementById('newRole').value = 'User';
-      document.getElementById('newStatus').value = 'PendingActivation';
-
+      closeAddModal();
       showStatus('success', result.message || 'User added successfully.');
       await loadUsers();
     }
 
-    async function saveUser(card) {
-      const userId = card.dataset.userId;
-      const payload = {};
+    function getUserFromElement(element) {
+      const container = element.closest('[data-user-id]');
+      const userId = container?.dataset.userId;
+      return users.find(user => String(user.userId) === String(userId));
+    }
 
-      card.querySelectorAll('[data-edit-field]').forEach(input => {
-        payload[input.dataset.editField] = input.value.trim();
-      });
+    function openDrawer(user) {
+      if (!user) return;
+      selectedUserId = user.userId;
 
-      const response = await fetch(`/api/admin/users/${encodeURIComponent(userId)}`, {
+      document.getElementById('drawerUserName').textContent = user.name || 'Edit User';
+      document.getElementById('drawerUserEmail').textContent = user.email || '';
+      document.getElementById('drawerUserId').textContent = user.userId || '-';
+      document.getElementById('drawerActivated').textContent = user.hasPasswordHash ? 'Yes' : 'No';
+      document.getElementById('drawerCreated').textContent = formatDateTime(user.createdAt);
+      document.getElementById('drawerUpdated').textContent = formatDateTime(user.updatedAt || user.activatedAt || user.createdAt);
+      document.getElementById('editName').value = user.name || '';
+      document.getElementById('editEmail').value = user.email || '';
+      document.getElementById('editRole').value = user.role || 'User';
+      document.getElementById('editStatus').value = user.status || 'PendingActivation';
+
+      const self = isSelf(user);
+      document.getElementById('resetActivationBtn').disabled = self;
+      document.getElementById('disableUserBtn').disabled = self;
+
+      drawerBackdrop.classList.add('show');
+      userDrawer.classList.add('show');
+    }
+
+    function closeDrawer() {
+      selectedUserId = null;
+      drawerBackdrop.classList.remove('show');
+      userDrawer.classList.remove('show');
+    }
+
+    async function saveSelectedUser(event) {
+      event.preventDefault();
+      if (!selectedUserId) return;
+
+      const payload = {
+        name: document.getElementById('editName').value.trim(),
+        email: document.getElementById('editEmail').value.trim(),
+        role: document.getElementById('editRole').value,
+        status: document.getElementById('editStatus').value
+      };
+
+      const response = await fetch(`/api/admin/users/${encodeURIComponent(selectedUserId)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
 
       const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.message || 'Unable to update user.');
 
-      if (!response.ok || !result.success) {
-        throw new Error(result.message || 'Unable to update user.');
-      }
-
+      closeDrawer();
       showStatus('success', result.message || 'User updated successfully.');
       await loadUsers();
     }
 
-    async function disableUser(card) {
-      const userId = card.dataset.userId;
-      const user = users.find(existingUser => String(existingUser.userId) === String(userId));
+    async function disableUser(user) {
+      if (!user || isSelf(user)) return;
+      if (!confirm(`Disable ${user.name || 'this user'}? They will no longer be able to sign in.`)) return;
 
-      if (!confirm(`Disable ${user?.name || 'this user'}? They will no longer be able to sign in.`)) {
-        return;
-      }
-
-      const response = await fetch(`/api/admin/users/${encodeURIComponent(userId)}`, {
-        method: 'DELETE'
-      });
-
+      const response = await fetch(`/api/admin/users/${encodeURIComponent(user.userId)}`, { method: 'DELETE' });
       const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.message || 'Unable to disable user.');
 
-      if (!response.ok || !result.success) {
-        throw new Error(result.message || 'Unable to disable user.');
-      }
-
+      closeDrawer();
       showStatus('success', result.message || 'User disabled successfully.');
       await loadUsers();
     }
 
-    async function resetActivation(card) {
-      const userId = card.dataset.userId;
-      const user = users.find(existingUser => String(existingUser.userId) === String(userId));
+    async function resetActivation(user) {
+      if (!user || isSelf(user)) return;
+      if (!confirm(`Reset activation for ${user.name || 'this user'}? Their current password will be removed and they must activate their account again.`)) return;
 
-      if (!confirm(`Reset activation for ${user?.name || 'this user'}? Their current password will be removed and they must activate their account again.`)) {
-        return;
-      }
-
-      const response = await fetch(`/api/admin/users/${encodeURIComponent(userId)}/reset-activation`, {
-        method: 'POST'
-      });
-
+      const response = await fetch(`/api/admin/users/${encodeURIComponent(user.userId)}/reset-activation`, { method: 'POST' });
       const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.message || 'Unable to reset activation.');
 
-      if (!response.ok || !result.success) {
-        throw new Error(result.message || 'Unable to reset activation.');
-      }
-
+      closeDrawer();
       showStatus('success', result.message || 'Activation reset successfully.');
       await loadUsers();
     }
 
-    userList.addEventListener('click', async event => {
+    function closeAllActionMenus() {
+      document.querySelectorAll('.row-actions.open').forEach(menu => menu.classList.remove('open'));
+    }
+
+    function handleUserAction(event) {
       const button = event.target.closest('button[data-action]');
       if (!button || button.disabled) return;
 
-      const card = button.closest('.user-card');
       const action = button.dataset.action;
+      const user = getUserFromElement(button);
 
-      try {
-        if (action === 'save') await saveUser(card);
-        if (action === 'disable') await disableUser(card);
-        if (action === 'reset-activation') await resetActivation(card);
-      } catch (error) {
-        showStatus('error', error.message);
+      if (action === 'toggle-menu') {
+        const menu = button.closest('.row-actions');
+        const isOpen = menu.classList.contains('open');
+        closeAllActionMenus();
+        if (!isOpen) menu.classList.add('open');
+        return;
+      }
+
+      closeAllActionMenus();
+
+      if (action === 'edit') openDrawer(user);
+      if (action === 'disable') disableUser(user).catch(error => showStatus('error', error.message));
+      if (action === 'reset-activation') resetActivation(user).catch(error => showStatus('error', error.message));
+    }
+
+    openAddUserBtn.addEventListener('click', openAddModal);
+    document.querySelectorAll('[data-close-modal]').forEach(button => button.addEventListener('click', closeAddModal));
+    modalBackdrop.addEventListener('click', closeAddModal);
+    drawerBackdrop.addEventListener('click', closeDrawer);
+    document.getElementById('closeDrawerBtn').addEventListener('click', closeDrawer);
+    document.getElementById('cancelEditBtn').addEventListener('click', closeDrawer);
+
+    addUserForm.addEventListener('submit', event => addUser(event).catch(error => showStatus('error', error.message)));
+    editUserForm.addEventListener('submit', event => saveSelectedUser(event).catch(error => showStatus('error', error.message)));
+
+    document.getElementById('resetActivationBtn').addEventListener('click', () => {
+      const user = users.find(existingUser => String(existingUser.userId) === String(selectedUserId));
+      resetActivation(user).catch(error => showStatus('error', error.message));
+    });
+
+    document.getElementById('disableUserBtn').addEventListener('click', () => {
+      const user = users.find(existingUser => String(existingUser.userId) === String(selectedUserId));
+      disableUser(user).catch(error => showStatus('error', error.message));
+    });
+
+    userTableBody.addEventListener('click', handleUserAction);
+    mobileUserList.addEventListener('click', handleUserAction);
+
+    refreshUsersBtn.addEventListener('click', () => loadUsers().catch(error => showStatus('error', error.message)));
+    searchInput.addEventListener('input', renderUsers);
+    roleFilter.addEventListener('change', renderUsers);
+    statusFilter.addEventListener('change', renderUsers);
+    clearFiltersBtn.addEventListener('click', () => {
+      searchInput.value = '';
+      roleFilter.value = 'All';
+      statusFilter.value = 'All';
+      renderUsers();
+    });
+
+    document.addEventListener('click', event => {
+      if (!event.target.closest('.row-actions')) closeAllActionMenus();
+    });
+
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape') {
+        closeAddModal();
+        closeDrawer();
+        closeAllActionMenus();
       }
     });
-
-    addUserForm.addEventListener('submit', event => {
-      addUser(event).catch(error => showStatus('error', error.message));
-    });
-
-    refreshUsersBtn.addEventListener('click', () => {
-      loadUsers().catch(error => showStatus('error', error.message));
-    });
-
-    searchInput.addEventListener('input', renderUsers);
 
     async function initialiseAdminUsersPage() {
       const user = await requireAuthenticatedAdmin();
@@ -1382,7 +1606,8 @@ return currentUser;
 
       await loadUsers().catch(error => {
         showStatus('error', error.message);
-        userList.innerHTML = '<div class="empty-state">Unable to load users.</div>';
+        userTableBody.innerHTML = '<tr><td colspan="6">Unable to load users.</td></tr>';
+        mobileUserList.innerHTML = '<div class="empty-state">Unable to load users.</div>';
       });
     }
 
