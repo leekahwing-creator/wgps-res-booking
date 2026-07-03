@@ -1446,6 +1446,24 @@
             </tbody>
           </table>
         </div>
+
+        <div class="pagination-bar" aria-label="Resource table pagination">
+          <div id="resourcePaginationSummary" class="pagination-summary">Showing 0 resources</div>
+          <div class="pagination-controls">
+            <label class="rows-control" for="resourceRowsPerPageSelect">
+              Rows per page
+              <select id="resourceRowsPerPageSelect">
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+            </label>
+            <button id="resourcePreviousPageBtn" class="pagination-button" type="button">Previous</button>
+            <span id="resourcePageIndicator" class="page-indicator">Page 1 of 1</span>
+            <button id="resourceNextPageBtn" class="pagination-button" type="button">Next</button>
+          </div>
+        </div>
       </section>
     </section>
 
@@ -1454,7 +1472,7 @@
         <div class="modal-header">
           <div>
             <h2 id="resourceModalTitle">Add Resource</h2>
-            <p>Update the ICT inventory used by booking allocation.</p>
+            <p>Create a new ICT resource for booking allocation.</p>
           </div>
           <button id="closeResourceModalBtn" class="close-button" type="button" aria-label="Close resource dialog">✕</button>
         </div>
@@ -1511,12 +1529,97 @@
             <textarea id="notes" placeholder="Optional notes for Admin users"></textarea>
           </div>
           <div class="modal-actions">
-            <button id="deleteResourceBtn" class="btn btn-danger" type="button">Delete Resource</button>
             <button id="cancelResourceBtn" class="btn btn-secondary" type="button">Cancel</button>
             <button class="btn btn-primary" type="submit">Save Resource</button>
           </div>
         </form>
       </section>
+    </div>
+
+
+    <div id="editResourceDrawer" class="drawer-backdrop" role="dialog" aria-modal="true" aria-labelledby="editResourceTitle">
+      <aside class="drawer">
+        <div class="drawer-header">
+          <div>
+            <h2 id="editResourceTitle">Edit Resource</h2>
+            <p>Update resource details, availability, installed software and lifecycle actions.</p>
+          </div>
+          <button id="closeEditResourceBtn" class="close-button" type="button" aria-label="Close edit resource panel">✕</button>
+        </div>
+        <form id="editResourceForm" class="drawer-body">
+          <div id="drawerResourceSummary" class="drawer-title"></div>
+          <input id="editResourceId" type="hidden" />
+
+          <div class="field">
+            <label for="editResourceName">Resource name</label>
+            <input id="editResourceName" type="text" required />
+          </div>
+
+          <div class="two-col">
+            <div class="field">
+              <label for="editDeviceType">Device type</label>
+              <select id="editDeviceType">
+                <option value="iPad">iPad</option>
+                <option value="iPad with Keyboard">iPad with Keyboard</option>
+                <option value="Laptop">Laptop</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="editResourceType">Resource type</label>
+              <select id="editResourceType">
+                <option value="Cart">Cart</option>
+                <option value="Bag">Bag</option>
+                <option value="Set">Set</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="two-col">
+            <div class="field">
+              <label for="editCapacity">Capacity</label>
+              <input id="editCapacity" type="number" min="1" step="1" required />
+            </div>
+            <div class="field">
+              <label for="editResourceStatus">Status</label>
+              <select id="editResourceStatus">
+                <option value="Available">Available</option>
+                <option value="Unavailable">Unavailable</option>
+                <option value="Maintenance">Maintenance</option>
+                <option value="Retired">Retired</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="editResourceLocation">Storage / default location</label>
+            <input id="editResourceLocation" type="text" placeholder="e.g. ICT Room" />
+          </div>
+
+          <div class="field">
+            <label>Installed software</label>
+            <div id="editSoftwareChecklist" class="software-checklist"></div>
+          </div>
+
+          <div class="field">
+            <label for="editNotes">Notes</label>
+            <textarea id="editNotes" placeholder="Optional notes for Admin users"></textarea>
+          </div>
+
+          <div class="danger-zone">
+            <strong>Resource lifecycle actions</strong>
+            <span class="note">Use delete only when the resource should no longer appear as a bookable item. If future bookings exist, the backend will retire the resource instead.</span>
+            <div class="drawer-actions" style="justify-content:flex-start;">
+              <button id="deleteResourceBtn" class="btn btn-danger" type="button">Delete / Retire Resource</button>
+            </div>
+          </div>
+
+          <div class="drawer-actions">
+            <button id="cancelEditResourceBtn" class="btn btn-secondary" type="button">Cancel</button>
+            <button class="btn btn-primary" type="submit">Save Changes</button>
+          </div>
+        </form>
+      </aside>
     </div>
 
   </main>
@@ -1681,16 +1784,30 @@
     const clearFiltersBtn = document.getElementById('clearFiltersBtn');
     const refreshResourcesBtn = document.getElementById('refreshResourcesBtn');
     const openAddResourceBtn = document.getElementById('openAddResourceBtn');
+
+    const resourceRowsPerPageSelect = document.getElementById('resourceRowsPerPageSelect');
+    const resourcePreviousPageBtn = document.getElementById('resourcePreviousPageBtn');
+    const resourceNextPageBtn = document.getElementById('resourceNextPageBtn');
+    const resourcePageIndicator = document.getElementById('resourcePageIndicator');
+    const resourcePaginationSummary = document.getElementById('resourcePaginationSummary');
+
     const resourceModal = document.getElementById('resourceModal');
     const resourceForm = document.getElementById('resourceForm');
     const closeResourceModalBtn = document.getElementById('closeResourceModalBtn');
     const cancelResourceBtn = document.getElementById('cancelResourceBtn');
+
+    const editResourceDrawer = document.getElementById('editResourceDrawer');
+    const editResourceForm = document.getElementById('editResourceForm');
+    const closeEditResourceBtn = document.getElementById('closeEditResourceBtn');
+    const cancelEditResourceBtn = document.getElementById('cancelEditResourceBtn');
     const deleteResourceBtn = document.getElementById('deleteResourceBtn');
 
     let currentUser = null;
     let resources = [];
     let softwareCatalog = [];
     let selectedResource = null;
+    let currentPage = 1;
+    let rowsPerPage = Number(localStorage.getItem('resourcesAdminRowsPerPage')) || 25;
 
     function showStatus(type, message) {
       statusMessage.className = `status ${type}`;
@@ -1706,13 +1823,6 @@
       return String(value ?? '').replace(/[&<>'"]/g, char => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
       }[char]));
-    }
-
-    function formatDateTime(value) {
-      if (!value) return '-';
-      const date = new Date(value);
-      if (Number.isNaN(date.getTime())) return '-';
-      return date.toLocaleString('en-SG', { dateStyle: 'medium', timeStyle: 'short' });
     }
 
     function getInitial(name) {
@@ -1765,23 +1875,57 @@
       });
     }
 
+    function getPaginatedResources(filteredResources) {
+      const totalPages = Math.max(1, Math.ceil(filteredResources.length / rowsPerPage));
+      if (currentPage > totalPages) currentPage = totalPages;
+      if (currentPage < 1) currentPage = 1;
+      const startIndex = (currentPage - 1) * rowsPerPage;
+      const endIndex = startIndex + rowsPerPage;
+      return {
+        totalPages,
+        startIndex,
+        pageResources: filteredResources.slice(startIndex, endIndex)
+      };
+    }
+
+    function updatePaginationControls(filteredCount, totalPages, startIndex, pageResourceCount) {
+      if (filteredCount === 0) {
+        resourcePaginationSummary.textContent = 'Showing 0 resources';
+      } else {
+        const firstVisible = startIndex + 1;
+        const lastVisible = startIndex + pageResourceCount;
+        resourcePaginationSummary.textContent = `Showing ${firstVisible}–${lastVisible} of ${filteredCount} resources`;
+      }
+
+      resourcePageIndicator.textContent = `Page ${currentPage} of ${totalPages}`;
+      resourcePreviousPageBtn.disabled = currentPage <= 1;
+      resourceNextPageBtn.disabled = currentPage >= totalPages;
+      resourceRowsPerPageSelect.value = String(rowsPerPage);
+    }
+
+    function resetPagination() {
+      currentPage = 1;
+    }
+
     function renderResources() {
       updateStats();
       const filteredResources = getFilteredResources();
+      const { totalPages, startIndex, pageResources } = getPaginatedResources(filteredResources);
+      updatePaginationControls(filteredResources.length, totalPages, startIndex, pageResources.length);
 
       if (filteredResources.length === 0) {
         resourceTableBody.innerHTML = '<tr><td colspan="7"><div class="empty-panel">No resources match the current search or filters.</div></td></tr>';
         return;
       }
 
-      resourceTableBody.innerHTML = filteredResources.map(resource => `
+      resourceTableBody.innerHTML = pageResources.map(resource => `
         <tr data-resource-id="${escapeHtml(resource.id)}">
           <td>
             <div class="user-identity">
               <span class="small-avatar">${escapeHtml(getInitial(resource.name))}</span>
               <span class="identity-text">
                 <strong>${escapeHtml(resource.name)}</strong>
-                <span>${escapeHtml(resource.id)} · ${escapeHtml(resource.resourceType)}</span>
+                <span>ID: ${escapeHtml(resource.id)} · Type: ${escapeHtml(resource.resourceType || '-')}</span>
               </span>
             </div>
           </td>
@@ -1799,11 +1943,11 @@
       `).join('');
     }
 
-    function renderSoftwareChecklist(selectedSoftware = []) {
+    function renderSoftwareChecklist(containerId, selectedSoftware = []) {
       const selected = new Set((selectedSoftware || []).map(item => String(item).toLowerCase()));
       softwareCatalog = Array.from(new Set([...(softwareCatalog || []), 'Procreate'])).sort((a, b) => a.localeCompare(b));
 
-      document.getElementById('softwareChecklist').innerHTML = softwareCatalog.map(item => `
+      document.getElementById(containerId).innerHTML = softwareCatalog.map(item => `
         <label>
           <input type="checkbox" value="${escapeHtml(item)}" ${selected.has(item.toLowerCase()) ? 'checked' : ''} />
           ${escapeHtml(item)}
@@ -1811,8 +1955,8 @@
       `).join('');
     }
 
-    function getSelectedSoftware() {
-      return Array.from(document.querySelectorAll('#softwareChecklist input:checked')).map(input => input.value);
+    function getSelectedSoftware(containerId) {
+      return Array.from(document.querySelectorAll(`#${containerId} input:checked`)).map(input => input.value);
     }
 
     async function requireAuthenticatedAdmin() {
@@ -1850,32 +1994,27 @@
       renderResources();
     }
 
-    function openResourceModal(resourceId = '') {
-      selectedResource = resources.find(resource => String(resource.id) === String(resourceId)) || null;
+    function openAddResourceModal() {
+      selectedResource = null;
       resourceForm.reset();
-
-      document.getElementById('resourceModalTitle').textContent = selectedResource ? 'Edit Resource' : 'Add Resource';
-      document.getElementById('resourceId').value = selectedResource?.id || '';
-      document.getElementById('resourceName').value = selectedResource?.name || '';
-      document.getElementById('deviceType').value = selectedResource?.deviceType || 'iPad';
-      document.getElementById('resourceType').value = selectedResource?.resourceType || 'Cart';
-      document.getElementById('capacity').value = selectedResource?.capacity || 1;
-      document.getElementById('resourceStatus').value = selectedResource?.status || 'Available';
-      document.getElementById('resourceLocation').value = selectedResource?.location || '';
-      document.getElementById('notes').value = selectedResource?.notes || '';
-      deleteResourceBtn.style.display = selectedResource ? 'inline-flex' : 'none';
-      renderSoftwareChecklist(selectedResource?.software || []);
-
+      document.getElementById('resourceId').value = '';
+      document.getElementById('resourceName').value = '';
+      document.getElementById('deviceType').value = 'iPad';
+      document.getElementById('resourceType').value = 'Cart';
+      document.getElementById('capacity').value = 1;
+      document.getElementById('resourceStatus').value = 'Available';
+      document.getElementById('resourceLocation').value = '';
+      document.getElementById('notes').value = '';
+      renderSoftwareChecklist('softwareChecklist', []);
       resourceModal.classList.add('open');
       setTimeout(() => document.getElementById('resourceName').focus(), 0);
     }
 
     function closeResourceModal() {
       resourceModal.classList.remove('open');
-      selectedResource = null;
     }
 
-    function buildResourcePayload() {
+    function buildAddResourcePayload() {
       return {
         name: document.getElementById('resourceName').value.trim(),
         deviceType: document.getElementById('deviceType').value,
@@ -1883,35 +2022,94 @@
         capacity: Number(document.getElementById('capacity').value),
         status: document.getElementById('resourceStatus').value,
         location: document.getElementById('resourceLocation').value.trim(),
-        software: getSelectedSoftware(),
+        software: getSelectedSoftware('softwareChecklist'),
         notes: document.getElementById('notes').value.trim()
       };
     }
 
-    async function saveResource(event) {
+    async function addResource(event) {
       event.preventDefault();
       clearStatus();
 
-      const resourceId = document.getElementById('resourceId').value;
-      const method = resourceId ? 'PUT' : 'POST';
-      const endpoint = resourceId
-        ? `/api/admin/resources/${encodeURIComponent(resourceId)}`
-        : '/api/admin/resources';
-
-      const response = await fetch(endpoint, {
-        method,
+      const response = await fetch('/api/admin/resources', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildResourcePayload())
+        body: JSON.stringify(buildAddResourcePayload())
       });
 
       const result = await response.json();
 
       if (!response.ok || !result.success) {
-        throw new Error(result.message || 'Unable to save resource.');
+        throw new Error(result.message || 'Unable to add resource.');
       }
 
       closeResourceModal();
-      showStatus('success', result.message || 'Resource saved successfully.');
+      showStatus('success', result.message || 'Resource added successfully.');
+      await loadResources();
+    }
+
+    function openEditDrawer(resourceId) {
+      selectedResource = resources.find(resource => String(resource.id) === String(resourceId)) || null;
+      if (!selectedResource) return;
+
+      document.getElementById('editResourceId').value = selectedResource.id || '';
+      document.getElementById('editResourceName').value = selectedResource.name || '';
+      document.getElementById('editDeviceType').value = selectedResource.deviceType || 'iPad';
+      document.getElementById('editResourceType').value = selectedResource.resourceType || 'Cart';
+      document.getElementById('editCapacity').value = selectedResource.capacity || 1;
+      document.getElementById('editResourceStatus').value = selectedResource.status || 'Available';
+      document.getElementById('editResourceLocation').value = selectedResource.location || '';
+      document.getElementById('editNotes').value = selectedResource.notes || '';
+      renderSoftwareChecklist('editSoftwareChecklist', selectedResource.software || []);
+
+      document.getElementById('drawerResourceSummary').innerHTML = `
+        <span class="small-avatar">${escapeHtml(getInitial(selectedResource.name))}</span>
+        <span class="drawer-title-text">
+          <strong>${escapeHtml(selectedResource.name)}</strong>
+          <span class="note">${escapeHtml(selectedResource.id)} · ${escapeHtml(selectedResource.deviceType || '-')} · Capacity ${escapeHtml(selectedResource.capacity || '-')}</span>
+        </span>
+      `;
+
+      editResourceDrawer.classList.add('open');
+    }
+
+    function closeEditDrawer() {
+      editResourceDrawer.classList.remove('open');
+      selectedResource = null;
+    }
+
+    function buildEditResourcePayload() {
+      return {
+        name: document.getElementById('editResourceName').value.trim(),
+        deviceType: document.getElementById('editDeviceType').value,
+        resourceType: document.getElementById('editResourceType').value,
+        capacity: Number(document.getElementById('editCapacity').value),
+        status: document.getElementById('editResourceStatus').value,
+        location: document.getElementById('editResourceLocation').value.trim(),
+        software: getSelectedSoftware('editSoftwareChecklist'),
+        notes: document.getElementById('editNotes').value.trim()
+      };
+    }
+
+    async function saveSelectedResource(event) {
+      event.preventDefault();
+      if (!selectedResource) return;
+      clearStatus();
+
+      const response = await fetch(`/api/admin/resources/${encodeURIComponent(selectedResource.id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(buildEditResourcePayload())
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Unable to update resource.');
+      }
+
+      closeEditDrawer();
+      showStatus('success', result.message || 'Resource updated successfully.');
       await loadResources();
     }
 
@@ -1929,7 +2127,7 @@
         throw new Error(result.message || 'Unable to delete resource.');
       }
 
-      closeResourceModal();
+      closeEditDrawer();
       showStatus('success', result.message || 'Resource deleted successfully.');
       await loadResources();
     }
@@ -1939,15 +2137,25 @@
       window.location.href = 'login.html';
     });
 
-    openAddResourceBtn.addEventListener('click', () => openResourceModal());
+    openAddResourceBtn.addEventListener('click', openAddResourceModal);
     closeResourceModalBtn.addEventListener('click', closeResourceModal);
     cancelResourceBtn.addEventListener('click', closeResourceModal);
     resourceModal.addEventListener('click', event => {
       if (event.target === resourceModal) closeResourceModal();
     });
 
+    closeEditResourceBtn.addEventListener('click', closeEditDrawer);
+    cancelEditResourceBtn.addEventListener('click', closeEditDrawer);
+    editResourceDrawer.addEventListener('click', event => {
+      if (event.target === editResourceDrawer) closeEditDrawer();
+    });
+
     resourceForm.addEventListener('submit', event => {
-      saveResource(event).catch(error => showStatus('error', error.message));
+      addResource(event).catch(error => showStatus('error', error.message));
+    });
+
+    editResourceForm.addEventListener('submit', event => {
+      saveSelectedResource(event).catch(error => showStatus('error', error.message));
     });
 
     deleteResourceBtn.addEventListener('click', () => {
@@ -1962,12 +2170,37 @@
       searchInput.value = '';
       deviceTypeFilter.value = 'All';
       statusFilter.value = 'All';
+      resetPagination();
       renderResources();
     });
 
     [searchInput, deviceTypeFilter, statusFilter].forEach(input => {
-      input.addEventListener('input', renderResources);
-      input.addEventListener('change', renderResources);
+      input.addEventListener('input', () => {
+        resetPagination();
+        renderResources();
+      });
+      input.addEventListener('change', () => {
+        resetPagination();
+        renderResources();
+      });
+    });
+
+    resourceRowsPerPageSelect.addEventListener('change', () => {
+      rowsPerPage = Number(resourceRowsPerPageSelect.value) || 25;
+      localStorage.setItem('resourcesAdminRowsPerPage', String(rowsPerPage));
+      resetPagination();
+      renderResources();
+    });
+
+    resourcePreviousPageBtn.addEventListener('click', () => {
+      if (currentPage <= 1) return;
+      currentPage -= 1;
+      renderResources();
+    });
+
+    resourceNextPageBtn.addEventListener('click', () => {
+      currentPage += 1;
+      renderResources();
     });
 
     resourceTableBody.addEventListener('click', event => {
@@ -1975,17 +2208,20 @@
       if (!button) return;
       const row = button.closest('tr[data-resource-id]');
       if (!row) return;
-      openResourceModal(row.dataset.resourceId);
+      openEditDrawer(row.dataset.resourceId);
     });
 
     document.addEventListener('keydown', event => {
       if (event.key !== 'Escape') return;
       closeResourceModal();
+      closeEditDrawer();
     });
 
     async function initialiseResourcesAdminPage() {
       const user = await requireAuthenticatedAdmin();
       if (!user) return;
+
+      resourceRowsPerPageSelect.value = String(rowsPerPage);
 
       await loadResources().catch(error => {
         showStatus('error', error.message);
@@ -1994,6 +2230,7 @@
     }
 
     initialiseResourcesAdminPage();
+
   </script>
 </body>
 </html>
