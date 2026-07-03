@@ -1450,8 +1450,8 @@
     <section class="aum-shell" aria-label="Resources Admin workspace">
       <div class="aum-hero">
         <div>
-          <h1>Resources Admin</h1>
-          <p>Manage bookable ICT resources, capacity, availability and installed software.</p>
+          <h1 id="adminHeroTitle">Resources Admin</h1>
+          <p id="adminHeroDescription">Manage bookable ICT resources, capacity, availability and installed software.</p>
         </div>
         <div class="aum-hero-actions">
           <button id="refreshResourcesBtn" class="btn btn-light" type="button">Refresh Resources</button>
@@ -1547,7 +1547,6 @@
             <h2>Specialised Software Catalogue</h2>
             <p>Manage the software options that can be assigned to bookable resources.</p>
           </div>
-          <button id="openAddSoftwareBtn" class="btn btn-primary" type="button">+ Add Software</button>
         </div>
 
         <div class="workspace-toolbar">
@@ -2096,6 +2095,26 @@
       renderSoftwareCatalogue();
     }
 
+    function updateHeroForActiveTab(tabName) {
+      const showSoftware = tabName === 'software';
+      const heroTitle = document.getElementById('adminHeroTitle');
+      const heroDescription = document.getElementById('adminHeroDescription');
+
+      if (heroTitle) {
+        heroTitle.textContent = showSoftware ? 'Software Catalogue' : 'Resources Admin';
+      }
+
+      if (heroDescription) {
+        heroDescription.textContent = showSoftware
+          ? 'Manage specialised software options that can be assigned to bookable ICT resources.'
+          : 'Manage bookable ICT resources, capacity, availability and installed software.';
+      }
+
+      refreshResourcesBtn.textContent = showSoftware ? 'Refresh Software' : 'Refresh Resources';
+      openAddResourceBtn.textContent = showSoftware ? '+ Add Software' : '+ Add Resource';
+      openAddResourceBtn.setAttribute('aria-label', showSoftware ? 'Add specialised software' : 'Add ICT resource');
+    }
+
     function switchAdminTab(tabName) {
       const showSoftware = tabName === 'software';
       resourcesPanel.hidden = showSoftware;
@@ -2104,6 +2123,11 @@
       softwareTabBtn.classList.toggle('active', showSoftware);
       resourcesTabBtn.setAttribute('aria-selected', String(!showSoftware));
       softwareTabBtn.setAttribute('aria-selected', String(showSoftware));
+      updateHeroForActiveTab(tabName);
+    }
+
+    function getActiveAdminTab() {
+      return softwareTabBtn.classList.contains('active') ? 'software' : 'resources';
     }
 
     async function loadSoftwareCatalogue() {
@@ -2329,7 +2353,13 @@
       window.location.href = 'login.html';
     });
 
-    openAddResourceBtn.addEventListener('click', openAddResourceModal);
+    openAddResourceBtn.addEventListener('click', () => {
+      if (getActiveAdminTab() === 'software') {
+        openSoftwareModal();
+        return;
+      }
+      openAddResourceModal();
+    });
     closeResourceModalBtn.addEventListener('click', closeResourceModal);
     cancelResourceBtn.addEventListener('click', closeResourceModal);
     resourceModal.addEventListener('click', event => {
@@ -2357,7 +2387,9 @@
     resourcesTabBtn.addEventListener('click', () => switchAdminTab('resources'));
     softwareTabBtn.addEventListener('click', () => switchAdminTab('software'));
 
-    openAddSoftwareBtn.addEventListener('click', () => openSoftwareModal());
+    if (openAddSoftwareBtn) {
+      openAddSoftwareBtn.addEventListener('click', () => openSoftwareModal());
+    }
     closeSoftwareModalBtn.addEventListener('click', closeSoftwareModal);
     cancelSoftwareBtn.addEventListener('click', closeSoftwareModal);
     softwareModal.addEventListener('click', event => {
@@ -2392,7 +2424,9 @@
     });
 
     refreshResourcesBtn.addEventListener('click', () => {
-      loadResources().catch(error => showStatus('error', error.message));
+      const activeTab = getActiveAdminTab();
+      const refreshTask = activeTab === 'software' ? loadSoftwareCatalogue() : loadResources();
+      refreshTask.catch(error => showStatus('error', error.message));
     });
 
     clearFiltersBtn.addEventListener('click', () => {
@@ -2452,6 +2486,7 @@
       if (!user) return;
 
       resourceRowsPerPageSelect.value = String(rowsPerPage);
+      updateHeroForActiveTab('resources');
 
       await loadResources().catch(error => {
         showStatus('error', error.message);
