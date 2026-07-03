@@ -694,6 +694,115 @@
       }
     }
 
+  
+    /* Stable role-aware navigation fix */
+    .portal-nav-v2 {
+      width: 100%;
+      max-width: 100%;
+      display: grid !important;
+      grid-template-columns: auto minmax(0, 1fr) auto !important;
+      align-items: center !important;
+      flex-direction: initial !important;
+      overflow: visible !important;
+    }
+
+    .portal-nav-v2 .nav-main {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-width: 0;
+      overflow: visible;
+      flex-wrap: nowrap;
+    }
+
+    .portal-nav-v2 .nav-link,
+    .portal-nav-v2 .more-button {
+      white-space: nowrap;
+      font-size: clamp(0.82rem, 0.72vw, 0.92rem);
+      padding-left: clamp(8px, 0.7vw, 12px);
+      padding-right: clamp(8px, 0.7vw, 12px);
+    }
+
+    .portal-nav-v2 .nav-brand {
+      min-width: 0 !important;
+      max-width: clamp(190px, 23vw, 280px);
+    }
+
+    .portal-nav-v2 .brand-title {
+      max-width: 230px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .portal-nav-v2 .user-meta {
+      max-width: clamp(86px, 10vw, 150px);
+    }
+
+    .portal-nav-v2 .more-dropdown {
+      display: none !important;
+    }
+
+    .portal-nav-v2.nav-compact .more-dropdown.has-items {
+      display: inline-flex !important;
+    }
+
+    .portal-nav-v2.nav-compact .nav-main > .desktop-extra {
+      display: none !important;
+    }
+
+    @media (min-width: 901px) {
+      .portal-nav-v2 .mobile-menu-button,
+      .portal-nav-v2 .mobile-drawer {
+        display: none !important;
+      }
+    }
+
+    @media (max-width: 1100px) {
+      .portal-nav-v2 .brand-subtitle {
+        display: none;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .portal-nav-v2 {
+        grid-template-columns: auto 1fr auto !important;
+      }
+
+      .portal-nav-v2 .nav-main {
+        display: none !important;
+      }
+
+      .portal-nav-v2 .nav-brand {
+        justify-self: center;
+      }
+
+      .portal-nav-v2 .nav-user-zone {
+        border-left: 0;
+        padding-left: 0;
+      }
+
+      .portal-nav-v2 .nav-user-zone .user-meta {
+        display: none;
+      }
+
+      .portal-nav-v2 .logout-button {
+        padding: 9px 10px !important;
+      }
+
+      .portal-nav-v2 .logout-button span {
+        display: none;
+      }
+
+      .portal-nav-v2 .mobile-menu-button {
+        display: inline-flex !important;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+      }
+    }
+
   </style>
 </head>
 <body>
@@ -716,7 +825,7 @@
         <a href="admin-users.html" id="adminUsersLink" class="nav-link desktop-extra" data-page="users" data-role-link="admin"><span class="nav-icon">♟</span>Users Admin</a>
 
         <div id="moreDropdown" class="more-dropdown">
-          <button id="moreButton" class="more-button" type="button">☰ More ▾</button>
+          <button id="moreButton" class="more-button" type="button">More ▾</button>
           <div class="more-menu" role="menu">
             <a href="de-dashboard.html" class="nav-link active" data-page="deployment" data-role-link="de"><span class="nav-icon">▰</span>Deployment Dashboard</a>
             <a href="admin-users.html" class="nav-link" data-page="users" data-role-link="admin"><span class="nav-icon">♟</span>Users Admin</a>
@@ -803,44 +912,21 @@
 
   <script>
 
-
     function configurePortalNavigation(user, activePage) {
       const nav = document.querySelector('.portal-nav-v2');
       if (!nav || !user) return;
 
       const role = user.role || 'User';
-      const isTeacherView = role === 'User' || role === 'Admin';
-      const isDeploymentView = role === 'DE' || role === 'Admin';
       const isAdmin = role === 'Admin';
+      const isDE = role === 'DE';
+      const isTeacherView = role === 'User' || isAdmin;
+      const isDeploymentView = isDE || isAdmin;
 
       function shouldShowRole(linkRole) {
         if (linkRole === 'teacher') return isTeacherView;
         if (linkRole === 'de') return isDeploymentView;
         if (linkRole === 'admin') return isAdmin;
         return false;
-      }
-
-      function applyRoleVisibility() {
-        nav.querySelectorAll('[data-role-link]').forEach(link => {
-          const shouldShow = shouldShowRole(link.dataset.roleLink);
-          link.dataset.roleVisible = shouldShow ? 'true' : 'false';
-
-          /*
-            DE users only need Deployment Dashboard.
-            For them, keep Deployment Dashboard as a direct primary link instead
-            of hiding it behind More on desktop/laptop.
-          */
-          if (role === 'DE' && link.dataset.page === 'deployment') {
-            link.classList.remove('desktop-extra');
-          }
-
-          link.style.display = shouldShow ? 'inline-flex' : 'none';
-        });
-
-        nav.querySelectorAll('[data-mobile-role-link]').forEach(link => {
-          const shouldShow = shouldShowRole(link.dataset.mobileRoleLink);
-          link.style.display = shouldShow ? 'flex' : 'none';
-        });
       }
 
       function setActiveState() {
@@ -864,67 +950,58 @@
         }
       }
 
-      function moreHasVisibleItems() {
-        const moreMenu = nav.querySelector('.more-menu');
-        if (!moreMenu) return false;
+      function applyRoleVisibility() {
+        const primaryLinks = Array.from(nav.querySelectorAll('.nav-main > [data-role-link]'));
 
-        let hasItems = false;
-        moreMenu.querySelectorAll('[data-role-link]').forEach(link => {
+        primaryLinks.forEach(link => {
           const shouldShow = shouldShowRole(link.dataset.roleLink);
+          link.dataset.roleVisible = shouldShow ? 'true' : 'false';
+
+          if (isDE && link.dataset.page === 'deployment') {
+            link.classList.remove('desktop-extra');
+          }
+
           link.style.display = shouldShow ? 'inline-flex' : 'none';
-          if (shouldShow) hasItems = true;
         });
 
-        return hasItems;
+        nav.querySelectorAll('.more-menu [data-role-link]').forEach(link => {
+          const shouldShow = isAdmin && shouldShowRole(link.dataset.roleLink);
+          link.style.display = shouldShow ? 'inline-flex' : 'none';
+        });
+
+        nav.querySelectorAll('[data-mobile-role-link]').forEach(link => {
+          const shouldShow = shouldShowRole(link.dataset.mobileRoleLink);
+          link.style.display = shouldShow ? 'flex' : 'none';
+        });
       }
 
-      function setCompactMode(isCompact) {
+      function applyNavigationLayout() {
+        const mobileMode = window.matchMedia('(max-width: 900px)').matches;
         const moreDropdown = nav.querySelector('#moreDropdown');
-        const hasMoreItems = moreHasVisibleItems();
 
-        nav.classList.toggle('nav-compact', isCompact && hasMoreItems);
+        nav.classList.toggle('nav-compact', !mobileMode && isAdmin);
 
-        nav.querySelectorAll('.desktop-extra').forEach(link => {
+        nav.querySelectorAll('.nav-main > .desktop-extra').forEach(link => {
           const shouldShow = link.dataset.roleVisible === 'true';
-          link.style.display = (!isCompact && shouldShow) ? 'inline-flex' : 'none';
+          link.style.display = (!mobileMode && !isAdmin && shouldShow) ? 'inline-flex' : 'none';
         });
 
         if (moreDropdown) {
-          moreDropdown.classList.toggle('has-items', isCompact && hasMoreItems);
-          moreDropdown.style.display = (isCompact && hasMoreItems) ? 'inline-flex' : 'none';
-          if (!isCompact) moreDropdown.classList.remove('open');
-        }
-      }
-
-      function applyAvailableWidthLayout() {
-        const mobileMode = window.matchMedia('(max-width: 900px)').matches;
-
-        if (mobileMode) {
-          setCompactMode(false);
-          return;
+          const showMore = !mobileMode && isAdmin;
+          moreDropdown.classList.toggle('has-items', showMore);
+          moreDropdown.style.display = showMore ? 'inline-flex' : 'none';
+          if (!showMore) moreDropdown.classList.remove('open');
         }
 
-        /*
-          Measure actual available width instead of relying only on viewport width.
-          This fixes extended-monitor / laptop-window cases where the viewport is
-          wide but the portal container itself is still too narrow for every link.
-        */
-        setCompactMode(false);
-
-        window.requestAnimationFrame(() => {
-          const tolerance = 6;
-          const isOverflowing =
-            nav.scrollWidth > nav.clientWidth + tolerance ||
-            nav.getBoundingClientRect().width < 1220 && isAdmin;
-
-          setCompactMode(isOverflowing);
-        });
+        if (!mobileMode) {
+          nav.classList.remove('mobile-open');
+        }
       }
 
       applyRoleVisibility();
       setActiveState();
       updateUserDisplay();
-      applyAvailableWidthLayout();
+      applyNavigationLayout();
 
       const mobileButton = nav.querySelector('#mobileMenuButton');
       const mobileCloseButton = nav.querySelector('#mobileCloseButton');
@@ -949,7 +1026,7 @@
         moreButton.dataset.bound = 'true';
         moreButton.addEventListener('click', event => {
           event.stopPropagation();
-          moreDropdown.classList.toggle('open');
+          if (moreDropdown) moreDropdown.classList.toggle('open');
         });
       }
 
@@ -959,7 +1036,7 @@
         let resizeTimer = null;
         const scheduleLayoutUpdate = () => {
           window.clearTimeout(resizeTimer);
-          resizeTimer = window.setTimeout(applyAvailableWidthLayout, 80);
+          resizeTimer = window.setTimeout(applyNavigationLayout, 80);
         };
 
         window.addEventListener('resize', scheduleLayoutUpdate);
@@ -979,6 +1056,7 @@
         });
       }
     }
+
 
     const deploymentDate = document.getElementById('deploymentDate');
     const statusMessage = document.getElementById('statusMessage');
