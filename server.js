@@ -36,6 +36,8 @@ const dataDir = process.env.DATA_DIR || path.join(__dirname, "data");
 const sourceUsersFile = path.join(appDir, "users.xml");
 const liveUsersFile = path.join(dataDir, "users.xml");
 const locationsFile = path.join(appDir, "locations.xml");
+const sourceResourcesFile = path.join(appDir, "resources.xml");
+const liveResourcesFile = path.join(dataDir, "resources.xml");
 
 const ENCRYPTION_PREFIX = "enc:v1:";
 
@@ -305,6 +307,165 @@ function initialiseUserStorage() {
   }
 
   return storedUsers.length;
+}
+
+
+function ensureLiveResourcesFile() {
+  ensureDataDir();
+
+  if (!fs.existsSync(liveResourcesFile)) {
+    if (fs.existsSync(sourceResourcesFile)) {
+      fs.copyFileSync(sourceResourcesFile, liveResourcesFile);
+    } else {
+      fs.writeFileSync(
+        liveResourcesFile,
+        `<?xml version="1.0" encoding="UTF-8"?>\n<resources></resources>`
+      );
+    }
+  }
+}
+
+function normaliseSoftwareItems(software) {
+  if (!software) return [];
+
+  if (Array.isArray(software)) {
+    return software.map(item => String(item || "").trim()).filter(Boolean);
+  }
+
+  if (typeof software === "string") {
+    return software
+      .split(",")
+      .map(item => item.trim())
+      .filter(Boolean);
+  }
+
+  if (software.item) {
+    return toArray(software.item)
+      .map(item => String(item || "").trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
+function normaliseResourceStatus(status) {
+  const allowedStatuses = ["Available", "Unavailable", "Maintenance", "Retired"];
+  return allowedStatuses.includes(status) ? status : "Available";
+}
+
+function normaliseResourceType(type) {
+  const allowedTypes = ["Cart", "Bag", "Set", "Other"];
+  return allowedTypes.includes(type) ? type : "Cart";
+}
+
+function normaliseDeviceType(type) {
+  const allowedTypes = ["iPad", "iPad with Keyboard", "Laptop"];
+  return allowedTypes.includes(type) ? type : "iPad";
+}
+
+function readResourcesFromXML() {
+  ensureLiveResourcesFile();
+  const xml = fs.readFileSync(liveResourcesFile, "utf8");
+  const parsed = new XMLParser({ ignoreAttributes: false }).parse(xml);
+  return toArray(parsed.resources?.resource);
+}
+
+function saveResourcesToXML(resources) {
+  ensureLiveResourcesFile();
+
+  const builder = new XMLBuilder({
+    ignoreAttributes: false,
+    format: true,
+    suppressEmptyNode: true
+  });
+
+  const xml = builder.build({
+    resources: {
+      resource: resources.map(resource => {
+        const softwareItems = normaliseSoftwareItems(resource.software);
+        return {
+          id: String(resource.id || "").trim(),
+          name: String(resource.name || "").trim(),
+          deviceType: normaliseDeviceType(resource.deviceType),
+          capacity: Number(resource.capacity) || 0,
+          resourceType: normaliseResourceType(resource.resourceType),
+          status: normaliseResourceStatus(resource.status),
+          location: String(resource.location || "").trim(),
+          software: {
+            item: softwareItems
+          },
+          notes: String(resource.notes || "").trim(),
+          createdAt: resource.createdAt || "",
+          updatedAt: resource.updatedAt || ""
+        };
+      })
+    }
+  });
+
+  fs.writeFileSync(liveResourcesFile, xml);
+}
+
+function initialiseResourceStorage() {
+  ensureLiveResourcesFile();
+  const resources = readResourcesFromXML();
+  saveResourcesToXML(resources);
+  return resources.length;
+}
+
+function generateNextResourceId(resources, deviceType, resourceType) {
+  const prefixBase = String(deviceType || "RESOURCE")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "RESOURCE";
+
+  const typePart = String(resourceType || "ITEM")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "ITEM";
+
+  const prefix = `${prefixBase}-${typePart}`;
+  const maxNumber = resources.reduce((max, resource) => {
+    const match = String(resource.id || "").match(new RegExp(`^${prefix}-(\\d+)$`, "i"));
+    if (!match) return max;
+    return Math.max(max, Number(match[1]));
+  }, 0);
+
+  return `${prefix}-${String(maxNumber + 1).padStart(2, "0")}`;
+}
+
+function formatResourceForResponse(resource) {
+  return {
+    id: resource.id,
+    name: resource.name || "",
+    deviceType: normaliseDeviceType(resource.deviceType),
+    capacity: Number(resource.capacity) || 0,
+    resourceType: normaliseResourceType(resource.resourceType),
+    status: normaliseResourceStatus(resource.status),
+    location: resource.location || "",
+    software: normaliseSoftwareItems(resource.software),
+    notes: resource.notes || "",
+    createdAt: resource.createdAt || "",
+    updatedAt: resource.updatedAt || ""
+  };
+}
+
+function resourceHasFutureBookings(resourceId) {
+  const today = new Date().toISOString().split("T")[0];
+  return getAllMonthlyBookingFiles().some(file => {
+    const bookings = readBookingsFromFile(file);
+    return bookings.some(booking => {
+      if (String(booking.bookingDate || "") < today) return false;
+      if (["Cancelled", "Deleted"].includes(booking.status)) return false;
+      const allocatedResourceIds = toArray(booking.allocation?.resources?.resourceId).map(String);
+      return allocatedResourceIds.includes(String(resourceId));
+    });
+  });
+}
+
+function getSoftwareCatalog(resources) {
+  const defaults = ["Procreate", "GarageBand", "Keynote", "Scratch", "Minecraft Education", "Tinkercad"];
+  const discovered = resources.flatMap(resource => normaliseSoftwareItems(resource.software));
+  return Array.from(new Set([...defaults, ...discovered])).sort((a, b) => a.localeCompare(b));
 }
 
 function requireLogin(req, res, next) {
@@ -1733,6 +1894,162 @@ app.post("/api/admin/users/:userId/reset-activation", requireLogin, requireAdmin
   }
 });
 
+
+/* ---------------- ADMIN RESOURCE MANAGEMENT ROUTES ---------------- */
+
+app.get("/api/admin/resources", requireLogin, requireAdmin, (req, res) => {
+  try {
+    const resources = readResourcesFromXML().map(formatResourceForResponse);
+
+    res.json({
+      success: true,
+      resources,
+      softwareCatalog: getSoftwareCatalog(resources)
+    });
+  } catch (error) {
+    console.error("Admin resources retrieval error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.post("/api/admin/resources", requireLogin, requireAdmin, (req, res) => {
+  try {
+    const resources = readResourcesFromXML();
+    const payload = req.body || {};
+
+    const name = String(payload.name || "").trim();
+    const deviceType = normaliseDeviceType(payload.deviceType);
+    const resourceType = normaliseResourceType(payload.resourceType);
+    const capacity = Number(payload.capacity);
+
+    if (!name) {
+      return res.status(400).json({ success: false, message: "Resource name is required." });
+    }
+
+    if (!Number.isInteger(capacity) || capacity <= 0) {
+      return res.status(400).json({ success: false, message: "Capacity must be a positive whole number." });
+    }
+
+    const id = String(payload.id || "").trim() || generateNextResourceId(resources, deviceType, resourceType);
+
+    if (resources.some(resource => String(resource.id).toLowerCase() === id.toLowerCase())) {
+      return res.status(409).json({ success: false, message: "A resource with this ID already exists." });
+    }
+
+    const now = new Date().toISOString();
+    const newResource = {
+      id,
+      name,
+      deviceType,
+      capacity,
+      resourceType,
+      status: normaliseResourceStatus(payload.status),
+      location: String(payload.location || "").trim(),
+      software: { item: normaliseSoftwareItems(payload.software) },
+      notes: String(payload.notes || "").trim(),
+      createdAt: now,
+      updatedAt: now
+    };
+
+    resources.push(newResource);
+    saveResourcesToXML(resources);
+
+    res.json({
+      success: true,
+      message: "Resource added successfully.",
+      resource: formatResourceForResponse(newResource)
+    });
+  } catch (error) {
+    console.error("Admin resource creation error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.put("/api/admin/resources/:resourceId", requireLogin, requireAdmin, (req, res) => {
+  try {
+    const resourceId = req.params.resourceId;
+    const resources = readResourcesFromXML();
+    const index = resources.findIndex(resource => String(resource.id) === String(resourceId));
+
+    if (index === -1) {
+      return res.status(404).json({ success: false, message: "Resource not found." });
+    }
+
+    const existing = resources[index];
+    const payload = req.body || {};
+    const capacity = Number(payload.capacity);
+
+    if (!String(payload.name || "").trim()) {
+      return res.status(400).json({ success: false, message: "Resource name is required." });
+    }
+
+    if (!Number.isInteger(capacity) || capacity <= 0) {
+      return res.status(400).json({ success: false, message: "Capacity must be a positive whole number." });
+    }
+
+    resources[index] = {
+      ...existing,
+      name: String(payload.name || "").trim(),
+      deviceType: normaliseDeviceType(payload.deviceType),
+      capacity,
+      resourceType: normaliseResourceType(payload.resourceType),
+      status: normaliseResourceStatus(payload.status),
+      location: String(payload.location || "").trim(),
+      software: { item: normaliseSoftwareItems(payload.software) },
+      notes: String(payload.notes || "").trim(),
+      updatedAt: new Date().toISOString()
+    };
+
+    saveResourcesToXML(resources);
+
+    res.json({
+      success: true,
+      message: "Resource updated successfully.",
+      resource: formatResourceForResponse(resources[index])
+    });
+  } catch (error) {
+    console.error("Admin resource update error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.delete("/api/admin/resources/:resourceId", requireLogin, requireAdmin, (req, res) => {
+  try {
+    const resourceId = req.params.resourceId;
+    const resources = readResourcesFromXML();
+    const index = resources.findIndex(resource => String(resource.id) === String(resourceId));
+
+    if (index === -1) {
+      return res.status(404).json({ success: false, message: "Resource not found." });
+    }
+
+    if (resourceHasFutureBookings(resourceId)) {
+      resources[index] = {
+        ...resources[index],
+        status: "Retired",
+        updatedAt: new Date().toISOString()
+      };
+      saveResourcesToXML(resources);
+
+      return res.json({
+        success: true,
+        message: "This resource is used by future bookings, so it has been marked as Retired instead of deleted."
+      });
+    }
+
+    resources.splice(index, 1);
+    saveResourcesToXML(resources);
+
+    res.json({
+      success: true,
+      message: "Resource deleted successfully."
+    });
+  } catch (error) {
+    console.error("Admin resource deletion error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 /* ---------------- ADMIN STORAGE DIAGNOSTIC ROUTE ---------------- */
 /* Requires an authenticated Admin account. Remove before full production use if not needed. */
 
@@ -1743,9 +2060,13 @@ app.get("/api/debug/storage", requireLogin, requireAdmin, (req, res) => {
       dataDir,
       sourceUsersFile,
       liveUsersFile,
+      sourceResourcesFile,
+      liveResourcesFile,
       dataDirExists: fs.existsSync(dataDir),
       sourceUsersFileExists: fs.existsSync(sourceUsersFile),
       liveUsersFileExists: fs.existsSync(liveUsersFile),
+      sourceResourcesFileExists: fs.existsSync(sourceResourcesFile),
+      liveResourcesFileExists: fs.existsSync(liveResourcesFile),
       filesInDataDir: fs.existsSync(dataDir) ? fs.readdirSync(dataDir) : [],
       liveUsersFileSizeBytes: fs.existsSync(liveUsersFile)
         ? fs.statSync(liveUsersFile).size
@@ -1786,70 +2107,10 @@ app.get("/api/debug/users", requireLogin, requireAdmin, (req, res) => {
   }
 });
 
-app.post("/api/bootstrap/create-first-admin", async (req, res) => {
-  try {
-    const users = getUsersFromXML();
-
-    // Prevent creation if an Admin already exists
-    const existingAdmin = users.find(user => user.role === "Admin");
-
-    if (existingAdmin) {
-      return res.status(403).json({
-        success: false,
-        message: "An Admin account already exists."
-      });
-    }
-
-    const {
-      name,
-      email,
-      password
-    } = req.body;
-
-    if (!name || !email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: "Name, email and password are required."
-      });
-    }
-
-    const passwordHash = await argon2.hash(password, {
-      type: argon2.argon2id
-    });
-
-    const newAdmin = {
-      userId: `U${String(users.length + 1).padStart(4, "0")}`,
-      name,
-      email: normaliseEmail(email),
-      passwordHash,
-      role: "Admin",
-      status: "Active",
-      activatedAt: new Date().toISOString(),
-      createdAt: new Date().toISOString()
-    };
-
-    users.push(newAdmin);
-
-    saveUsersToXML(users);
-
-    res.json({
-      success: true,
-      message: "Admin account created successfully."
-    });
-
-  } catch (error) {
-    console.error(error);
-
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
-});
-
 app.listen(PORT, () => {
   try {
     const userCount = initialiseUserStorage();
+    const resourceCount = initialiseResourceStorage();
 
     console.log(`ICT booking server running on port ${PORT}`);
     console.log("Monthly booking storage enabled.");
@@ -1859,6 +2120,8 @@ app.listen(PORT, () => {
     console.log(`Live users file: ${liveUsersFile}`);
     console.log(`Live users file exists: ${fs.existsSync(liveUsersFile)}`);
     console.log(`User records loaded from persistent storage: ${userCount}`);
+    console.log(`Live resources file: ${liveResourcesFile}`);
+    console.log(`Resource records loaded from persistent storage: ${resourceCount}`);
   } catch (error) {
     console.error("Failed to initialise encrypted user storage:", error);
     process.exit(1);

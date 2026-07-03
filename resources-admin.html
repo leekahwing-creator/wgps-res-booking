@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Admin User Management | ICT Resource Booking Portal</title>
+  <title>Resources Admin | ICT Resource Booking Portal</title>
   <style>
     :root {
       --primary: #0f766e;
@@ -1252,7 +1252,72 @@
     }
 
 
-  </style>
+  
+
+    /* Resources Admin Workspace */
+    .software-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      max-width: 260px;
+    }
+
+    .software-tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 5px 8px;
+      border-radius: 999px;
+      background: #f1f5f9;
+      color: #334155;
+      font-size: 0.76rem;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .software-checklist {
+      display: grid;
+      gap: 8px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: #f8fafc;
+    }
+
+    .software-checklist label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.92rem;
+      font-weight: 800;
+      color: #334155;
+    }
+
+    .software-checklist input {
+      width: 18px;
+      min-height: 18px;
+      height: 18px;
+      accent-color: var(--primary);
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 92px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 11px 13px;
+      font-size: 1rem;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #ffffff;
+      color: var(--text);
+      outline: none;
+      resize: vertical;
+    }
+
+    textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.14);
+    }
+</style>
 </head>
 <body>
   <main class="page">
@@ -1271,14 +1336,14 @@
         <a href="index.html" class="nav-link" data-page="create" data-role-link="teacher"><span class="nav-icon">⊞</span>Create Booking</a>
         <a href="manage-bookings.html" class="nav-link" data-page="bookings" data-role-link="teacher"><span class="nav-icon">▣</span>My Bookings</a>
         <a href="de-dashboard.html" id="deDashboardLink" class="nav-link desktop-extra" data-page="deployment" data-role-link="de"><span class="nav-icon">▰</span>Deployment Dashboard</a>
-        <a href="admin-users.html" id="adminUsersLink" class="nav-link active desktop-extra" data-page="users" data-role-link="admin"><span class="nav-icon">♟</span>Users Admin</a>
-        <a href="resources-admin.html" id="resourcesAdminLink" class="nav-link desktop-extra" data-page="resources" data-role-link="admin"><span class="nav-icon">▤</span>Resources Admin</a>
+        <a href="admin-users.html" id="adminUsersLink" class="nav-link desktop-extra" data-page="users" data-role-link="admin"><span class="nav-icon">♟</span>Users Admin</a>
+        <a href="resources-admin.html" id="resourcesAdminLink" class="nav-link active desktop-extra" data-page="resources" data-role-link="admin"><span class="nav-icon">▤</span>Resources Admin</a>
 
         <div id="moreDropdown" class="more-dropdown">
           <button id="moreButton" class="more-button" type="button">More ▾</button>
           <div class="more-menu" role="menu">
             <a href="de-dashboard.html" class="nav-link" data-page="deployment" data-role-link="de"><span class="nav-icon">▰</span>Deployment Dashboard</a>
-            <a href="admin-users.html" class="nav-link active" data-page="users" data-role-link="admin"><span class="nav-icon">♟</span>Users Admin</a>
+            <a href="admin-users.html" class="nav-link" data-page="users" data-role-link="admin"><span class="nav-icon">♟</span>Users Admin</a>
           </div>
         </div>
       </div>
@@ -1309,209 +1374,156 @@
           <a href="index.html" class="nav-link" data-page="create" data-mobile-role-link="teacher"><span class="nav-icon">⊞</span>Create Booking</a>
           <a href="manage-bookings.html" class="nav-link" data-page="bookings" data-mobile-role-link="teacher"><span class="nav-icon">▣</span>My Bookings</a>
           <a href="de-dashboard.html" class="nav-link" data-page="deployment" data-mobile-role-link="de"><span class="nav-icon">▰</span>Deployment Dashboard</a>
-          <a href="admin-users.html" class="nav-link active" data-page="users" data-mobile-role-link="admin"><span class="nav-icon">♟</span>Users Admin</a>
+          <a href="admin-users.html" class="nav-link" data-page="users" data-mobile-role-link="admin"><span class="nav-icon">♟</span>Users Admin</a>
         </div>
       </div>
     </nav>
 
-    <section class="aum-shell" aria-label="Users Admin workspace">
+    <section class="aum-shell" aria-label="Resources Admin workspace">
       <div class="aum-hero">
         <div>
-          <h1>Users Admin</h1>
-          <p>Manage portal users, roles and account access in one organised workspace.</p>
+          <h1>Resources Admin</h1>
+          <p>Manage bookable ICT resources, capacity, availability and installed software.</p>
         </div>
         <div class="aum-hero-actions">
-          <button id="refreshUsersBtn" class="btn btn-light" type="button">Refresh Users</button>
-          <button id="openAddUserBtn" class="btn btn-light" type="button">+ Add User</button>
+          <button id="refreshResourcesBtn" class="btn btn-light" type="button">Refresh Resources</button>
+          <button id="openAddResourceBtn" class="btn btn-light" type="button">+ Add Resource</button>
         </div>
       </div>
 
       <div id="statusMessage" class="status" role="status" aria-live="polite"></div>
 
-      <section class="stats-grid" aria-label="User account summary">
-        <div class="stat-card"><span>Total Users</span><strong id="totalUsersStat">0</strong></div>
-        <div class="stat-card"><span>Active</span><strong id="activeUsersStat">0</strong></div>
-        <div class="stat-card"><span>Pending Activation</span><strong id="pendingUsersStat">0</strong></div>
-        <div class="stat-card"><span>Disabled</span><strong id="disabledUsersStat">0</strong></div>
+      <section class="stats-grid" aria-label="Resource summary">
+        <div class="stat-card"><span>Total Resources</span><strong id="totalResourcesStat">0</strong></div>
+        <div class="stat-card"><span>Available Capacity</span><strong id="availableCapacityStat">0</strong></div>
+        <div class="stat-card"><span>Available Resources</span><strong id="availableResourcesStat">0</strong></div>
+        <div class="stat-card"><span>Maintenance / Retired</span><strong id="inactiveResourcesStat">0</strong></div>
       </section>
 
       <section class="workspace-card">
         <div class="workspace-toolbar">
           <div class="field">
-            <label for="searchInput">Search users</label>
-            <input id="searchInput" type="search" placeholder="Search by name, email or user ID" />
+            <label for="searchInput">Search resources</label>
+            <input id="searchInput" type="search" placeholder="Search by name, ID, type, location or software" />
           </div>
           <div class="field">
-            <label for="roleFilter">Role</label>
-            <select id="roleFilter">
-              <option value="All">All Roles</option>
-              <option value="User">User</option>
-              <option value="DE">DE</option>
-              <option value="Admin">Admin</option>
+            <label for="deviceTypeFilter">Device type</label>
+            <select id="deviceTypeFilter">
+              <option value="All">All Device Types</option>
+              <option value="iPad">iPad</option>
+              <option value="iPad with Keyboard">iPad with Keyboard</option>
+              <option value="Laptop">Laptop</option>
             </select>
           </div>
           <div class="field">
             <label for="statusFilter">Status</label>
             <select id="statusFilter">
               <option value="All">All Status</option>
-              <option value="Active">Active</option>
-              <option value="PendingActivation">PendingActivation</option>
-              <option value="Disabled">Disabled</option>
+              <option value="Available">Available</option>
+              <option value="Unavailable">Unavailable</option>
+              <option value="Maintenance">Maintenance</option>
+              <option value="Retired">Retired</option>
             </select>
           </div>
           <button id="clearFiltersBtn" class="btn btn-secondary" type="button">Clear Filters</button>
         </div>
 
         <div class="table-wrap">
-          <table class="users-table" aria-label="Portal users table">
+          <table class="users-table" aria-label="ICT resources table">
             <thead>
               <tr>
-                <th>User</th>
-                <th>User ID</th>
-                <th>Role</th>
+                <th>Resource</th>
+                <th>Device Type</th>
+                <th>Capacity</th>
                 <th>Status</th>
-                <th>Activated</th>
-                <th>Last Updated</th>
+                <th>Location</th>
+                <th>Installed Software</th>
                 <th style="text-align:right;">Actions</th>
               </tr>
             </thead>
-            <tbody id="userTableBody">
-              <tr><td colspan="7"><div class="empty-panel">Loading users...</div></td></tr>
+            <tbody id="resourceTableBody">
+              <tr><td colspan="7"><div class="empty-panel">Loading resources...</div></td></tr>
             </tbody>
           </table>
-        </div>
-
-        <div class="pagination-bar" aria-label="User table pagination">
-          <div id="paginationSummary" class="pagination-summary">Showing 0 users</div>
-          <div class="pagination-controls">
-            <label class="rows-control" for="rowsPerPageSelect">
-              Rows per page
-              <select id="rowsPerPageSelect">
-                <option value="10">10</option>
-                <option value="25">25</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
-              </select>
-            </label>
-            <button id="previousPageBtn" class="pagination-button" type="button">Previous</button>
-            <span id="pageIndicator" class="page-indicator">Page 1 of 1</span>
-            <button id="nextPageBtn" class="pagination-button" type="button">Next</button>
-          </div>
         </div>
       </section>
     </section>
 
-    <div id="addUserModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="addUserTitle">
+    <div id="resourceModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="resourceModalTitle">
       <section class="modal">
         <div class="modal-header">
           <div>
-            <h2 id="addUserTitle">Add New User</h2>
-            <p>Create a pre-approved user account for activation.</p>
+            <h2 id="resourceModalTitle">Add Resource</h2>
+            <p>Update the ICT inventory used by booking allocation.</p>
           </div>
-          <button id="closeAddUserBtn" class="close-button" type="button" aria-label="Close add user dialog">✕</button>
+          <button id="closeResourceModalBtn" class="close-button" type="button" aria-label="Close resource dialog">✕</button>
         </div>
-        <form id="addUserForm" class="modal-body">
+        <form id="resourceForm" class="modal-body">
+          <input id="resourceId" type="hidden" />
           <div class="field">
-            <label for="newName">Official name</label>
-            <input id="newName" type="text" autocomplete="off" required />
-          </div>
-          <div class="field">
-            <label for="newEmail">Official email</label>
-            <input id="newEmail" type="email" autocomplete="off" required />
+            <label for="resourceName">Resource name</label>
+            <input id="resourceName" type="text" required />
           </div>
           <div class="two-col">
             <div class="field">
-              <label for="newRole">Role</label>
-              <select id="newRole">
-                <option value="User">User</option>
-                <option value="DE">DE</option>
-                <option value="Admin">Admin</option>
+              <label for="deviceType">Device type</label>
+              <select id="deviceType">
+                <option value="iPad">iPad</option>
+                <option value="iPad with Keyboard">iPad with Keyboard</option>
+                <option value="Laptop">Laptop</option>
               </select>
             </div>
             <div class="field">
-              <label for="newStatus">Status</label>
-              <select id="newStatus">
-                <option value="PendingActivation">PendingActivation</option>
-                <option value="Active">Active</option>
-                <option value="Disabled">Disabled</option>
+              <label for="resourceType">Resource type</label>
+              <select id="resourceType">
+                <option value="Cart">Cart</option>
+                <option value="Bag">Bag</option>
+                <option value="Set">Set</option>
+                <option value="Other">Other</option>
               </select>
             </div>
           </div>
-          <p class="note">New users should normally be created as <strong>PendingActivation</strong>. They will activate their own account and set their own password.</p>
+          <div class="two-col">
+            <div class="field">
+              <label for="capacity">Capacity</label>
+              <input id="capacity" type="number" min="1" step="1" required />
+            </div>
+            <div class="field">
+              <label for="resourceStatus">Status</label>
+              <select id="resourceStatus">
+                <option value="Available">Available</option>
+                <option value="Unavailable">Unavailable</option>
+                <option value="Maintenance">Maintenance</option>
+                <option value="Retired">Retired</option>
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <label for="resourceLocation">Storage / default location</label>
+            <input id="resourceLocation" type="text" placeholder="e.g. ICT Room" />
+          </div>
+          <div class="field">
+            <label>Installed software</label>
+            <div id="softwareChecklist" class="software-checklist"></div>
+          </div>
+          <div class="field">
+            <label for="notes">Notes</label>
+            <textarea id="notes" placeholder="Optional notes for Admin users"></textarea>
+          </div>
           <div class="modal-actions">
-            <button id="cancelAddUserBtn" class="btn btn-secondary" type="button">Cancel</button>
-            <button class="btn btn-primary" type="submit">Create User</button>
+            <button id="deleteResourceBtn" class="btn btn-danger" type="button">Delete Resource</button>
+            <button id="cancelResourceBtn" class="btn btn-secondary" type="button">Cancel</button>
+            <button class="btn btn-primary" type="submit">Save Resource</button>
           </div>
         </form>
       </section>
     </div>
 
-    <div id="editUserDrawer" class="drawer-backdrop" role="dialog" aria-modal="true" aria-labelledby="editUserTitle">
-      <aside class="drawer">
-        <div class="drawer-header">
-          <div>
-            <h2 id="editUserTitle">Edit User</h2>
-            <p>Update user details, role, status and account lifecycle actions.</p>
-          </div>
-          <button id="closeEditUserBtn" class="close-button" type="button" aria-label="Close edit user panel">✕</button>
-        </div>
-        <form id="editUserForm" class="drawer-body">
-          <div id="drawerUserSummary" class="drawer-title"></div>
-          <input id="editUserId" type="hidden" />
-          <div class="field">
-            <label for="editName">Official name</label>
-            <input id="editName" type="text" required />
-          </div>
-          <div class="field">
-            <label for="editEmail">Official email</label>
-            <input id="editEmail" type="email" required />
-          </div>
-          <div class="two-col">
-            <div class="field">
-              <label for="editRole">Role</label>
-              <select id="editRole">
-                <option value="User">User</option>
-                <option value="DE">DE</option>
-                <option value="Admin">Admin</option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="editStatus">Status</label>
-              <select id="editStatus">
-                <option value="PendingActivation">PendingActivation</option>
-                <option value="Active">Active</option>
-                <option value="Disabled">Disabled</option>
-              </select>
-            </div>
-          </div>
-          <div class="two-col">
-            <div class="field">
-              <label>Activated</label>
-              <input id="editActivated" type="text" readonly />
-            </div>
-            <div class="field">
-              <label>Last updated</label>
-              <input id="editUpdated" type="text" readonly />
-            </div>
-          </div>
-          <div class="danger-zone">
-            <strong>Account actions</strong>
-            <span class="note">Use these actions only when an account needs to be recovered or access needs to be suspended.</span>
-            <div class="drawer-actions" style="justify-content:flex-start;">
-              <button id="resetActivationBtn" class="btn btn-warning" type="button">Reset Activation</button>
-              <button id="disableUserBtn" class="btn btn-danger" type="button">Disable User</button>
-            </div>
-          </div>
-          <div class="drawer-actions">
-            <button id="cancelEditUserBtn" class="btn btn-secondary" type="button">Cancel</button>
-            <button class="btn btn-primary" type="submit">Save Changes</button>
-          </div>
-        </form>
-      </aside>
-    </div>
   </main>
 
+
   <script>
+
 
     function configurePortalNavigation(user, activePage) {
       const nav = document.querySelector('.portal-nav-v2');
@@ -1660,35 +1672,25 @@
 
 
 
+
     const statusMessage = document.getElementById('statusMessage');
-    const userTableBody = document.getElementById('userTableBody');
+    const resourceTableBody = document.getElementById('resourceTableBody');
     const searchInput = document.getElementById('searchInput');
-    const roleFilter = document.getElementById('roleFilter');
+    const deviceTypeFilter = document.getElementById('deviceTypeFilter');
     const statusFilter = document.getElementById('statusFilter');
     const clearFiltersBtn = document.getElementById('clearFiltersBtn');
-    const rowsPerPageSelect = document.getElementById('rowsPerPageSelect');
-    const previousPageBtn = document.getElementById('previousPageBtn');
-    const nextPageBtn = document.getElementById('nextPageBtn');
-    const pageIndicator = document.getElementById('pageIndicator');
-    const paginationSummary = document.getElementById('paginationSummary');
-    const refreshUsersBtn = document.getElementById('refreshUsersBtn');
-    const openAddUserBtn = document.getElementById('openAddUserBtn');
-    const addUserModal = document.getElementById('addUserModal');
-    const closeAddUserBtn = document.getElementById('closeAddUserBtn');
-    const cancelAddUserBtn = document.getElementById('cancelAddUserBtn');
-    const addUserForm = document.getElementById('addUserForm');
-    const editUserDrawer = document.getElementById('editUserDrawer');
-    const closeEditUserBtn = document.getElementById('closeEditUserBtn');
-    const cancelEditUserBtn = document.getElementById('cancelEditUserBtn');
-    const editUserForm = document.getElementById('editUserForm');
-    const resetActivationBtn = document.getElementById('resetActivationBtn');
-    const disableUserBtn = document.getElementById('disableUserBtn');
+    const refreshResourcesBtn = document.getElementById('refreshResourcesBtn');
+    const openAddResourceBtn = document.getElementById('openAddResourceBtn');
+    const resourceModal = document.getElementById('resourceModal');
+    const resourceForm = document.getElementById('resourceForm');
+    const closeResourceModalBtn = document.getElementById('closeResourceModalBtn');
+    const cancelResourceBtn = document.getElementById('cancelResourceBtn');
+    const deleteResourceBtn = document.getElementById('deleteResourceBtn');
 
     let currentUser = null;
-    let users = [];
-    let selectedUser = null;
-    let currentPage = 1;
-    let rowsPerPage = Number(localStorage.getItem('aumRowsPerPage')) || 25;
+    let resources = [];
+    let softwareCatalog = [];
+    let selectedResource = null;
 
     function showStatus(type, message) {
       statusMessage.className = `status ${type}`;
@@ -1714,122 +1716,103 @@
     }
 
     function getInitial(name) {
-      return String(name || 'User').trim().charAt(0).toUpperCase() || 'U';
-    }
-
-    function getRolePillClass(role) {
-      if (role === 'Admin') return 'role-pill admin';
-      if (role === 'DE') return 'role-pill de';
-      return 'role-pill';
+      return String(name || 'Resource').trim().charAt(0).toUpperCase() || 'R';
     }
 
     function getStatusPillClass(status) {
-      if (status === 'Disabled') return 'status-pill disabled';
-      if (status === 'PendingActivation') return 'status-pill pending';
+      if (status === 'Maintenance' || status === 'Unavailable') return 'status-pill pending';
+      if (status === 'Retired') return 'status-pill disabled';
       return 'status-pill';
     }
 
-    function updateStats() {
-      document.getElementById('totalUsersStat').textContent = users.length;
-      document.getElementById('activeUsersStat').textContent = users.filter(user => user.status === 'Active').length;
-      document.getElementById('pendingUsersStat').textContent = users.filter(user => user.status === 'PendingActivation').length;
-      document.getElementById('disabledUsersStat').textContent = users.filter(user => user.status === 'Disabled').length;
+    function renderSoftwareTags(items) {
+      const software = Array.isArray(items) ? items : [];
+      if (software.length === 0) return '<span class="note">None</span>';
+      return `<div class="software-tags">${software.map(item => `<span class="software-tag">${escapeHtml(item)}</span>`).join('')}</div>`;
     }
 
-    function getFilteredUsers() {
+    function updateStats() {
+      document.getElementById('totalResourcesStat').textContent = resources.length;
+      document.getElementById('availableCapacityStat').textContent = resources
+        .filter(resource => resource.status === 'Available')
+        .reduce((sum, resource) => sum + Number(resource.capacity || 0), 0);
+      document.getElementById('availableResourcesStat').textContent = resources.filter(resource => resource.status === 'Available').length;
+      document.getElementById('inactiveResourcesStat').textContent = resources.filter(resource => ['Maintenance', 'Retired', 'Unavailable'].includes(resource.status)).length;
+    }
+
+    function getFilteredResources() {
       const query = searchInput.value.trim().toLowerCase();
-      const role = roleFilter.value;
+      const deviceType = deviceTypeFilter.value;
       const status = statusFilter.value;
 
-      return users.filter(user => {
-        const matchesSearch = !query || [
-          user.userId,
-          user.name,
-          user.email
-        ].some(value => String(value || '').toLowerCase().includes(query));
+      return resources.filter(resource => {
+        const searchValues = [
+          resource.id,
+          resource.name,
+          resource.deviceType,
+          resource.resourceType,
+          resource.status,
+          resource.location,
+          resource.notes,
+          ...(resource.software || [])
+        ];
 
-        const matchesRole = role === 'All' || user.role === role;
-        const matchesStatus = status === 'All' || user.status === status;
+        const matchesSearch = !query || searchValues.some(value => String(value || '').toLowerCase().includes(query));
+        const matchesDeviceType = deviceType === 'All' || resource.deviceType === deviceType;
+        const matchesStatus = status === 'All' || resource.status === status;
 
-        return matchesSearch && matchesRole && matchesStatus;
+        return matchesSearch && matchesDeviceType && matchesStatus;
       });
     }
 
-    function getPaginatedUsers(filteredUsers) {
-      const totalPages = Math.max(1, Math.ceil(filteredUsers.length / rowsPerPage));
-
-      if (currentPage > totalPages) currentPage = totalPages;
-      if (currentPage < 1) currentPage = 1;
-
-      const startIndex = (currentPage - 1) * rowsPerPage;
-      const endIndex = startIndex + rowsPerPage;
-
-      return {
-        totalPages,
-        startIndex,
-        endIndex,
-        pageUsers: filteredUsers.slice(startIndex, endIndex)
-      };
-    }
-
-    function updatePaginationControls(filteredCount, totalPages, startIndex, pageUsersCount) {
-      if (filteredCount === 0) {
-        paginationSummary.textContent = 'Showing 0 users';
-      } else {
-        const firstVisible = startIndex + 1;
-        const lastVisible = startIndex + pageUsersCount;
-        paginationSummary.textContent = `Showing ${firstVisible}–${lastVisible} of ${filteredCount} users`;
-      }
-
-      pageIndicator.textContent = `Page ${currentPage} of ${totalPages}`;
-      previousPageBtn.disabled = currentPage <= 1;
-      nextPageBtn.disabled = currentPage >= totalPages;
-      rowsPerPageSelect.value = String(rowsPerPage);
-    }
-
-    function resetPagination() {
-      currentPage = 1;
-    }
-
-    function renderUsers() {
+    function renderResources() {
       updateStats();
-      const filteredUsers = getFilteredUsers();
-      const {
-        totalPages,
-        startIndex,
-        pageUsers
-      } = getPaginatedUsers(filteredUsers);
+      const filteredResources = getFilteredResources();
 
-      updatePaginationControls(filteredUsers.length, totalPages, startIndex, pageUsers.length);
-
-      if (filteredUsers.length === 0) {
-        userTableBody.innerHTML = '<tr><td colspan="7"><div class="empty-panel">No users match the current search or filters.</div></td></tr>';
+      if (filteredResources.length === 0) {
+        resourceTableBody.innerHTML = '<tr><td colspan="7"><div class="empty-panel">No resources match the current search or filters.</div></td></tr>';
         return;
       }
 
-      userTableBody.innerHTML = pageUsers.map(user => `
-        <tr data-user-id="${escapeHtml(user.userId)}">
+      resourceTableBody.innerHTML = filteredResources.map(resource => `
+        <tr data-resource-id="${escapeHtml(resource.id)}">
           <td>
             <div class="user-identity">
-              <span class="small-avatar">${escapeHtml(getInitial(user.name))}</span>
+              <span class="small-avatar">${escapeHtml(getInitial(resource.name))}</span>
               <span class="identity-text">
-                <strong>${escapeHtml(user.name)}</strong>
-                <span>${escapeHtml(user.email)}</span>
+                <strong>${escapeHtml(resource.name)}</strong>
+                <span>${escapeHtml(resource.id)} · ${escapeHtml(resource.resourceType)}</span>
               </span>
             </div>
           </td>
-          <td>${escapeHtml(user.userId)}</td>
-          <td><span class="${getRolePillClass(user.role)}">${escapeHtml(user.role)}</span></td>
-          <td><span class="${getStatusPillClass(user.status)}">${escapeHtml(user.status)}</span></td>
-          <td>${user.hasPasswordHash ? 'Yes' : 'No'}</td>
-          <td>${escapeHtml(formatDateTime(user.updatedAt || user.activatedAt || user.createdAt))}</td>
+          <td><span class="role-pill">${escapeHtml(resource.deviceType)}</span></td>
+          <td>${escapeHtml(resource.capacity)}</td>
+          <td><span class="${getStatusPillClass(resource.status)}">${escapeHtml(resource.status)}</span></td>
+          <td>${escapeHtml(resource.location || '-')}</td>
+          <td>${renderSoftwareTags(resource.software)}</td>
           <td>
             <div class="row-actions">
-              <button class="icon-button" type="button" data-action="edit" aria-label="Edit ${escapeHtml(user.name)}">⋯</button>
+              <button class="icon-button" type="button" data-action="edit" aria-label="Edit ${escapeHtml(resource.name)}">⋯</button>
             </div>
           </td>
         </tr>
       `).join('');
+    }
+
+    function renderSoftwareChecklist(selectedSoftware = []) {
+      const selected = new Set((selectedSoftware || []).map(item => String(item).toLowerCase()));
+      softwareCatalog = Array.from(new Set([...(softwareCatalog || []), 'Procreate'])).sort((a, b) => a.localeCompare(b));
+
+      document.getElementById('softwareChecklist').innerHTML = softwareCatalog.map(item => `
+        <label>
+          <input type="checkbox" value="${escapeHtml(item)}" ${selected.has(item.toLowerCase()) ? 'checked' : ''} />
+          ${escapeHtml(item)}
+        </label>
+      `).join('');
+    }
+
+    function getSelectedSoftware() {
+      return Array.from(document.querySelectorAll('#softwareChecklist input:checked')).map(input => input.value);
     }
 
     async function requireAuthenticatedAdmin() {
@@ -1847,165 +1830,108 @@
       }
 
       currentUser = result.user;
-      configurePortalNavigation(result.user, 'users');
-      document.getElementById('currentUserDisplay').textContent = `Signed in as ${result.user.name}`;
+      configurePortalNavigation(result.user, 'resources');
       return currentUser;
     }
 
-    async function loadUsers() {
+    async function loadResources() {
       clearStatus();
-      userTableBody.innerHTML = '<tr><td colspan="7"><div class="empty-panel">Loading users...</div></td></tr>';
+      resourceTableBody.innerHTML = '<tr><td colspan="7"><div class="empty-panel">Loading resources...</div></td></tr>';
 
-      const response = await fetch('/api/admin/users', { cache: 'no-store' });
+      const response = await fetch('/api/admin/resources', { cache: 'no-store' });
       const result = await response.json();
 
       if (!response.ok || !result.success) {
-        throw new Error(result.message || 'Unable to load users.');
+        throw new Error(result.message || 'Unable to load resources.');
       }
 
-      users = result.users || [];
-      renderUsers();
+      resources = result.resources || [];
+      softwareCatalog = result.softwareCatalog || [];
+      renderResources();
     }
 
-    function openAddUserModal() {
-      addUserForm.reset();
-      document.getElementById('newRole').value = 'User';
-      document.getElementById('newStatus').value = 'PendingActivation';
-      addUserModal.classList.add('open');
-      setTimeout(() => document.getElementById('newName').focus(), 0);
+    function openResourceModal(resourceId = '') {
+      selectedResource = resources.find(resource => String(resource.id) === String(resourceId)) || null;
+      resourceForm.reset();
+
+      document.getElementById('resourceModalTitle').textContent = selectedResource ? 'Edit Resource' : 'Add Resource';
+      document.getElementById('resourceId').value = selectedResource?.id || '';
+      document.getElementById('resourceName').value = selectedResource?.name || '';
+      document.getElementById('deviceType').value = selectedResource?.deviceType || 'iPad';
+      document.getElementById('resourceType').value = selectedResource?.resourceType || 'Cart';
+      document.getElementById('capacity').value = selectedResource?.capacity || 1;
+      document.getElementById('resourceStatus').value = selectedResource?.status || 'Available';
+      document.getElementById('resourceLocation').value = selectedResource?.location || '';
+      document.getElementById('notes').value = selectedResource?.notes || '';
+      deleteResourceBtn.style.display = selectedResource ? 'inline-flex' : 'none';
+      renderSoftwareChecklist(selectedResource?.software || []);
+
+      resourceModal.classList.add('open');
+      setTimeout(() => document.getElementById('resourceName').focus(), 0);
     }
 
-    function closeAddUserModal() {
-      addUserModal.classList.remove('open');
+    function closeResourceModal() {
+      resourceModal.classList.remove('open');
+      selectedResource = null;
     }
 
-    async function addUser(event) {
+    function buildResourcePayload() {
+      return {
+        name: document.getElementById('resourceName').value.trim(),
+        deviceType: document.getElementById('deviceType').value,
+        resourceType: document.getElementById('resourceType').value,
+        capacity: Number(document.getElementById('capacity').value),
+        status: document.getElementById('resourceStatus').value,
+        location: document.getElementById('resourceLocation').value.trim(),
+        software: getSelectedSoftware(),
+        notes: document.getElementById('notes').value.trim()
+      };
+    }
+
+    async function saveResource(event) {
       event.preventDefault();
       clearStatus();
 
-      const payload = {
-        name: document.getElementById('newName').value.trim(),
-        email: document.getElementById('newEmail').value.trim(),
-        role: document.getElementById('newRole').value,
-        status: document.getElementById('newStatus').value
-      };
+      const resourceId = document.getElementById('resourceId').value;
+      const method = resourceId ? 'PUT' : 'POST';
+      const endpoint = resourceId
+        ? `/api/admin/resources/${encodeURIComponent(resourceId)}`
+        : '/api/admin/resources';
 
-      const response = await fetch('/api/admin/users', {
-        method: 'POST',
+      const response = await fetch(endpoint, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(buildResourcePayload())
       });
 
       const result = await response.json();
 
       if (!response.ok || !result.success) {
-        throw new Error(result.message || 'Unable to add user.');
+        throw new Error(result.message || 'Unable to save resource.');
       }
 
-      closeAddUserModal();
-      showStatus('success', result.message || 'User added successfully.');
-      await loadUsers();
+      closeResourceModal();
+      showStatus('success', result.message || 'Resource saved successfully.');
+      await loadResources();
     }
 
-    function openEditDrawer(userId) {
-      selectedUser = users.find(user => String(user.userId) === String(userId));
-      if (!selectedUser) return;
+    async function deleteSelectedResource() {
+      if (!selectedResource) return;
+      if (!confirm(`Delete ${selectedResource.name}? If it is used in future bookings, it will be marked as Retired instead.`)) return;
 
-      document.getElementById('editUserId').value = selectedUser.userId;
-      document.getElementById('editName').value = selectedUser.name || '';
-      document.getElementById('editEmail').value = selectedUser.email || '';
-      document.getElementById('editRole').value = selectedUser.role || 'User';
-      document.getElementById('editStatus').value = selectedUser.status || 'PendingActivation';
-      document.getElementById('editActivated').value = selectedUser.hasPasswordHash ? 'Yes' : 'No';
-      document.getElementById('editUpdated').value = formatDateTime(selectedUser.updatedAt || selectedUser.activatedAt || selectedUser.createdAt);
-
-      document.getElementById('drawerUserSummary').innerHTML = `
-        <span class="small-avatar">${escapeHtml(getInitial(selectedUser.name))}</span>
-        <span class="drawer-title-text">
-          <strong>${escapeHtml(selectedUser.name)}</strong>
-          <span class="note">${escapeHtml(selectedUser.email)} · ${escapeHtml(selectedUser.userId)}</span>
-        </span>
-      `;
-
-      const isSelf = String(selectedUser.userId) === String(currentUser.userId);
-      resetActivationBtn.disabled = isSelf;
-      disableUserBtn.disabled = isSelf;
-      resetActivationBtn.title = isSelf ? 'You cannot reset your own signed-in account.' : '';
-      disableUserBtn.title = isSelf ? 'You cannot disable your own signed-in account.' : '';
-
-      editUserDrawer.classList.add('open');
-    }
-
-    function closeEditDrawer() {
-      editUserDrawer.classList.remove('open');
-      selectedUser = null;
-    }
-
-    async function saveSelectedUser(event) {
-      event.preventDefault();
-      if (!selectedUser) return;
-
-      const userId = document.getElementById('editUserId').value;
-      const payload = {
-        name: document.getElementById('editName').value.trim(),
-        email: document.getElementById('editEmail').value.trim(),
-        role: document.getElementById('editRole').value,
-        status: document.getElementById('editStatus').value
-      };
-
-      const response = await fetch(`/api/admin/users/${encodeURIComponent(userId)}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        throw new Error(result.message || 'Unable to update user.');
-      }
-
-      closeEditDrawer();
-      showStatus('success', result.message || 'User updated successfully.');
-      await loadUsers();
-    }
-
-    async function disableSelectedUser() {
-      if (!selectedUser) return;
-      if (!confirm(`Disable ${selectedUser.name || 'this user'}? They will no longer be able to sign in.`)) return;
-
-      const response = await fetch(`/api/admin/users/${encodeURIComponent(selectedUser.userId)}`, {
+      const response = await fetch(`/api/admin/resources/${encodeURIComponent(selectedResource.id)}`, {
         method: 'DELETE'
       });
 
       const result = await response.json();
 
       if (!response.ok || !result.success) {
-        throw new Error(result.message || 'Unable to disable user.');
+        throw new Error(result.message || 'Unable to delete resource.');
       }
 
-      closeEditDrawer();
-      showStatus('success', result.message || 'User disabled successfully.');
-      await loadUsers();
-    }
-
-    async function resetSelectedActivation() {
-      if (!selectedUser) return;
-      if (!confirm(`Reset activation for ${selectedUser.name || 'this user'}? Their current password will be removed and they must activate their account again.`)) return;
-
-      const response = await fetch(`/api/admin/users/${encodeURIComponent(selectedUser.userId)}/reset-activation`, {
-        method: 'POST'
-      });
-
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        throw new Error(result.message || 'Unable to reset activation.');
-      }
-
-      closeEditDrawer();
-      showStatus('success', result.message || 'Activation reset successfully.');
-      await loadUsers();
+      closeResourceModal();
+      showStatus('success', result.message || 'Resource deleted successfully.');
+      await loadResources();
     }
 
     document.getElementById('logoutBtn').addEventListener('click', async () => {
@@ -2013,103 +1939,61 @@
       window.location.href = 'login.html';
     });
 
-    openAddUserBtn.addEventListener('click', openAddUserModal);
-    closeAddUserBtn.addEventListener('click', closeAddUserModal);
-    cancelAddUserBtn.addEventListener('click', closeAddUserModal);
-    addUserModal.addEventListener('click', event => {
-      if (event.target === addUserModal) closeAddUserModal();
+    openAddResourceBtn.addEventListener('click', () => openResourceModal());
+    closeResourceModalBtn.addEventListener('click', closeResourceModal);
+    cancelResourceBtn.addEventListener('click', closeResourceModal);
+    resourceModal.addEventListener('click', event => {
+      if (event.target === resourceModal) closeResourceModal();
     });
 
-    closeEditUserBtn.addEventListener('click', closeEditDrawer);
-    cancelEditUserBtn.addEventListener('click', closeEditDrawer);
-    editUserDrawer.addEventListener('click', event => {
-      if (event.target === editUserDrawer) closeEditDrawer();
+    resourceForm.addEventListener('submit', event => {
+      saveResource(event).catch(error => showStatus('error', error.message));
     });
 
-    addUserForm.addEventListener('submit', event => {
-      addUser(event).catch(error => showStatus('error', error.message));
+    deleteResourceBtn.addEventListener('click', () => {
+      deleteSelectedResource().catch(error => showStatus('error', error.message));
     });
 
-    editUserForm.addEventListener('submit', event => {
-      saveSelectedUser(event).catch(error => showStatus('error', error.message));
-    });
-
-    disableUserBtn.addEventListener('click', () => {
-      disableSelectedUser().catch(error => showStatus('error', error.message));
-    });
-
-    resetActivationBtn.addEventListener('click', () => {
-      resetSelectedActivation().catch(error => showStatus('error', error.message));
-    });
-
-    refreshUsersBtn.addEventListener('click', () => {
-      loadUsers().catch(error => showStatus('error', error.message));
+    refreshResourcesBtn.addEventListener('click', () => {
+      loadResources().catch(error => showStatus('error', error.message));
     });
 
     clearFiltersBtn.addEventListener('click', () => {
       searchInput.value = '';
-      roleFilter.value = 'All';
+      deviceTypeFilter.value = 'All';
       statusFilter.value = 'All';
-      resetPagination();
-      renderUsers();
+      renderResources();
     });
 
-    [searchInput, roleFilter, statusFilter].forEach(input => {
-      input.addEventListener('input', () => {
-        resetPagination();
-        renderUsers();
-      });
-      input.addEventListener('change', () => {
-        resetPagination();
-        renderUsers();
-      });
+    [searchInput, deviceTypeFilter, statusFilter].forEach(input => {
+      input.addEventListener('input', renderResources);
+      input.addEventListener('change', renderResources);
     });
 
-    rowsPerPageSelect.addEventListener('change', () => {
-      rowsPerPage = Number(rowsPerPageSelect.value) || 25;
-      localStorage.setItem('aumRowsPerPage', String(rowsPerPage));
-      resetPagination();
-      renderUsers();
-    });
-
-    previousPageBtn.addEventListener('click', () => {
-      if (currentPage <= 1) return;
-      currentPage -= 1;
-      renderUsers();
-    });
-
-    nextPageBtn.addEventListener('click', () => {
-      currentPage += 1;
-      renderUsers();
-    });
-
-    userTableBody.addEventListener('click', event => {
+    resourceTableBody.addEventListener('click', event => {
       const button = event.target.closest('button[data-action="edit"]');
       if (!button) return;
-      const row = button.closest('tr[data-user-id]');
+      const row = button.closest('tr[data-resource-id]');
       if (!row) return;
-      openEditDrawer(row.dataset.userId);
+      openResourceModal(row.dataset.resourceId);
     });
 
     document.addEventListener('keydown', event => {
       if (event.key !== 'Escape') return;
-      closeAddUserModal();
-      closeEditDrawer();
+      closeResourceModal();
     });
 
-    async function initialiseAdminUsersPage() {
+    async function initialiseResourcesAdminPage() {
       const user = await requireAuthenticatedAdmin();
       if (!user) return;
 
-      rowsPerPageSelect.value = String(rowsPerPage);
-
-      await loadUsers().catch(error => {
+      await loadResources().catch(error => {
         showStatus('error', error.message);
-        userTableBody.innerHTML = '<tr><td colspan="7"><div class="empty-panel">Unable to load users.</div></td></tr>';
+        resourceTableBody.innerHTML = '<tr><td colspan="7"><div class="empty-panel">Unable to load resources.</div></td></tr>';
       });
     }
 
-    initialiseAdminUsersPage();
+    initialiseResourcesAdminPage();
   </script>
 </body>
 </html>

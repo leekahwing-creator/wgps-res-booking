@@ -2,13 +2,18 @@ const fs = require("fs");
 const path = require("path");
 const { XMLParser } = require("fast-xml-parser");
 const { ensureMonthlyBookingsFile } = require("./bookingFileHelper");
+const { resourceSupportsSoftware } = require("./resourceAllocator");
 
 const parser = new XMLParser({ ignoreAttributes: false });
 
 const appDir = __dirname;
 const dataDir = process.env.DATA_DIR || path.join(__dirname, "data");
+const liveResourcesFile = path.join(dataDir, "resources.xml");
+const sourceResourcesFile = path.join(appDir, "resources.xml");
 
-const resourcesFile = path.join(appDir, "resources.xml");
+function getResourcesFilePath() {
+  return fs.existsSync(liveResourcesFile) ? liveResourcesFile : sourceResourcesFile;
+}
 
 function toArray(value) {
   if (!value) return [];
@@ -50,12 +55,7 @@ function findBestResourceCombination(resources, devicesRequired) {
 
     if (index >= resources.length) return;
 
-    search(
-      index + 1,
-      [...selected, resources[index]],
-      capacity + Number(resources[index].capacity)
-    );
-
+    search(index + 1, [...selected, resources[index]], capacity + Number(resources[index].capacity));
     search(index + 1, selected, capacity);
   }
 
@@ -81,7 +81,7 @@ function buildAllocation(resources, method = "Reallocated") {
 }
 
 function resolveConflict(newBookingRequest) {
-  const parsedResources = loadXML(resourcesFile);
+  const parsedResources = loadXML(getResourcesFilePath());
   const bookingsFile = ensureMonthlyBookingsFile(newBookingRequest.bookingDate);
   const parsedBookings = loadXML(bookingsFile);
 
@@ -93,7 +93,7 @@ function resolveConflict(newBookingRequest) {
   const existingBookings = toArray(parsedBookings.bookings?.booking);
 
   const affectedBookings = existingBookings.filter(booking => {
-    if (booking.status === "Cancelled") return false;
+    if (["Cancelled", "Deleted"].includes(booking.status)) return false;
     if (booking.deviceType !== newBookingRequest.deviceType) return false;
     if (booking.bookingDate !== newBookingRequest.bookingDate) return false;
 
@@ -106,22 +106,20 @@ function resolveConflict(newBookingRequest) {
   });
 
   const bookingsToReallocate = [
-    ...affectedBookings.map(booking => ({
-      ...booking,
-      isNewBooking: false
-    })),
-    {
-      ...newBookingRequest,
-      isNewBooking: true
-    }
+    ...affectedBookings.map(booking => ({ ...booking, isNewBooking: false })),
+    { ...newBookingRequest, isNewBooking: true }
   ].sort((a, b) => Number(b.devicesRequired) - Number(a.devicesRequired));
 
   const remainingResources = [...allResources];
   const allocationResults = [];
 
   for (const booking of bookingsToReallocate) {
+    const compatibleRemainingResources = remainingResources.filter(resource =>
+      resourceSupportsSoftware(resource, booking.softwareRequirement)
+    );
+
     const selectedResources = findBestResourceCombination(
-      remainingResources,
+      compatibleRemainingResources,
       Number(booking.devicesRequired)
     );
 
@@ -162,9 +160,7 @@ function resolveConflict(newBookingRequest) {
       status: "Confirmed with Reallocation"
     }));
 
-  const newBookingResult = allocationResults.find(
-    result => result.booking.isNewBooking
-  );
+  const newBookingResult = allocationResults.find(result => result.booking.isNewBooking);
 
   return {
     success: true,

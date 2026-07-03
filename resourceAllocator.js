@@ -3,27 +3,45 @@ const path = require("path");
 const { XMLParser } = require("fast-xml-parser");
 const { ensureMonthlyBookingsFile } = require("./bookingFileHelper");
 
-const parser = new XMLParser({
-  ignoreAttributes: false
-});
+const parser = new XMLParser({ ignoreAttributes: false });
 
 const appDir = __dirname;
 const dataDir = process.env.DATA_DIR || path.join(__dirname, "data");
+const liveResourcesFile = path.join(dataDir, "resources.xml");
+const sourceResourcesFile = path.join(appDir, "resources.xml");
 
-const resourcesFile = path.join(appDir, "resources.xml");
+function getResourcesFilePath() {
+  return fs.existsSync(liveResourcesFile) ? liveResourcesFile : sourceResourcesFile;
+}
 
 function toArray(value) {
   if (!value) return [];
   return Array.isArray(value) ? value : [value];
 }
 
+function loadXML(filePath) {
+  return parser.parse(fs.readFileSync(filePath, "utf8"));
+}
+
 function timeOverlaps(startA, endA, startB, endB) {
   return startA < endB && endA > startB;
 }
 
-function loadXML(filePath) {
-  const xml = fs.readFileSync(filePath, "utf8");
-  return parser.parse(xml);
+function normaliseSoftwareList(resource) {
+  return toArray(resource.software?.item)
+    .map(item => String(item || "").trim())
+    .filter(Boolean);
+}
+
+function resourceSupportsSoftware(resource, requiredSoftware) {
+  const requirement = String(requiredSoftware || "None").trim();
+
+  if (!requirement || requirement === "None") return true;
+
+  const installedSoftware = normaliseSoftwareList(resource)
+    .map(item => item.toLowerCase());
+
+  return installedSoftware.includes(requirement.toLowerCase());
 }
 
 function getBookedResourceIds(bookingRequest) {
@@ -33,7 +51,7 @@ function getBookedResourceIds(bookingRequest) {
 
   const overlappingBookings = bookings.filter(booking => {
     if (booking.bookingDate !== bookingRequest.bookingDate) return false;
-    if (booking.status === "Cancelled") return false;
+    if (["Cancelled", "Deleted"].includes(booking.status)) return false;
 
     return timeOverlaps(
       bookingRequest.startTime,
@@ -47,7 +65,7 @@ function getBookedResourceIds(bookingRequest) {
 
   overlappingBookings.forEach(booking => {
     const resources = toArray(booking.allocation?.resources?.resourceId);
-    resources.forEach(resourceId => bookedIds.add(resourceId));
+    resources.forEach(resourceId => bookedIds.add(String(resourceId)));
   });
 
   return bookedIds;
@@ -74,8 +92,7 @@ function findBestResourceCombination(availableResources, devicesRequired) {
 
       if (
         currentSurplus < bestSurplus ||
-        (currentSurplus === bestSurplus &&
-          currentResources.length < bestCombination.length)
+        (currentSurplus === bestSurplus && currentResources.length < bestCombination.length)
       ) {
         bestCombination = [...currentResources];
       }
@@ -99,8 +116,24 @@ function findBestResourceCombination(availableResources, devicesRequired) {
   return bestCombination || [];
 }
 
+function buildAllocation(selectedResources) {
+  const totalCapacity = selectedResources.reduce(
+    (total, resource) => total + Number(resource.capacity),
+    0
+  );
+
+  return {
+    cartCount: selectedResources.filter(resource => resource.resourceType === "Cart").length,
+    bagCount: selectedResources.filter(resource => resource.resourceType === "Bag").length,
+    totalAllocatedCapacity: totalCapacity,
+    resources: {
+      resourceId: selectedResources.map(resource => resource.id)
+    }
+  };
+}
+
 function allocateResources(bookingRequest) {
-  const parsedResources = loadXML(resourcesFile);
+  const parsedResources = loadXML(getResourcesFilePath());
   const allResources = toArray(parsedResources.resources?.resource);
 
   const bookedResourceIds = getBookedResourceIds(bookingRequest);
@@ -108,7 +141,8 @@ function allocateResources(bookingRequest) {
   const availableResources = allResources
     .filter(resource => resource.status === "Available")
     .filter(resource => resource.deviceType === bookingRequest.deviceType)
-    .filter(resource => !bookedResourceIds.has(resource.id))
+    .filter(resource => resourceSupportsSoftware(resource, bookingRequest.softwareRequirement))
+    .filter(resource => !bookedResourceIds.has(String(resource.id)))
     .sort((a, b) => Number(b.capacity) - Number(a.capacity));
 
   const selectedResources = findBestResourceCombination(
@@ -116,27 +150,16 @@ function allocateResources(bookingRequest) {
     Number(bookingRequest.devicesRequired)
   );
 
-  const totalCapacity = selectedResources.reduce(
-    (total, resource) => total + Number(resource.capacity),
-    0
-  );
-
-  const canFulfil = totalCapacity >= Number(bookingRequest.devicesRequired);
+  const allocation = buildAllocation(selectedResources);
+  const canFulfil = Number(allocation.totalAllocatedCapacity) >= Number(bookingRequest.devicesRequired);
 
   return {
     status: canFulfil ? "Confirmed" : "Unable to Fulfil",
-    allocation: {
-      allocationMethod: "Direct Allocation",
-      cartCount: selectedResources.filter(resource => resource.resourceType === "Cart").length,
-      bagCount: selectedResources.filter(resource => resource.resourceType === "Bag").length,
-      totalAllocatedCapacity: totalCapacity,
-      resources: {
-        resourceId: selectedResources.map(resource => resource.id)
-      }
-    }
+    allocation
   };
 }
 
 module.exports = {
-  allocateResources
+  allocateResources,
+  resourceSupportsSoftware
 };

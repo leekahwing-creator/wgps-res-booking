@@ -1,6 +1,5 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
-
   <resource>
     <id>LAPTOP-CART-01</id>
     <name>Laptop Cart 1</name>
@@ -8,8 +7,11 @@
     <capacity>20</capacity>
     <resourceType>Cart</resourceType>
     <status>Available</status>
+    <location />
+    <software />
+    <notes />
+    <updatedAt />
   </resource>
-
   <resource>
     <id>LAPTOP-CART-02</id>
     <name>Laptop Cart 2</name>
@@ -17,8 +19,11 @@
     <capacity>20</capacity>
     <resourceType>Cart</resourceType>
     <status>Available</status>
+    <location />
+    <software />
+    <notes />
+    <updatedAt />
   </resource>
-
   <resource>
     <id>LAPTOP-CART-03</id>
     <name>Laptop Cart 3</name>
@@ -26,8 +31,11 @@
     <capacity>20</capacity>
     <resourceType>Cart</resourceType>
     <status>Available</status>
+    <location />
+    <software />
+    <notes />
+    <updatedAt />
   </resource>
-
   <resource>
     <id>LAPTOP-CART-04</id>
     <name>Laptop Cart 4</name>
@@ -35,8 +43,11 @@
     <capacity>20</capacity>
     <resourceType>Cart</resourceType>
     <status>Available</status>
+    <location />
+    <software />
+    <notes />
+    <updatedAt />
   </resource>
-
   <resource>
     <id>IPAD-CART-05</id>
     <name>iPAD Cart 5</name>
@@ -44,8 +55,11 @@
     <capacity>40</capacity>
     <resourceType>Cart</resourceType>
     <status>Available</status>
+    <location />
+    <software />
+    <notes />
+    <updatedAt />
   </resource>
-
   <resource>
     <id>IPAD-CART-06</id>
     <name>iPAD Cart 6</name>
@@ -53,8 +67,11 @@
     <capacity>40</capacity>
     <resourceType>Cart</resourceType>
     <status>Available</status>
+    <location />
+    <software />
+    <notes />
+    <updatedAt />
   </resource>
-
   <resource>
     <id>IPAD-CART-07</id>
     <name>iPAD Cart 7</name>
@@ -62,8 +79,11 @@
     <capacity>40</capacity>
     <resourceType>Cart</resourceType>
     <status>Available</status>
+    <location />
+    <software />
+    <notes />
+    <updatedAt />
   </resource>
-
   <resource>
     <id>IPAD-CART-08</id>
     <name>iPAD Cart 8</name>
@@ -71,8 +91,11 @@
     <capacity>35</capacity>
     <resourceType>Cart</resourceType>
     <status>Available</status>
+    <location />
+    <software />
+    <notes />
+    <updatedAt />
   </resource>
-
   <resource>
     <id>IPAD-CART-09-KB</id>
     <name>iPAD Cart 9 with Keyboard</name>
@@ -80,8 +103,11 @@
     <capacity>40</capacity>
     <resourceType>Cart</resourceType>
     <status>Available</status>
+    <location />
+    <software />
+    <notes />
+    <updatedAt />
   </resource>
-
   <resource>
     <id>IPAD-CART-10</id>
     <name>iPAD Cart 10</name>
@@ -89,8 +115,11 @@
     <capacity>40</capacity>
     <resourceType>Cart</resourceType>
     <status>Available</status>
+    <location />
+    <software />
+    <notes />
+    <updatedAt />
   </resource>
-
   <resource>
     <id>IPAD-BAG-A</id>
     <name>iPAD Bag A</name>
@@ -98,8 +127,11 @@
     <capacity>8</capacity>
     <resourceType>Bag</resourceType>
     <status>Available</status>
+    <location />
+    <software />
+    <notes />
+    <updatedAt />
   </resource>
-
   <resource>
     <id>IPAD-BAG-B</id>
     <name>iPAD Bag B</name>
@@ -107,8 +139,11 @@
     <capacity>8</capacity>
     <resourceType>Bag</resourceType>
     <status>Available</status>
+    <location />
+    <software />
+    <notes />
+    <updatedAt />
   </resource>
-
   <resource>
     <id>IPAD-BAG-C</id>
     <name>iPAD Bag C</name>
@@ -116,8 +151,11 @@
     <capacity>8</capacity>
     <resourceType>Bag</resourceType>
     <status>Available</status>
+    <location />
+    <software />
+    <notes />
+    <updatedAt />
   </resource>
-
   <resource>
     <id>IPAD-BAG-D</id>
     <name>iPAD Bag D</name>
@@ -125,6 +163,9 @@
     <capacity>8</capacity>
     <resourceType>Bag</resourceType>
     <status>Available</status>
+    <location />
+    <software />
+    <notes />
+    <updatedAt />
   </resource>
-
 </resources>
