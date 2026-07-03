@@ -363,24 +363,101 @@ function normaliseDeviceType(type) {
   return allowedTypes.includes(type) ? type : "iPad";
 }
 
-function readResourcesFromXML() {
+function normaliseSoftwareStatus(status) {
+  const allowedStatuses = ["Active", "Retired"];
+  return allowedStatuses.includes(status) ? status : "Active";
+}
+
+function formatSoftwareForResponse(software) {
+  return {
+    id: String(software.id || "").trim(),
+    name: String(software.name || "").trim(),
+    status: normaliseSoftwareStatus(software.status),
+    createdAt: software.createdAt || "",
+    updatedAt: software.updatedAt || ""
+  };
+}
+
+function readResourcesDocument() {
   ensureLiveResourcesFile();
   const xml = fs.readFileSync(liveResourcesFile, "utf8");
   const parsed = new XMLParser({ ignoreAttributes: false }).parse(xml);
-  return toArray(parsed.resources?.resource);
+
+  if (parsed.resourcesData) {
+    return {
+      resources: toArray(parsed.resourcesData.resources?.resource),
+      softwareCatalog: toArray(parsed.resourcesData.softwareCatalog?.software)
+    };
+  }
+
+  return {
+    resources: toArray(parsed.resources?.resource),
+    softwareCatalog: toArray(parsed.resources?.softwareCatalog?.software)
+  };
 }
 
-function saveResourcesToXML(resources) {
-  ensureLiveResourcesFile();
+function normaliseSoftwareCatalog(catalog, resources = []) {
+  const existingCatalog = toArray(catalog)
+    .map(formatSoftwareForResponse)
+    .filter(item => item.name);
 
-  const builder = new XMLBuilder({
-    ignoreAttributes: false,
-    format: true,
-    suppressEmptyNode: true
+  const discoveredNames = resources
+    .flatMap(resource => normaliseSoftwareItems(resource.software))
+    .filter(Boolean);
+
+  const byName = new Map();
+
+  existingCatalog.forEach(item => {
+    const key = item.name.toLowerCase();
+    if (!byName.has(key)) {
+      byName.set(key, {
+        ...item,
+        id: item.id || generateSoftwareIdFromName(item.name)
+      });
+    }
   });
 
-  const xml = builder.build({
+  discoveredNames.forEach(name => {
+    const key = String(name).toLowerCase();
+    if (!byName.has(key)) {
+      byName.set(key, {
+        id: generateSoftwareIdFromName(name),
+        name,
+        status: "Active",
+        createdAt: "",
+        updatedAt: ""
+      });
+    }
+  });
+
+  return Array.from(byName.values())
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function generateSoftwareIdFromName(name) {
+  const slug = String(name || "SOFTWARE")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "SOFTWARE";
+  return `SW-${slug}`;
+}
+
+function generateNextSoftwareId(catalog) {
+  const maxNumber = catalog.reduce((max, software) => {
+    const match = String(software.id || "").match(/^SW(\d+)$/i);
+    if (!match) return max;
+    return Math.max(max, Number(match[1]));
+  }, 0);
+
+  return `SW${String(maxNumber + 1).padStart(3, "0")}`;
+}
+
+function buildResourcesXml(resources, softwareCatalog) {
+  return {
     resources: {
+      softwareCatalog: {
+        software: softwareCatalog.map(formatSoftwareForResponse)
+      },
       resource: resources.map(resource => {
         const softwareItems = normaliseSoftwareItems(resource.software);
         return {
@@ -400,16 +477,55 @@ function saveResourcesToXML(resources) {
         };
       })
     }
+  };
+}
+
+function readResourcesFromXML() {
+  return readResourcesDocument().resources;
+}
+
+function readSoftwareCatalogFromXML() {
+  const document = readResourcesDocument();
+  return normaliseSoftwareCatalog(document.softwareCatalog, document.resources);
+}
+
+function saveResourcesAndSoftwareToXML(resources, softwareCatalog) {
+  ensureLiveResourcesFile();
+
+  const builder = new XMLBuilder({
+    ignoreAttributes: false,
+    format: true,
+    suppressEmptyNode: true
   });
 
+  const normalisedCatalog = normaliseSoftwareCatalog(softwareCatalog, resources);
+  const xml = builder.build(buildResourcesXml(resources, normalisedCatalog));
   fs.writeFileSync(liveResourcesFile, xml);
+}
+
+function saveResourcesToXML(resources) {
+  const document = readResourcesDocument();
+  saveResourcesAndSoftwareToXML(resources, document.softwareCatalog);
+}
+
+function saveSoftwareCatalogToXML(softwareCatalog) {
+  const document = readResourcesDocument();
+  saveResourcesAndSoftwareToXML(document.resources, softwareCatalog);
+}
+
+function softwareIsUsedByResources(softwareName) {
+  const lowerName = String(softwareName || "").toLowerCase();
+  return readResourcesFromXML().some(resource =>
+    normaliseSoftwareItems(resource.software)
+      .some(item => String(item).toLowerCase() === lowerName)
+  );
 }
 
 function initialiseResourceStorage() {
   ensureLiveResourcesFile();
-  const resources = readResourcesFromXML();
-  saveResourcesToXML(resources);
-  return resources.length;
+  const document = readResourcesDocument();
+  saveResourcesAndSoftwareToXML(document.resources, document.softwareCatalog);
+  return document.resources.length;
 }
 
 function generateNextResourceId(resources, deviceType, resourceType) {
@@ -462,11 +578,6 @@ function resourceHasFutureBookings(resourceId) {
   });
 }
 
-function getSoftwareCatalog(resources) {
-  const defaults = ["Procreate", "GarageBand", "Keynote", "Scratch", "Minecraft Education", "Tinkercad"];
-  const discovered = resources.flatMap(resource => normaliseSoftwareItems(resource.software));
-  return Array.from(new Set([...defaults, ...discovered])).sort((a, b) => a.localeCompare(b));
-}
 
 function requireLogin(req, res, next) {
   if (!req.session.user) {
@@ -1904,7 +2015,7 @@ app.get("/api/admin/resources", requireLogin, requireAdmin, (req, res) => {
     res.json({
       success: true,
       resources,
-      softwareCatalog: getSoftwareCatalog(resources)
+      softwareCatalog: readSoftwareCatalogFromXML().map(formatSoftwareForResponse)
     });
   } catch (error) {
     console.error("Admin resources retrieval error:", error);
@@ -2046,6 +2157,157 @@ app.delete("/api/admin/resources/:resourceId", requireLogin, requireAdmin, (req,
     });
   } catch (error) {
     console.error("Admin resource deletion error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/* ---------------- ADMIN SOFTWARE CATALOG MANAGEMENT ROUTES ---------------- */
+
+app.get("/api/admin/software", requireLogin, requireAdmin, (req, res) => {
+  try {
+    const softwareCatalog = readSoftwareCatalogFromXML().map(formatSoftwareForResponse);
+
+    res.json({
+      success: true,
+      softwareCatalog
+    });
+  } catch (error) {
+    console.error("Admin software retrieval error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.post("/api/admin/software", requireLogin, requireAdmin, (req, res) => {
+  try {
+    const name = String(req.body.name || "").trim();
+    const status = normaliseSoftwareStatus(req.body.status || "Active");
+
+    if (!name) {
+      return res.status(400).json({ success: false, message: "Software name is required." });
+    }
+
+    const catalog = readSoftwareCatalogFromXML();
+    const nameExists = catalog.some(software => software.name.toLowerCase() === name.toLowerCase());
+
+    if (nameExists) {
+      return res.status(409).json({ success: false, message: "A software item with this name already exists." });
+    }
+
+    const now = new Date().toISOString();
+    const newSoftware = {
+      id: generateNextSoftwareId(catalog),
+      name,
+      status,
+      createdAt: now,
+      updatedAt: now
+    };
+
+    catalog.push(newSoftware);
+    saveSoftwareCatalogToXML(catalog);
+
+    res.json({
+      success: true,
+      message: "Software added successfully.",
+      software: formatSoftwareForResponse(newSoftware)
+    });
+  } catch (error) {
+    console.error("Admin software creation error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.put("/api/admin/software/:softwareId", requireLogin, requireAdmin, (req, res) => {
+  try {
+    const softwareId = req.params.softwareId;
+    const name = String(req.body.name || "").trim();
+    const status = normaliseSoftwareStatus(req.body.status || "Active");
+
+    if (!name) {
+      return res.status(400).json({ success: false, message: "Software name is required." });
+    }
+
+    const catalog = readSoftwareCatalogFromXML();
+    const index = catalog.findIndex(software => String(software.id) === String(softwareId));
+
+    if (index === -1) {
+      return res.status(404).json({ success: false, message: "Software not found." });
+    }
+
+    const nameUsedByAnotherItem = catalog.some(software =>
+      String(software.id) !== String(softwareId) &&
+      software.name.toLowerCase() === name.toLowerCase()
+    );
+
+    if (nameUsedByAnotherItem) {
+      return res.status(409).json({ success: false, message: "Another software item already uses this name." });
+    }
+
+    const oldName = catalog[index].name;
+    catalog[index] = {
+      ...catalog[index],
+      name,
+      status,
+      updatedAt: new Date().toISOString()
+    };
+
+    const document = readResourcesDocument();
+    const updatedResources = document.resources.map(resource => ({
+      ...resource,
+      software: {
+        item: normaliseSoftwareItems(resource.software).map(item =>
+          String(item).toLowerCase() === String(oldName).toLowerCase() ? name : item
+        )
+      }
+    }));
+
+    saveResourcesAndSoftwareToXML(updatedResources, catalog);
+
+    res.json({
+      success: true,
+      message: "Software updated successfully.",
+      software: formatSoftwareForResponse(catalog[index])
+    });
+  } catch (error) {
+    console.error("Admin software update error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.delete("/api/admin/software/:softwareId", requireLogin, requireAdmin, (req, res) => {
+  try {
+    const softwareId = req.params.softwareId;
+    const catalog = readSoftwareCatalogFromXML();
+    const index = catalog.findIndex(software => String(software.id) === String(softwareId));
+
+    if (index === -1) {
+      return res.status(404).json({ success: false, message: "Software not found." });
+    }
+
+    const selectedSoftware = catalog[index];
+
+    if (softwareIsUsedByResources(selectedSoftware.name)) {
+      catalog[index] = {
+        ...selectedSoftware,
+        status: "Retired",
+        updatedAt: new Date().toISOString()
+      };
+      saveSoftwareCatalogToXML(catalog);
+
+      return res.json({
+        success: true,
+        message: "This software is installed on resources, so it has been marked as Retired instead of deleted."
+      });
+    }
+
+    catalog.splice(index, 1);
+    saveSoftwareCatalogToXML(catalog);
+
+    res.json({
+      success: true,
+      message: "Software deleted successfully."
+    });
+  } catch (error) {
+    console.error("Admin software deletion error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 });

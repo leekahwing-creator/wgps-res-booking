@@ -1,5 +1,14 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
+  <softwareCatalog>
+    <software>
+      <id>SW001</id>
+      <name>Procreate</name>
+      <status>Active</status>
+      <createdAt />
+      <updatedAt />
+    </software>
+  </softwareCatalog>
   <resource>
     <id>LAPTOP-CART-01</id>
     <name>Laptop Cart 1</name>

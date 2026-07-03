@@ -1317,6 +1317,72 @@
       border-color: var(--primary);
       box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.14);
     }
+
+
+    .admin-tabs {
+      display: inline-flex;
+      gap: 8px;
+      padding: 6px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid rgba(226, 232, 240, 0.95);
+      width: fit-content;
+    }
+
+    .admin-tab-button {
+      border: 0;
+      background: transparent;
+      color: #334155;
+      border-radius: 12px;
+      padding: 11px 14px;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .admin-tab-button.active {
+      background: var(--primary);
+      color: #ffffff;
+      box-shadow: 0 8px 18px rgba(15, 118, 110, 0.18);
+    }
+
+    .tab-panel[hidden] {
+      display: none !important;
+    }
+
+    .software-admin-header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .software-admin-header h2 {
+      margin: 0 0 4px;
+      font-size: 1.2rem;
+    }
+
+    .software-admin-header p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.45;
+      font-size: 0.9rem;
+    }
+
+    @media (max-width: 680px) {
+      .admin-tabs,
+      .software-admin-header {
+        width: 100%;
+      }
+
+      .admin-tabs,
+      .software-admin-header {
+        flex-direction: column;
+        align-items: stretch;
+      }
+    }
+
 </style>
 </head>
 <body>
@@ -1395,6 +1461,12 @@
 
       <div id="statusMessage" class="status" role="status" aria-live="polite"></div>
 
+      <div class="admin-tabs" role="tablist" aria-label="Resources Admin sections">
+        <button id="resourcesTabBtn" class="admin-tab-button active" type="button" role="tab" aria-selected="true" aria-controls="resourcesPanel">Resources</button>
+        <button id="softwareTabBtn" class="admin-tab-button" type="button" role="tab" aria-selected="false" aria-controls="softwarePanel">Software Catalogue</button>
+      </div>
+
+      <div id="resourcesPanel" class="tab-panel" role="tabpanel" aria-labelledby="resourcesTabBtn">
       <section class="stats-grid" aria-label="Resource summary">
         <div class="stat-card"><span>Total Resources</span><strong id="totalResourcesStat">0</strong></div>
         <div class="stat-card"><span>Available Capacity</span><strong id="availableCapacityStat">0</strong></div>
@@ -1465,6 +1537,50 @@
             <span id="resourcePageIndicator" class="page-indicator">Page 1 of 1</span>
             <button id="resourceNextPageBtn" class="pagination-button" type="button">Next</button>
           </div>
+        </div>
+      </section>
+      </div>
+
+      <section id="softwarePanel" class="workspace-card tab-panel" role="tabpanel" aria-labelledby="softwareTabBtn" hidden>
+        <div class="software-admin-header">
+          <div>
+            <h2>Specialised Software Catalogue</h2>
+            <p>Manage the software options that can be assigned to bookable resources.</p>
+          </div>
+          <button id="openAddSoftwareBtn" class="btn btn-primary" type="button">+ Add Software</button>
+        </div>
+
+        <div class="workspace-toolbar">
+          <div class="field">
+            <label for="softwareSearchInput">Search software</label>
+            <input id="softwareSearchInput" type="search" placeholder="Search by software name or ID" />
+          </div>
+          <div class="field">
+            <label for="softwareStatusFilter">Status</label>
+            <select id="softwareStatusFilter">
+              <option value="All">All Status</option>
+              <option value="Active">Active</option>
+              <option value="Retired">Retired</option>
+            </select>
+          </div>
+          <button id="clearSoftwareFiltersBtn" class="btn btn-secondary" type="button">Clear Filters</button>
+        </div>
+
+        <div class="table-wrap">
+          <table class="users-table" aria-label="Specialised software table">
+            <thead>
+              <tr>
+                <th>Software</th>
+                <th>Status</th>
+                <th>Installed On</th>
+                <th>Last Updated</th>
+                <th style="text-align:right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="softwareTableBody">
+              <tr><td colspan="5"><div class="empty-panel">Loading software catalogue...</div></td></tr>
+            </tbody>
+          </table>
         </div>
       </section>
     </section>
@@ -1624,6 +1740,38 @@
       </aside>
     </div>
 
+    <div id="softwareModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="softwareModalTitle">
+      <section class="modal">
+        <div class="modal-header">
+          <div>
+            <h2 id="softwareModalTitle">Add Software</h2>
+            <p>Manage specialised software that can be assigned to resources.</p>
+          </div>
+          <button id="closeSoftwareModalBtn" class="close-button" type="button" aria-label="Close software dialog">✕</button>
+        </div>
+        <form id="softwareForm" class="modal-body">
+          <input id="softwareId" type="hidden" />
+          <div class="field">
+            <label for="softwareName">Software name</label>
+            <input id="softwareName" type="text" required />
+          </div>
+          <div class="field">
+            <label for="softwareStatus">Status</label>
+            <select id="softwareStatus">
+              <option value="Active">Active</option>
+              <option value="Retired">Retired</option>
+            </select>
+          </div>
+          <p class="note">Retired software remains visible in historical resource records but will not appear as a selectable option when assigning software to resources.</p>
+          <div class="modal-actions">
+            <button id="deleteSoftwareBtn" class="btn btn-danger" type="button">Delete / Retire Software</button>
+            <button id="cancelSoftwareBtn" class="btn btn-secondary" type="button">Cancel</button>
+            <button class="btn btn-primary" type="submit">Save Software</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
   </main>
 
 
@@ -1662,10 +1810,26 @@
     const cancelEditResourceBtn = document.getElementById('cancelEditResourceBtn');
     const deleteResourceBtn = document.getElementById('deleteResourceBtn');
 
+    const resourcesTabBtn = document.getElementById('resourcesTabBtn');
+    const softwareTabBtn = document.getElementById('softwareTabBtn');
+    const resourcesPanel = document.getElementById('resourcesPanel');
+    const softwarePanel = document.getElementById('softwarePanel');
+    const softwareTableBody = document.getElementById('softwareTableBody');
+    const softwareSearchInput = document.getElementById('softwareSearchInput');
+    const softwareStatusFilter = document.getElementById('softwareStatusFilter');
+    const clearSoftwareFiltersBtn = document.getElementById('clearSoftwareFiltersBtn');
+    const openAddSoftwareBtn = document.getElementById('openAddSoftwareBtn');
+    const softwareModal = document.getElementById('softwareModal');
+    const softwareForm = document.getElementById('softwareForm');
+    const closeSoftwareModalBtn = document.getElementById('closeSoftwareModalBtn');
+    const cancelSoftwareBtn = document.getElementById('cancelSoftwareBtn');
+    const deleteSoftwareBtn = document.getElementById('deleteSoftwareBtn');
+
     let currentUser = null;
     let resources = [];
     let softwareCatalog = [];
     let selectedResource = null;
+    let selectedSoftware = null;
     let currentPage = 1;
     let rowsPerPage = Number(localStorage.getItem('resourcesAdminRowsPerPage')) || 25;
 
@@ -1803,20 +1967,97 @@
       `).join('');
     }
 
+    function getSoftwareName(software) {
+      return typeof software === 'string' ? software : software?.name || '';
+    }
+
+    function getActiveSoftwareCatalog() {
+      return (softwareCatalog || [])
+        .filter(item => item.status === 'Active')
+        .sort((a, b) => getSoftwareName(a).localeCompare(getSoftwareName(b)));
+    }
+
     function renderSoftwareChecklist(containerId, selectedSoftware = []) {
       const selected = new Set((selectedSoftware || []).map(item => String(item).toLowerCase()));
-      softwareCatalog = Array.from(new Set([...(softwareCatalog || []), 'Procreate'])).sort((a, b) => a.localeCompare(b));
+      const activeSoftware = getActiveSoftwareCatalog();
 
-      document.getElementById(containerId).innerHTML = softwareCatalog.map(item => `
-        <label>
-          <input type="checkbox" value="${escapeHtml(item)}" ${selected.has(item.toLowerCase()) ? 'checked' : ''} />
-          ${escapeHtml(item)}
-        </label>
-      `).join('');
+      document.getElementById(containerId).innerHTML = activeSoftware.length === 0
+        ? '<div class="note">No active software options. Add software in the Software Catalogue tab first.</div>'
+        : activeSoftware.map(item => {
+          const name = getSoftwareName(item);
+          return `
+            <label>
+              <input type="checkbox" value="${escapeHtml(name)}" ${selected.has(name.toLowerCase()) ? 'checked' : ''} />
+              ${escapeHtml(name)}
+            </label>
+          `;
+        }).join('');
     }
 
     function getSelectedSoftware(containerId) {
       return Array.from(document.querySelectorAll(`#${containerId} input:checked`)).map(input => input.value);
+    }
+
+    function getSoftwareUsageCount(softwareName) {
+      const lowerName = String(softwareName || '').toLowerCase();
+      return resources.filter(resource =>
+        (resource.software || []).some(item => String(item).toLowerCase() === lowerName)
+      ).length;
+    }
+
+    function formatDateTime(value) {
+      if (!value) return '-';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return '-';
+      return date.toLocaleString('en-SG', { dateStyle: 'medium', timeStyle: 'short' });
+    }
+
+    function getFilteredSoftware() {
+      const query = softwareSearchInput.value.trim().toLowerCase();
+      const status = softwareStatusFilter.value;
+
+      return (softwareCatalog || []).filter(software => {
+        const name = getSoftwareName(software);
+        const matchesSearch = !query || [software.id, name].some(value =>
+          String(value || '').toLowerCase().includes(query)
+        );
+        const matchesStatus = status === 'All' || software.status === status;
+        return matchesSearch && matchesStatus;
+      }).sort((a, b) => getSoftwareName(a).localeCompare(getSoftwareName(b)));
+    }
+
+    function renderSoftwareCatalogue() {
+      const filteredSoftware = getFilteredSoftware();
+
+      if (filteredSoftware.length === 0) {
+        softwareTableBody.innerHTML = '<tr><td colspan="5"><div class="empty-panel">No software items match the current search or filters.</div></td></tr>';
+        return;
+      }
+
+      softwareTableBody.innerHTML = filteredSoftware.map(software => {
+        const name = getSoftwareName(software);
+        return `
+          <tr data-software-id="${escapeHtml(software.id)}">
+            <td>
+              <div class="user-identity">
+                <span class="small-avatar">${escapeHtml(getInitial(name))}</span>
+                <span class="identity-text">
+                  <strong>${escapeHtml(name)}</strong>
+                  <span>ID: ${escapeHtml(software.id || '-')}</span>
+                </span>
+              </div>
+            </td>
+            <td><span class="${software.status === 'Retired' ? 'status-pill disabled' : 'status-pill'}">${escapeHtml(software.status || 'Active')}</span></td>
+            <td>${getSoftwareUsageCount(name)} resources</td>
+            <td>${escapeHtml(formatDateTime(software.updatedAt || software.createdAt))}</td>
+            <td>
+              <div class="row-actions">
+                <button class="icon-button" type="button" data-action="edit-software" aria-label="Edit ${escapeHtml(name)}">⋯</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
     }
 
     async function requireAuthenticatedAdmin() {
@@ -1852,6 +2093,97 @@
       resources = result.resources || [];
       softwareCatalog = result.softwareCatalog || [];
       renderResources();
+      renderSoftwareCatalogue();
+    }
+
+    function switchAdminTab(tabName) {
+      const showSoftware = tabName === 'software';
+      resourcesPanel.hidden = showSoftware;
+      softwarePanel.hidden = !showSoftware;
+      resourcesTabBtn.classList.toggle('active', !showSoftware);
+      softwareTabBtn.classList.toggle('active', showSoftware);
+      resourcesTabBtn.setAttribute('aria-selected', String(!showSoftware));
+      softwareTabBtn.setAttribute('aria-selected', String(showSoftware));
+    }
+
+    async function loadSoftwareCatalogue() {
+      const response = await fetch('/api/admin/software', { cache: 'no-store' });
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Unable to load software catalogue.');
+      }
+
+      softwareCatalog = result.softwareCatalog || [];
+      renderSoftwareCatalogue();
+    }
+
+    function openSoftwareModal(softwareId = '') {
+      selectedSoftware = (softwareCatalog || []).find(software => String(software.id) === String(softwareId)) || null;
+      softwareForm.reset();
+
+      document.getElementById('softwareModalTitle').textContent = selectedSoftware ? 'Edit Software' : 'Add Software';
+      document.getElementById('softwareId').value = selectedSoftware?.id || '';
+      document.getElementById('softwareName').value = selectedSoftware?.name || '';
+      document.getElementById('softwareStatus').value = selectedSoftware?.status || 'Active';
+      deleteSoftwareBtn.style.display = selectedSoftware ? 'inline-flex' : 'none';
+
+      softwareModal.classList.add('open');
+      setTimeout(() => document.getElementById('softwareName').focus(), 0);
+    }
+
+    function closeSoftwareModal() {
+      softwareModal.classList.remove('open');
+      selectedSoftware = null;
+    }
+
+    async function saveSoftware(event) {
+      event.preventDefault();
+      clearStatus();
+
+      const softwareId = document.getElementById('softwareId').value;
+      const payload = {
+        name: document.getElementById('softwareName').value.trim(),
+        status: document.getElementById('softwareStatus').value
+      };
+
+      const response = await fetch(
+        softwareId ? `/api/admin/software/${encodeURIComponent(softwareId)}` : '/api/admin/software',
+        {
+          method: softwareId ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Unable to save software.');
+      }
+
+      closeSoftwareModal();
+      showStatus('success', result.message || 'Software saved successfully.');
+      await loadResources();
+    }
+
+    async function deleteSelectedSoftware() {
+      if (!selectedSoftware) return;
+      if (!confirm(`Delete ${selectedSoftware.name}? If it is installed on resources, it will be marked as Retired instead.`)) return;
+
+      const response = await fetch(`/api/admin/software/${encodeURIComponent(selectedSoftware.id)}`, {
+        method: 'DELETE'
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Unable to delete software.');
+      }
+
+      closeSoftwareModal();
+      showStatus('success', result.message || 'Software deleted successfully.');
+      await loadResources();
     }
 
     function openAddResourceModal() {
@@ -2022,6 +2354,43 @@
       deleteSelectedResource().catch(error => showStatus('error', error.message));
     });
 
+    resourcesTabBtn.addEventListener('click', () => switchAdminTab('resources'));
+    softwareTabBtn.addEventListener('click', () => switchAdminTab('software'));
+
+    openAddSoftwareBtn.addEventListener('click', () => openSoftwareModal());
+    closeSoftwareModalBtn.addEventListener('click', closeSoftwareModal);
+    cancelSoftwareBtn.addEventListener('click', closeSoftwareModal);
+    softwareModal.addEventListener('click', event => {
+      if (event.target === softwareModal) closeSoftwareModal();
+    });
+
+    softwareForm.addEventListener('submit', event => {
+      saveSoftware(event).catch(error => showStatus('error', error.message));
+    });
+
+    deleteSoftwareBtn.addEventListener('click', () => {
+      deleteSelectedSoftware().catch(error => showStatus('error', error.message));
+    });
+
+    softwareTableBody.addEventListener('click', event => {
+      const button = event.target.closest('button[data-action="edit-software"]');
+      if (!button) return;
+      const row = button.closest('tr[data-software-id]');
+      if (!row) return;
+      openSoftwareModal(row.dataset.softwareId);
+    });
+
+    [softwareSearchInput, softwareStatusFilter].forEach(input => {
+      input.addEventListener('input', renderSoftwareCatalogue);
+      input.addEventListener('change', renderSoftwareCatalogue);
+    });
+
+    clearSoftwareFiltersBtn.addEventListener('click', () => {
+      softwareSearchInput.value = '';
+      softwareStatusFilter.value = 'All';
+      renderSoftwareCatalogue();
+    });
+
     refreshResourcesBtn.addEventListener('click', () => {
       loadResources().catch(error => showStatus('error', error.message));
     });
@@ -2075,6 +2444,7 @@
       if (event.key !== 'Escape') return;
       closeResourceModal();
       closeEditDrawer();
+      closeSoftwareModal();
     });
 
     async function initialiseResourcesAdminPage() {
