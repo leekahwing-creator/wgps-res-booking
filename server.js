@@ -220,11 +220,17 @@ function decryptText(value) {
 function sanitiseUserForStorage(user) {
   const storedUser = { ...user };
 
-  if (storedUser.name && !storedUser.encryptedName) {
+  // Important: when Admin edits a user's name/email, getUsersFromXML() returns
+  // both the decrypted fields (name/email) and the existing encrypted fields.
+  // If we only encrypt when encryptedName/encryptedEmail are missing, edits are
+  // silently discarded because the old encrypted values are kept. Therefore,
+  // whenever name/email are supplied, treat them as the latest source of truth
+  // and re-encrypt them for storage.
+  if (storedUser.name !== undefined && storedUser.name !== null) {
     storedUser.encryptedName = encryptText(storedUser.name);
   }
 
-  if (storedUser.email && !storedUser.encryptedEmail) {
+  if (storedUser.email !== undefined && storedUser.email !== null) {
     storedUser.encryptedEmail = encryptText(normaliseEmail(storedUser.email));
   }
 
