@@ -1462,7 +1462,8 @@
       <div id="statusMessage" class="status" role="status" aria-live="polite"></div>
 
       <div class="admin-tabs" role="tablist" aria-label="Resources Admin sections">
-        <button id="resourcesTabBtn" class="admin-tab-button active" type="button" role="tab" aria-selected="true" aria-controls="resourcesPanel">Resources</button>
+        <button id="resourcesTabBtn" class="admin-tab-button active" type="button" role="tab" aria-selected="true" aria-controls="resourcesPanel">Device Resources</button>
+        <button id="accessoriesTabBtn" class="admin-tab-button" type="button" role="tab" aria-selected="false" aria-controls="resourcesPanel">Accessories</button>
         <button id="softwareTabBtn" class="admin-tab-button" type="button" role="tab" aria-selected="false" aria-controls="softwarePanel">Software Catalogue</button>
       </div>
 
@@ -1837,6 +1838,7 @@
     const deleteResourceBtn = document.getElementById('deleteResourceBtn');
 
     const resourcesTabBtn = document.getElementById('resourcesTabBtn');
+    const accessoriesTabBtn = document.getElementById('accessoriesTabBtn');
     const softwareTabBtn = document.getElementById('softwareTabBtn');
     const resourcesPanel = document.getElementById('resourcesPanel');
     const softwarePanel = document.getElementById('softwarePanel');
@@ -1858,6 +1860,7 @@
     let selectedSoftware = null;
     let currentPage = 1;
     let rowsPerPage = Number(localStorage.getItem('resourcesAdminRowsPerPage')) || 25;
+    let activeAdminTab = 'resources';
 
     function showStatus(type, message) {
       statusMessage.className = `status ${type}`;
@@ -1892,12 +1895,16 @@
     }
 
     function updateStats() {
-      document.getElementById('totalResourcesStat').textContent = resources.length;
-      document.getElementById('availableCapacityStat').textContent = resources
+      const scopedResources = activeAdminTab === 'accessories'
+        ? resources.filter(resource => (resource.category || 'Device') === 'Accessory')
+        : resources.filter(resource => (resource.category || 'Device') !== 'Accessory');
+
+      document.getElementById('totalResourcesStat').textContent = scopedResources.length;
+      document.getElementById('availableCapacityStat').textContent = scopedResources
         .filter(resource => resource.status === 'Available')
         .reduce((sum, resource) => sum + Number(resource.capacity || 0), 0);
-      document.getElementById('availableResourcesStat').textContent = resources.filter(resource => resource.status === 'Available').length;
-      document.getElementById('inactiveResourcesStat').textContent = resources.filter(resource => ['Maintenance', 'Retired', 'Unavailable'].includes(resource.status)).length;
+      document.getElementById('availableResourcesStat').textContent = scopedResources.filter(resource => resource.status === 'Available').length;
+      document.getElementById('inactiveResourcesStat').textContent = scopedResources.filter(resource => ['Maintenance', 'Retired', 'Unavailable'].includes(resource.status)).length;
     }
 
     function getFilteredResources() {
@@ -1918,12 +1925,15 @@
         ];
 
         const matchesSearch = !query || searchValues.some(value => String(value || '').toLowerCase().includes(query));
+        const resourceCategory = resource.category || 'Device';
+        const activeCategory = activeAdminTab === 'accessories' ? 'Accessory' : 'Device';
+        const matchesActiveTab = resourceCategory === activeCategory;
         const category = categoryFilter.value;
-        const matchesCategory = category === 'All' || (resource.category || 'Device') === category;
+        const matchesCategory = category === 'All' || resourceCategory === category;
         const matchesDeviceType = deviceType === 'All' || resource.deviceType === deviceType;
         const matchesStatus = status === 'All' || resource.status === status;
 
-        return matchesSearch && matchesCategory && matchesDeviceType && matchesStatus;
+        return matchesSearch && matchesActiveTab && matchesCategory && matchesDeviceType && matchesStatus;
       });
     }
 
@@ -1966,7 +1976,7 @@
       updatePaginationControls(filteredResources.length, totalPages, startIndex, pageResources.length);
 
       if (filteredResources.length === 0) {
-        resourceTableBody.innerHTML = '<tr><td colspan="8"><div class="empty-panel">No resources match the current search or filters.</div></td></tr>';
+        resourceTableBody.innerHTML = `<tr><td colspan="8"><div class="empty-panel">${activeAdminTab === 'accessories' ? 'No accessory resources configured yet. Click + Add Accessory to create bookable accessories such as Mouse, Headset or Apple Pencil.' : 'No device resources match the current search or filters.'}</div></td></tr>`;
         return;
       }
 
@@ -2126,38 +2136,65 @@
     }
 
     function updateHeroForActiveTab(tabName) {
-      const showSoftware = tabName === 'software';
       const heroTitle = document.getElementById('adminHeroTitle');
       const heroDescription = document.getElementById('adminHeroDescription');
 
-      if (heroTitle) {
-        heroTitle.textContent = showSoftware ? 'Software Catalogue' : 'Resources Admin';
+      if (tabName === 'software') {
+        if (heroTitle) heroTitle.textContent = 'Software Catalogue';
+        if (heroDescription) heroDescription.textContent = 'Manage specialised software options that can be assigned to bookable ICT resources.';
+        refreshResourcesBtn.textContent = 'Refresh Software';
+        openAddResourceBtn.textContent = '+ Add Software';
+        openAddResourceBtn.setAttribute('aria-label', 'Add specialised software');
+        return;
       }
 
-      if (heroDescription) {
-        heroDescription.textContent = showSoftware
-          ? 'Manage specialised software options that can be assigned to bookable ICT resources.'
-          : 'Manage bookable ICT resources, capacity, availability and installed software.';
+      if (tabName === 'accessories') {
+        if (heroTitle) heroTitle.textContent = 'Accessories Admin';
+        if (heroDescription) heroDescription.textContent = 'Manage bookable accessory resources such as mouse, headset and Apple Pencil.';
+        refreshResourcesBtn.textContent = 'Refresh Accessories';
+        openAddResourceBtn.textContent = '+ Add Accessory';
+        openAddResourceBtn.setAttribute('aria-label', 'Add accessory resource');
+        return;
       }
 
-      refreshResourcesBtn.textContent = showSoftware ? 'Refresh Software' : 'Refresh Resources';
-      openAddResourceBtn.textContent = showSoftware ? '+ Add Software' : '+ Add Resource';
-      openAddResourceBtn.setAttribute('aria-label', showSoftware ? 'Add specialised software' : 'Add ICT resource');
+      if (heroTitle) heroTitle.textContent = 'Resources Admin';
+      if (heroDescription) heroDescription.textContent = 'Manage bookable ICT device resources, capacity, availability and installed software.';
+      refreshResourcesBtn.textContent = 'Refresh Resources';
+      openAddResourceBtn.textContent = '+ Add Resource';
+      openAddResourceBtn.setAttribute('aria-label', 'Add ICT resource');
     }
 
     function switchAdminTab(tabName) {
+      activeAdminTab = tabName;
       const showSoftware = tabName === 'software';
       resourcesPanel.hidden = showSoftware;
       softwarePanel.hidden = !showSoftware;
-      resourcesTabBtn.classList.toggle('active', !showSoftware);
-      softwareTabBtn.classList.toggle('active', showSoftware);
-      resourcesTabBtn.setAttribute('aria-selected', String(!showSoftware));
-      softwareTabBtn.setAttribute('aria-selected', String(showSoftware));
+
+      resourcesTabBtn.classList.toggle('active', tabName === 'resources');
+      accessoriesTabBtn.classList.toggle('active', tabName === 'accessories');
+      softwareTabBtn.classList.toggle('active', tabName === 'software');
+      resourcesTabBtn.setAttribute('aria-selected', String(tabName === 'resources'));
+      accessoriesTabBtn.setAttribute('aria-selected', String(tabName === 'accessories'));
+      softwareTabBtn.setAttribute('aria-selected', String(tabName === 'software'));
+
+      if (tabName === 'resources') {
+        categoryFilter.value = 'Device';
+        categoryFilter.disabled = true;
+      } else if (tabName === 'accessories') {
+        categoryFilter.value = 'Accessory';
+        categoryFilter.disabled = true;
+      } else {
+        categoryFilter.disabled = false;
+      }
+
+      resetPagination();
       updateHeroForActiveTab(tabName);
+      renderResources();
+      renderSoftwareCatalogue();
     }
 
     function getActiveAdminTab() {
-      return softwareTabBtn.classList.contains('active') ? 'software' : 'resources';
+      return activeAdminTab;
     }
 
     async function loadSoftwareCatalogue() {
@@ -2240,14 +2277,14 @@
       await loadResources();
     }
 
-    function openAddResourceModal() {
+    function openAddResourceModal(category = 'Device') {
       selectedResource = null;
       resourceForm.reset();
       document.getElementById('resourceId').value = '';
       document.getElementById('resourceName').value = '';
-      document.getElementById('resourceCategory').value = 'Device';
-        document.getElementById('deviceType').value = 'iPad';
-      document.getElementById('resourceType').value = 'Cart';
+      document.getElementById('resourceCategory').value = category;
+      document.getElementById('deviceType').value = category === 'Accessory' ? 'Mouse' : 'iPad';
+      document.getElementById('resourceType').value = category === 'Accessory' ? 'Set' : 'Cart';
       document.getElementById('capacity').value = 1;
       document.getElementById('resourceStatus').value = 'Available';
       document.getElementById('resourceLocation').value = '';
@@ -2392,7 +2429,7 @@
         openSoftwareModal();
         return;
       }
-      openAddResourceModal();
+      openAddResourceModal(getActiveAdminTab() === 'accessories' ? 'Accessory' : 'Device');
     });
     closeResourceModalBtn.addEventListener('click', closeResourceModal);
     cancelResourceBtn.addEventListener('click', closeResourceModal);
@@ -2419,6 +2456,7 @@
     });
 
     resourcesTabBtn.addEventListener('click', () => switchAdminTab('resources'));
+    accessoriesTabBtn.addEventListener('click', () => switchAdminTab('accessories'));
     softwareTabBtn.addEventListener('click', () => switchAdminTab('software'));
 
     if (openAddSoftwareBtn) {
@@ -2523,6 +2561,7 @@
       resourceRowsPerPageSelect.value = String(rowsPerPage);
       updateHeroForActiveTab('resources');
 
+      switchAdminTab('resources');
       await loadResources().catch(error => {
         showStatus('error', error.message);
         resourceTableBody.innerHTML = '<tr><td colspan="8"><div class="empty-panel">Unable to load resources.</div></td></tr>';

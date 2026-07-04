@@ -381,9 +381,11 @@ function formatSoftwareForResponse(software) {
   };
 }
 
-function readResourcesDocument() {
-  ensureLiveResourcesFile();
-  const xml = fs.readFileSync(liveResourcesFile, "utf8");
+function readResourcesDocument(filePath = liveResourcesFile) {
+  if (filePath === liveResourcesFile) {
+    ensureLiveResourcesFile();
+  }
+  const xml = fs.readFileSync(filePath, "utf8");
   const parsed = new XMLParser({ ignoreAttributes: false }).parse(xml);
 
   if (parsed.resourcesData) {
@@ -527,7 +529,37 @@ function softwareIsUsedByResources(softwareName) {
 
 function initialiseResourceStorage() {
   ensureLiveResourcesFile();
-  const document = readResourcesDocument();
+  const document = readResourcesDocument(liveResourcesFile);
+
+  // Persistent disks keep an existing resources.xml across deployments. When the
+  // bundled resources.xml gains new seed records such as accessory resources, merge
+  // only missing records by ID into the live file without overwriting Admin edits.
+  if (fs.existsSync(sourceResourcesFile) && path.resolve(sourceResourcesFile) !== path.resolve(liveResourcesFile)) {
+    try {
+      const sourceDocument = readResourcesDocument(sourceResourcesFile);
+      const liveResourceIds = new Set(document.resources.map(resource => String(resource.id || "").toLowerCase()));
+      const liveSoftwareKeys = new Set(toArray(document.softwareCatalog).map(item => String(item.name || item.id || "").toLowerCase()));
+
+      sourceDocument.resources.forEach(resource => {
+        const id = String(resource.id || "").toLowerCase();
+        if (id && !liveResourceIds.has(id)) {
+          document.resources.push(resource);
+          liveResourceIds.add(id);
+        }
+      });
+
+      toArray(sourceDocument.softwareCatalog).forEach(software => {
+        const key = String(software.name || software.id || "").toLowerCase();
+        if (key && !liveSoftwareKeys.has(key)) {
+          document.softwareCatalog.push(software);
+          liveSoftwareKeys.add(key);
+        }
+      });
+    } catch (error) {
+      console.warn("Unable to merge bundled resource seeds into persistent resources.xml:", error.message);
+    }
+  }
+
   saveResourcesAndSoftwareToXML(document.resources, document.softwareCatalog);
   return document.resources.length;
 }
