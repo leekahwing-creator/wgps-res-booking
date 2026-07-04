@@ -1793,21 +1793,24 @@
       </aside>
     </div>
 
-    <div id="softwareModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="softwareModalTitle">
-      <section class="modal">
-        <div class="modal-header">
+    <div id="softwareModal" class="drawer-backdrop" role="dialog" aria-modal="true" aria-labelledby="softwareModalTitle">
+      <aside class="drawer">
+        <div class="drawer-header">
           <div>
             <h2 id="softwareModalTitle">Add Software</h2>
             <p>Manage specialised software that can be assigned to resources.</p>
           </div>
-          <button id="closeSoftwareModalBtn" class="close-button" type="button" aria-label="Close software dialog">✕</button>
+          <button id="closeSoftwareModalBtn" class="close-button" type="button" aria-label="Close software panel">✕</button>
         </div>
-        <form id="softwareForm" class="modal-body">
+        <form id="softwareForm" class="drawer-body">
+          <div id="drawerSoftwareSummary" class="drawer-title"></div>
           <input id="softwareId" type="hidden" />
+
           <div class="field">
             <label for="softwareName">Software name</label>
             <input id="softwareName" type="text" required />
           </div>
+
           <div class="field">
             <label for="softwareStatus">Status</label>
             <select id="softwareStatus">
@@ -1815,14 +1818,34 @@
               <option value="Retired">Retired</option>
             </select>
           </div>
+
+          <div class="two-col">
+            <div class="field">
+              <label>Installed on</label>
+              <input id="softwareUsageCount" type="text" readonly />
+            </div>
+            <div class="field">
+              <label>Last updated</label>
+              <input id="softwareLastUpdated" type="text" readonly />
+            </div>
+          </div>
+
           <p class="note">Retired software remains visible in historical resource records but will not appear as a selectable option when assigning software to resources.</p>
-          <div class="modal-actions">
-            <button id="deleteSoftwareBtn" class="btn btn-danger" type="button">Delete / Retire Software</button>
+
+          <div class="danger-zone" id="softwareDangerZone">
+            <strong>Software lifecycle actions</strong>
+            <span class="note">Use delete only when the software should no longer appear as a selectable item. If it is installed on resources, the backend will retire it instead.</span>
+            <div class="drawer-actions" style="justify-content:flex-start;">
+              <button id="deleteSoftwareBtn" class="btn btn-danger" type="button">Delete / Retire Software</button>
+            </div>
+          </div>
+
+          <div class="drawer-actions">
             <button id="cancelSoftwareBtn" class="btn btn-secondary" type="button">Cancel</button>
-            <button class="btn btn-primary" type="submit">Save Software</button>
+            <button class="btn btn-primary" type="submit">Save Changes</button>
           </div>
         </form>
-      </section>
+      </aside>
     </div>
 
   </main>
@@ -2254,11 +2277,26 @@
       selectedSoftware = (softwareCatalog || []).find(software => String(software.id) === String(softwareId)) || null;
       softwareForm.reset();
 
+      const softwareName = selectedSoftware?.name || '';
+      const usageCount = selectedSoftware ? getSoftwareUsageCount(softwareName) : 0;
+      const lastUpdated = selectedSoftware ? formatDateTime(selectedSoftware.updatedAt || selectedSoftware.createdAt) : '-';
+
       document.getElementById('softwareModalTitle').textContent = selectedSoftware ? 'Edit Software' : 'Add Software';
       document.getElementById('softwareId').value = selectedSoftware?.id || '';
-      document.getElementById('softwareName').value = selectedSoftware?.name || '';
+      document.getElementById('softwareName').value = softwareName;
       document.getElementById('softwareStatus').value = selectedSoftware?.status || 'Active';
+      document.getElementById('softwareUsageCount').value = selectedSoftware ? `${usageCount} resource${usageCount === 1 ? '' : 's'}` : '-';
+      document.getElementById('softwareLastUpdated').value = lastUpdated;
+      document.getElementById('drawerSoftwareSummary').innerHTML = `
+        <span class="small-avatar">${escapeHtml(getInitial(softwareName || 'Software'))}</span>
+        <span class="drawer-title-text">
+          <strong>${escapeHtml(softwareName || 'New Software')}</strong>
+          <span class="note">${selectedSoftware ? `ID: ${escapeHtml(selectedSoftware.id || '-')}` : 'Create a new software catalogue item'}</span>
+        </span>
+      `;
+
       deleteSoftwareBtn.style.display = selectedSoftware ? 'inline-flex' : 'none';
+      document.getElementById('softwareDangerZone').style.display = selectedSoftware ? 'grid' : 'none';
 
       softwareModal.classList.add('open');
       setTimeout(() => document.getElementById('softwareName').focus(), 0);
