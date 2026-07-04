@@ -16,6 +16,32 @@
       return false;
     }
 
+    function ensureImportNavigationLink() {
+      if (!isAdmin) return;
+
+      const moreMenu = nav.querySelector('.more-menu');
+      if (moreMenu && !moreMenu.querySelector('[data-page="import"]')) {
+        const importLink = document.createElement('a');
+        importLink.href = 'import-bookings.html';
+        importLink.className = 'nav-link';
+        importLink.dataset.page = 'import';
+        importLink.dataset.roleLink = 'admin';
+        importLink.innerHTML = '<span class="nav-icon">⇪</span>Booking Import';
+        moreMenu.appendChild(importLink);
+      }
+
+      const mobileLinks = nav.querySelector('.mobile-drawer-links');
+      if (mobileLinks && !mobileLinks.querySelector('[data-page="import"]')) {
+        const importLink = document.createElement('a');
+        importLink.href = 'import-bookings.html';
+        importLink.className = 'nav-link';
+        importLink.dataset.page = 'import';
+        importLink.dataset.mobileRoleLink = 'admin';
+        importLink.innerHTML = '<span class="nav-icon">⇪</span>Booking Import';
+        mobileLinks.appendChild(importLink);
+      }
+    }
+
     function setActiveState() {
       nav.querySelectorAll('[data-page]').forEach(link => {
         link.classList.toggle('active', link.dataset.page === activePage);
@@ -85,6 +111,7 @@
       }
     }
 
+    ensureImportNavigationLink();
     applyRoleVisibility();
     setActiveState();
     updateUserDisplay();

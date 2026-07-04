@@ -1290,6 +1290,288 @@ function validateAdditionalResourceRequests(bookingRequest) {
   return errors;
 }
 
+
+
+/* ---------------- BOOKING IMPORT FOUNDATION ---------------- */
+
+function normaliseImportValue(value) {
+  if (value === undefined || value === null) return "";
+  return String(value).trim();
+}
+
+function getImportValue(row, keys) {
+  for (const key of keys) {
+    if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== "") {
+      return row[key];
+    }
+  }
+
+  const lowerMap = new Map(Object.keys(row || {}).map(key => [key.toLowerCase().trim(), key]));
+  for (const key of keys) {
+    const actualKey = lowerMap.get(String(key).toLowerCase().trim());
+    if (actualKey && String(row[actualKey]).trim() !== "") return row[actualKey];
+  }
+
+  return "";
+}
+
+function normaliseImportDate(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+
+  const text = normaliseImportValue(value);
+  if (!text) return "";
+
+  const isoMatch = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (isoMatch) {
+    return `${isoMatch[1]}-${String(isoMatch[2]).padStart(2, "0")}-${String(isoMatch[3]).padStart(2, "0")}`;
+  }
+
+  const sgMatch = text.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+  if (sgMatch) {
+    return `${sgMatch[3]}-${String(sgMatch[2]).padStart(2, "0")}-${String(sgMatch[1]).padStart(2, "0")}`;
+  }
+
+  return text;
+}
+
+function normaliseImportTime(value) {
+  const text = normaliseImportValue(value);
+  if (!text) return "";
+  const match = text.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?$/i);
+  if (!match) return text;
+
+  let hour = Number(match[1]);
+  const minute = match[2];
+  const suffix = match[3]?.toUpperCase();
+
+  if (suffix === "PM" && hour < 12) hour += 12;
+  if (suffix === "AM" && hour === 12) hour = 0;
+
+  return `${String(hour).padStart(2, "0")}:${minute}`;
+}
+
+function getAvailableAccessoryTypes() {
+  return Array.from(new Set(
+    readResourcesFromXML()
+      .map(formatResourceForResponse)
+      .filter(resource => resource.category === "Accessory")
+      .filter(resource => resource.status === "Available")
+      .map(resource => resource.deviceType)
+      .filter(Boolean)
+  ));
+}
+
+function mapLegacyBookingRow(row, index, users) {
+  const errors = [];
+  const accessoryTypes = getAvailableAccessoryTypes();
+
+  const requesterEmail = normaliseEmail(getImportValue(row, [
+    "Requester Email", "Email", "User Email", "Teacher Email", "requesterEmail", "email"
+  ]));
+  const requesterName = normaliseImportValue(getImportValue(row, [
+    "Requester Name", "Name", "Teacher", "User", "requesterName", "name"
+  ]));
+
+  const matchedUser = requesterEmail
+    ? users.find(user => normaliseEmail(user.email) === requesterEmail)
+    : users.find(user => String(user.name || "").toLowerCase() === requesterName.toLowerCase());
+
+  const bookingDate = normaliseImportDate(getImportValue(row, [
+    "Booking Date", "Date", "bookingDate", "BookingDate"
+  ]));
+  const startTime = normaliseImportTime(getImportValue(row, [
+    "Start Time", "Start", "startTime", "StartTime"
+  ]));
+  const endTime = normaliseImportTime(getImportValue(row, [
+    "End Time", "End", "endTime", "EndTime"
+  ]));
+  const location = normaliseImportValue(getImportValue(row, [
+    "Deployment Location", "Location", "Venue", "location"
+  ]));
+  const deviceType = normaliseImportValue(getImportValue(row, [
+    "Device Type", "Resource Type", "Main Resource", "deviceType"
+  ]));
+  const devicesRequired = Number(getImportValue(row, [
+    "Number of Devices", "Devices Required", "Quantity", "Qty", "devicesRequired"
+  ]));
+  const softwareRequirement = normaliseImportValue(getImportValue(row, [
+    "Software Requirement", "Software", "softwareRequirement"
+  ])) || "None";
+
+  const additionalResources = [];
+
+  accessoryTypes.forEach(type => {
+    const quantity = Number(getImportValue(row, [
+      `${type} Quantity`, `${type} Qty`, `${type}`, `${type.toLowerCase()}Quantity`, `${type.toLowerCase()}Qty`
+    ]));
+    if (Number.isInteger(quantity) && quantity > 0) {
+      additionalResources.push({ type, quantity });
+    }
+  });
+
+  const legacyResourceType = normaliseImportValue(getImportValue(row, [
+    "Accessory Type", "Additional Resource Type", "Additional Resource", "Peripheral", "Accessory"
+  ]));
+  const legacyResourceQuantity = Number(getImportValue(row, [
+    "Accessory Quantity", "Additional Resource Quantity", "Additional Resource Qty", "Peripheral Quantity"
+  ]));
+
+  if (legacyResourceType && Number.isInteger(legacyResourceQuantity) && legacyResourceQuantity > 0) {
+    additionalResources.push({ type: legacyResourceType, quantity: legacyResourceQuantity });
+  }
+
+  if (!bookingDate) errors.push("Booking date is required.");
+  if (!startTime) errors.push("Start time is required.");
+  if (!endTime) errors.push("End time is required.");
+  if (!location) errors.push("Deployment location is required.");
+  if (!deviceType) errors.push("Device type is required.");
+  if (!Number.isInteger(devicesRequired) || devicesRequired <= 0) errors.push("Number of devices must be a positive whole number.");
+
+  const mappedBooking = {
+    userId: matchedUser?.userId || "",
+    importedRequesterName: requesterName || matchedUser?.name || "",
+    importedRequesterEmail: requesterEmail || matchedUser?.email || "",
+    bookingDate,
+    startTime,
+    endTime,
+    location,
+    deviceType,
+    devicesRequired,
+    softwareRequirement,
+    bookingMode: "one-time",
+    additionalResources: {
+      resource: normaliseAdditionalResourceRequests(additionalResources)
+    },
+    importSource: "Legacy Platform",
+    importRowNumber: index + 1
+  };
+
+  const additionalErrors = validateAdditionalResourceRequests(mappedBooking);
+  additionalErrors.forEach(error => errors.push(error));
+
+  return {
+    rowNumber: index + 1,
+    valid: errors.length === 0,
+    errors,
+    mappedBooking
+  };
+}
+
+function previewLegacyBookingRows(rows) {
+  const users = getUsersFromXML();
+  const results = toArray(rows).map((row, index) => mapLegacyBookingRow(row || {}, index, users));
+  return {
+    totalRows: results.length,
+    validRows: results.filter(row => row.valid),
+    invalidRows: results.filter(row => !row.valid)
+  };
+}
+
+function saveImportedBooking(mappedBooking, importerUser) {
+  const bookingRequest = removePersonalDataFromBooking({
+    ...mappedBooking,
+    userId: mappedBooking.userId || importerUser.userId,
+    importedByUserId: importerUser.userId,
+    importedByName: importerUser.name,
+    importedAt: new Date().toISOString(),
+    status: "Pending Allocation"
+  });
+
+  let allocationResult = allocateResources(bookingRequest);
+  let reallocationUpdates = [];
+
+  if (allocationResult.status !== "Confirmed") {
+    const conflictResolution = resolveConflict(bookingRequest);
+
+    if (conflictResolution.success) {
+      allocationResult = {
+        status: conflictResolution.status,
+        allocation: conflictResolution.allocation
+      };
+      reallocationUpdates = conflictResolution.existingBookingUpdates;
+    }
+  }
+
+  const bookingsFile = ensureMonthlyBookingsFile(bookingRequest.bookingDate);
+  const bookings = readBookingsFromFile(bookingsFile);
+
+  reallocationUpdates.forEach(update => {
+    const bookingToUpdate = bookings.find(booking => String(booking["@_id"]) === String(update.bookingId));
+    if (bookingToUpdate) {
+      bookingToUpdate.status = update.status;
+      bookingToUpdate.allocation = update.allocation;
+    }
+  });
+
+  const newBooking = {
+    "@_id": bookings.length + 1,
+    ...bookingRequest,
+    status: allocationResult.status,
+    allocation: allocationResult.allocation,
+    deploymentStatus: "Pending Deployment",
+    claimedByUserId: "",
+    claimedByName: "",
+    claimedAt: "",
+    deployedByUserId: "",
+    deployedByName: "",
+    deployedAt: "",
+    deploymentRemarks: ""
+  };
+
+  bookings.push(newBooking);
+  writeBookingsToFile(bookingsFile, bookings);
+  return newBooking;
+}
+
+app.post("/api/admin/import/bookings/preview", requireLogin, requireAdmin, (req, res) => {
+  try {
+    const rows = req.body.rows;
+    if (!Array.isArray(rows)) {
+      return res.status(400).json({ success: false, message: "rows must be an array of booking records." });
+    }
+
+    const preview = previewLegacyBookingRows(rows);
+    res.json({ success: true, ...preview });
+  } catch (error) {
+    console.error("Booking import preview error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.post("/api/admin/import/bookings/commit", requireLogin, requireAdmin, (req, res) => {
+  try {
+    const rows = req.body.rows;
+    if (!Array.isArray(rows)) {
+      return res.status(400).json({ success: false, message: "rows must be an array of booking records." });
+    }
+
+    const preview = previewLegacyBookingRows(rows);
+    if (preview.invalidRows.length > 0 && !req.body.allowPartialImport) {
+      return res.status(400).json({
+        success: false,
+        message: "Some rows are invalid. Fix them or set allowPartialImport to true.",
+        ...preview
+      });
+    }
+
+    const importedBookings = preview.validRows.map(row => saveImportedBooking(row.mappedBooking, req.session.user));
+
+    res.json({
+      success: true,
+      message: `${importedBookings.length} booking record(s) imported.`,
+      importedCount: importedBookings.length,
+      skippedCount: preview.invalidRows.length,
+      importedBookings,
+      invalidRows: preview.invalidRows
+    });
+  } catch (error) {
+    console.error("Booking import commit error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 /* ---------------- BOOKING ROUTES ---------------- */
 
 app.post("/api/bookings", requireLogin, (req, res) => {

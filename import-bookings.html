@@ -1,0 +1,1379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Booking Import | ICT Resource Booking Portal</title>
+  <style>
+
+    :root {
+      --primary: #0f766e;
+      --primary-dark: #115e59;
+      --primary-light: #ccfbf1;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: #dbe4ee;
+      --danger: #dc2626;
+      --shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+      --radius: 22px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: linear-gradient(135deg, #ecfeff 0%, #f8fafc 48%, #eef2ff 100%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .portal-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 22px;
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid rgba(226, 232, 240, 0.95);
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+    }
+
+    .portal-brand {
+      font-weight: 900;
+      color: var(--primary-dark);
+    }
+
+    .portal-links {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .portal-links a {
+      text-decoration: none;
+      color: #334155;
+      font-weight: 800;
+      padding: 9px 12px;
+      border-radius: 999px;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .portal-links a.active,
+    .portal-links a:hover {
+      background: var(--primary);
+      color: #ffffff;
+    }
+
+    @media (max-width: 560px) {
+      .portal-nav {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .portal-links {
+        width: 100%;
+      }
+
+      .portal-links a {
+        flex: 1;
+        text-align: center;
+      }
+    }
+    
+    .page {
+      width: min(1120px, 100%);
+      margin: 0 auto;
+      padding: 32px 18px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: 28px;
+      align-items: stretch;
+    }
+
+    .intro {
+      padding: 28px;
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.72);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.9);
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .badge {
+      width: fit-content;
+      padding: 8px 12px;
+      background: var(--primary-light);
+      color: var(--primary-dark);
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 0.86rem;
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2rem, 4vw, 3.35rem);
+      line-height: 1.05;
+      letter-spacing: -0.04em;
+    }
+
+    .subtitle {
+      margin: 18px 0 0;
+      color: var(--muted);
+      font-size: 1.05rem;
+      line-height: 1.65;
+      max-width: 58ch;
+    }
+
+    .quick-info {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 28px;
+    }
+
+    .info-card {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px;
+    }
+
+    .info-card strong {
+      display: block;
+      font-size: 1.2rem;
+      color: var(--primary-dark);
+      margin-bottom: 4px;
+    }
+
+    .info-card span {
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+
+    .booking-card {
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      border: 1px solid rgba(226, 232, 240, 0.95);
+      overflow: hidden;
+    }
+
+    .booking-header {
+      padding: 22px 24px;
+      background: linear-gradient(135deg, var(--primary), #164e63);
+      color: #ffffff;
+    }
+
+    .booking-header h2 {
+      margin: 0 0 6px;
+      font-size: 1.35rem;
+    }
+
+    .booking-header p {
+      margin: 0;
+      opacity: 0.88;
+      font-size: 0.94rem;
+    }
+
+    form {
+      padding: 24px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .field.full {
+      grid-column: 1 / -1;
+    }
+
+    label {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #1e293b;
+    }
+
+    input,
+    select {
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: textfield;
+      width: 100%;
+      min-height: 48px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 11px 13px;
+      font-size: 1rem;
+      background: #ffffff;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    input[type="number"]::-webkit-outer-spin-button,
+    input[type="number"]::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    input:focus,
+    select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.14);
+    }
+
+    .helper {
+      color: var(--muted);
+      font-size: 0.82rem;
+      line-height: 1.35;
+    }
+
+    .requester-card {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px 16px;
+      background: #f8fafc;
+    }
+
+    .requester-label {
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-weight: 800;
+    }
+
+    #requesterName {
+      color: var(--primary-dark);
+      font-size: 1.05rem;
+      line-height: 1.3;
+    }
+
+    #requesterEmail {
+      display: block;
+      margin-top: 2px;
+    }
+
+
+    .device-control {
+      display: grid;
+      grid-template-columns: 48px 1fr 48px;
+      gap: 10px;
+      align-items: center;
+    }
+
+    #logoutBtn {
+      border: none;
+      background: #dc2626;
+      color: white;
+      font-weight: 700;
+      padding: 9px 14px;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+
+    #logoutBtn:hover {
+      background: #b91c1c;
+    }
+
+    #currentUserDisplay {
+      font-weight: 700;
+      color: #334155;
+      padding: 9px 12px;
+    }
+    
+    #devicesRequired,
+    #recurrenceCount {
+      text-align: center;
+    }
+
+    .segmented-control {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: #f8fafc;
+      padding: 4px;
+      min-height: 48px;
+      gap: 4px;
+    }
+
+    .segment {
+      border: 0;
+      border-radius: 11px;
+      background: transparent;
+      color: #475569;
+      font-weight: 800;
+      font-size: 0.94rem;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+    }
+
+    .segment.active {
+      background: var(--primary);
+      color: #ffffff;
+      box-shadow: 0 8px 18px rgba(15, 118, 110, 0.22);
+    }
+
+    .permission-note {
+      color: var(--muted);
+      font-size: 0.82rem;
+      line-height: 1.35;
+      margin-top: 6px;
+    }
+
+    .segmented-control.one-option {
+      grid-template-columns: 1fr;
+    }
+
+    .recurrence-section {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 16px;
+      background: #f8fafc;
+    }
+
+    .recurrence-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .location-time-row {
+      display: grid;
+      grid-template-columns: 1.3fr 0.85fr 0.85fr;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .time-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .device-config-row {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr 1.25fr;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .toggle-switch {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      user-select: none;
+      min-height: 48px;
+    }
+
+    .toggle-switch input {
+      display: none;
+    }
+
+    .toggle-slider {
+      position: relative;
+      width: 52px;
+      height: 28px;
+      background: #cbd5e1;
+      border-radius: 999px;
+      transition: background 0.25s ease;
+      flex: 0 0 auto;
+    }
+
+    .toggle-slider::before {
+      content: "";
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 22px;
+      height: 22px;
+      background: #ffffff;
+      border-radius: 50%;
+      transition: transform 0.25s ease;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+    }
+
+    .toggle-switch input:checked + .toggle-slider {
+      background: var(--primary);
+    }
+
+    .toggle-switch input:checked + .toggle-slider::before {
+      transform: translateX(24px);
+    }
+
+    .toggle-label {
+      font-weight: 700;
+      color: #1e293b;
+    }
+
+    .field.compact {
+      gap: 8px;
+    }
+
+    .recurrence-preview {
+      margin-top: 16px;
+      border-radius: 14px;
+      padding: 14px;
+      background: #ffffff;
+      border: 1px dashed #cbd5e1;
+      color: #334155;
+      font-size: 0.92rem;
+      line-height: 1.55;
+    }
+
+    .recurrence-preview strong {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--primary-dark);
+    }
+
+    .recurrence-preview ul {
+      margin: 8px 0 0;
+      padding-left: 20px;
+    }
+
+    @media (max-width: 860px) {
+      .location-time-row,
+      .device-config-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .recurrence-grid,
+      .time-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .device-control button {
+      border: 0;
+      border-radius: 14px;
+      background: var(--primary-light);
+      color: var(--primary-dark);
+      font-size: 1.3rem;
+      font-weight: 800;
+      min-height: 48px;
+      cursor: pointer;
+    }
+
+    .device-control button:hover {
+      background: #99f6e4;
+    }
+
+
+    .additional-resources-section {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 16px;
+      background: #f8fafc;
+      display: grid;
+      gap: 12px;
+    }
+
+    .additional-resource-row {
+      display: grid;
+      grid-template-columns: 1fr 160px;
+      gap: 12px;
+      align-items: center;
+      padding: 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      background: #ffffff;
+    }
+
+    .additional-resource-row label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .additional-resource-row input[type="checkbox"] {
+      width: 18px;
+      min-height: 18px;
+      height: 18px;
+      accent-color: var(--primary);
+    }
+
+    .additional-resource-row input[type="number"] {
+      text-align: center;
+    }
+
+    .summary {
+      margin-top: 22px;
+      border-radius: 18px;
+      padding: 16px;
+      background: #f8fafc;
+      border: 1px dashed #cbd5e1;
+      color: #334155;
+      font-size: 0.94rem;
+      line-height: 1.5;
+    }
+
+    .actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    .btn {
+      border: 0;
+      min-height: 50px;
+      padding: 0 18px;
+      border-radius: 16px;
+      font-weight: 800;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+    }
+
+    .btn-primary {
+      flex: 1;
+      background: var(--primary);
+      color: #ffffff;
+      box-shadow: 0 12px 26px rgba(15, 118, 110, 0.22);
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-dark);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: #e2e8f0;
+      color: #334155;
+    }
+
+    .status {
+      display: none;
+      margin-top: 16px;
+      padding: 13px 14px;
+      border-radius: 14px;
+      font-weight: 700;
+      font-size: 0.92rem;
+    }
+
+    .status.success {
+      display: block;
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .status.warning {
+      display: block;
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .status.error {
+      display: block;
+      background: #fee2e2;
+      color: var(--danger);
+    }
+
+    .admin-note {
+      margin-top: 20px;
+      color: var(--muted);
+      font-size: 0.85rem;
+      line-height: 1.45;
+    }
+
+    @media (max-width: 860px) {
+      .hero {
+        grid-template-columns: 1fr;
+      }
+
+      .quick-info {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .page {
+        padding: 18px 12px;
+      }
+
+      .intro,
+      form {
+        padding: 20px;
+      }
+
+      .booking-header {
+        padding: 20px;
+      }
+
+      .form-grid {
+        grid-template-columns: 1fr;
+        gap: 15px;
+      }
+
+      .actions {
+        flex-direction: column-reverse;
+      }
+
+      .btn {
+        width: 100%;
+      }
+    }
+  
+
+    /* Responsive Portal Navigation v3 */
+    .portal-nav-v2 {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 18px;
+      padding: 14px 18px;
+      overflow: visible;
+      position: relative;
+    }
+
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 260px;
+      color: var(--primary-dark);
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .brand-icon, .user-avatar {
+      width: 42px;
+      height: 42px;
+      border-radius: 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--primary-light);
+      color: var(--primary-dark);
+      font-weight: 900;
+      flex: 0 0 auto;
+    }
+
+    .brand-text {
+      display: grid;
+      gap: 2px;
+    }
+
+    .brand-title {
+      font-size: 1rem;
+      font-weight: 900;
+      line-height: 1.15;
+    }
+
+    .brand-subtitle {
+      color: var(--muted);
+      font-size: 0.76rem;
+      font-weight: 700;
+    }
+
+    .nav-main {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-width: 0;
+      white-space: nowrap;
+    }
+
+    .nav-link,
+    .more-button,
+    .mobile-menu-button,
+    .mobile-close-button {
+      border: 0;
+      text-decoration: none;
+      color: #334155;
+      font-weight: 900;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: transparent;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      line-height: 1;
+      white-space: nowrap;
+      font-size: 0.92rem;
+    }
+
+    .nav-link.active,
+    .nav-link:hover,
+    .more-button:hover {
+      background: var(--primary);
+      color: #ffffff;
+    }
+
+    .nav-icon {
+      font-size: 0.95rem;
+      line-height: 1;
+    }
+
+    .nav-user-zone {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding-left: 16px;
+      border-left: 1px solid var(--border);
+      min-width: 0;
+    }
+
+    .user-avatar {
+      width: 38px;
+      height: 38px;
+      border-radius: 999px;
+      background: var(--primary);
+      color: #ffffff;
+    }
+
+    .user-meta {
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+      max-width: 170px;
+    }
+
+    .user-name {
+      font-weight: 900;
+      color: #0f172a;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .user-email {
+      color: var(--muted);
+      font-size: 0.75rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .logout-button {
+      border: 1px solid #fecaca !important;
+      background: #ffffff !important;
+      color: var(--danger) !important;
+      font-weight: 900 !important;
+      padding: 10px 14px !important;
+      border-radius: 14px !important;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .logout-button:hover {
+      background: #fee2e2 !important;
+    }
+
+    .more-dropdown {
+      display: none;
+      position: relative;
+    }
+
+    .more-menu {
+      display: none;
+      position: absolute;
+      top: calc(100% + 10px);
+      right: 0;
+      min-width: 230px;
+      padding: 8px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: #ffffff;
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.14);
+      z-index: 50;
+    }
+
+    .more-dropdown.open .more-menu {
+      display: grid;
+      gap: 4px;
+    }
+
+    .more-menu .nav-link {
+      width: 100%;
+      justify-content: flex-start;
+    }
+
+    .mobile-menu-button,
+    .mobile-close-button,
+    .mobile-drawer {
+      display: none;
+    }
+
+    .nav-hidden-legacy { display: none !important; }
+
+    @media (max-width: 1280px) {
+      .portal-nav-v2 {
+        grid-template-columns: auto minmax(0, 1fr) auto;
+      }
+
+      .nav-brand {
+        min-width: 230px;
+      }
+
+      .desktop-extra {
+        display: none !important;
+      }
+
+      .more-dropdown.has-items {
+        display: inline-flex;
+      }
+
+      .user-meta {
+        max-width: 120px;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .portal-nav-v2 {
+        grid-template-columns: auto 1fr auto;
+      }
+
+      .nav-main {
+        display: none;
+      }
+
+      .nav-brand {
+        justify-self: center;
+        min-width: 0;
+      }
+
+      .brand-subtitle {
+        display: none;
+      }
+
+      .nav-user-zone {
+        border-left: 0;
+        padding-left: 0;
+      }
+
+      .user-meta {
+        display: none;
+      }
+
+      .logout-button {
+        padding: 9px 10px !important;
+      }
+
+      .logout-button span {
+        display: none;
+      }
+
+      .mobile-menu-button {
+        display: inline-flex;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+      }
+
+      .mobile-drawer {
+        display: none;
+        position: absolute;
+        top: calc(100% + 10px);
+        left: 0;
+        right: 0;
+        padding: 16px;
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        background: #ffffff;
+        box-shadow: 0 22px 45px rgba(15, 23, 42, 0.14);
+        z-index: 60;
+      }
+
+      .portal-nav-v2.mobile-open .mobile-drawer {
+        display: grid;
+        gap: 12px;
+      }
+
+      .mobile-drawer-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .mobile-user-summary {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+      }
+
+      .mobile-drawer-links {
+        display: grid;
+        gap: 4px;
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        overflow: hidden;
+      }
+
+      .mobile-drawer-links .nav-link {
+        border-radius: 0;
+        padding: 16px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .mobile-drawer-links .nav-link:last-child {
+        border-bottom: 0;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .portal-nav-v2 {
+        gap: 10px;
+        padding: 12px;
+      }
+
+      .brand-title {
+        font-size: 0.92rem;
+      }
+
+      .brand-icon {
+        width: 38px;
+        height: 38px;
+      }
+    }
+
+
+    /* Adaptive overflow fix for responsive Portal Navigation */
+    .portal-nav-v2 {
+      width: 100%;
+      max-width: 100%;
+    }
+
+    .portal-nav-v2 .nav-main {
+      overflow: visible;
+    }
+
+    .portal-nav-v2.nav-compact .desktop-extra {
+      display: none !important;
+    }
+
+    .portal-nav-v2.nav-compact .more-dropdown.has-items {
+      display: inline-flex !important;
+    }
+
+    .portal-nav-v2:not(.nav-compact) .more-dropdown {
+      display: none !important;
+    }
+
+    .portal-nav-v2 .nav-link,
+    .portal-nav-v2 .more-button {
+      font-size: clamp(0.82rem, 0.72vw, 0.92rem);
+      padding-left: clamp(8px, 0.7vw, 12px);
+      padding-right: clamp(8px, 0.7vw, 12px);
+    }
+
+    .portal-nav-v2 .nav-brand {
+      min-width: clamp(190px, 21vw, 260px);
+    }
+
+    .portal-nav-v2 .brand-title {
+      max-width: 230px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .portal-nav-v2 .user-meta {
+      max-width: clamp(86px, 10vw, 150px);
+    }
+
+    @media (max-width: 1100px) {
+      .portal-nav-v2 .brand-subtitle {
+        display: none;
+      }
+
+      .portal-nav-v2 .nav-brand {
+        min-width: 0;
+      }
+    }
+
+  
+    /* Stable role-aware navigation fix */
+    .portal-nav-v2 {
+      width: 100%;
+      max-width: 100%;
+      display: grid !important;
+      grid-template-columns: auto minmax(0, 1fr) auto !important;
+      align-items: center !important;
+      flex-direction: initial !important;
+      overflow: visible !important;
+    }
+
+    .portal-nav-v2 .nav-main {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-width: 0;
+      overflow: visible;
+      flex-wrap: nowrap;
+    }
+
+    .portal-nav-v2 .nav-link,
+    .portal-nav-v2 .more-button {
+      white-space: nowrap;
+      font-size: clamp(0.82rem, 0.72vw, 0.92rem);
+      padding-left: clamp(8px, 0.7vw, 12px);
+      padding-right: clamp(8px, 0.7vw, 12px);
+    }
+
+    .portal-nav-v2 .nav-brand {
+      min-width: 0 !important;
+      max-width: clamp(190px, 23vw, 280px);
+    }
+
+    .portal-nav-v2 .brand-title {
+      max-width: 230px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .portal-nav-v2 .user-meta {
+      max-width: clamp(86px, 10vw, 150px);
+    }
+
+    .portal-nav-v2 .more-dropdown {
+      display: none !important;
+    }
+
+    .portal-nav-v2.nav-compact .more-dropdown.has-items {
+      display: inline-flex !important;
+    }
+
+    .portal-nav-v2.nav-compact .nav-main > .desktop-extra {
+      display: none !important;
+    }
+
+    @media (min-width: 901px) {
+      .portal-nav-v2 .mobile-menu-button,
+      .portal-nav-v2 .mobile-drawer {
+        display: none !important;
+      }
+    }
+
+    @media (max-width: 1100px) {
+      .portal-nav-v2 .brand-subtitle {
+        display: none;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .portal-nav-v2 {
+        grid-template-columns: auto 1fr auto !important;
+      }
+
+      .portal-nav-v2 .nav-main {
+        display: none !important;
+      }
+
+      .portal-nav-v2 .nav-brand {
+        justify-self: center;
+      }
+
+      .portal-nav-v2 .nav-user-zone {
+        border-left: 0;
+        padding-left: 0;
+      }
+
+      .portal-nav-v2 .nav-user-zone .user-meta {
+        display: none;
+      }
+
+      .portal-nav-v2 .logout-button {
+        padding: 9px 10px !important;
+      }
+
+      .portal-nav-v2 .logout-button span {
+        display: none;
+      }
+
+      .portal-nav-v2 .mobile-menu-button {
+        display: inline-flex !important;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+      }
+    }
+
+  
+    .import-shell { display: grid; gap: 18px; }
+    .import-card { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+    .import-header { padding: 22px 24px; background: linear-gradient(135deg, var(--primary), #164e63); color: #fff; }
+    .import-header h1 { margin: 0 0 6px; font-size: clamp(1.7rem, 3vw, 2.4rem); }
+    .import-header p { margin: 0; opacity: .9; line-height: 1.45; }
+    .import-body { padding: 24px; display: grid; gap: 18px; }
+    textarea { width: 100%; min-height: 220px; border: 1px solid var(--border); border-radius: 14px; padding: 13px; font: 0.95rem/1.45 Arial, Helvetica, sans-serif; resize: vertical; }
+    textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.14); outline: none; }
+    .import-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .status-panel { display:none; padding: 13px 14px; border-radius: 14px; font-weight: 700; }
+    .status-panel.success { display:block; background:#dcfce7; color:#166534; }
+    .status-panel.warning { display:block; background:#fef3c7; color:#92400e; }
+    .status-panel.error { display:block; background:#fee2e2; color:#dc2626; }
+    .preview-grid { display:grid; gap:14px; }
+    .preview-table-wrap { overflow-x:auto; border:1px solid var(--border); border-radius:16px; }
+    table { width:100%; border-collapse: collapse; min-width: 900px; }
+    th, td { padding: 12px 14px; border-bottom: 1px solid #e2e8f0; text-align:left; vertical-align:top; }
+    th { background:#f8fafc; color:var(--muted); font-size:.78rem; text-transform:uppercase; letter-spacing:.06em; }
+    .note-box { border:1px dashed #cbd5e1; background:#f8fafc; border-radius:16px; padding:14px; color:#334155; line-height:1.5; }
+    code { background:#f1f5f9; padding:2px 5px; border-radius:6px; }
+  </style>
+</head>
+<body>
+  <main class="page">
+<nav class="portal-nav portal-nav-v2" aria-label="Portal navigation">
+      <button id="mobileMenuButton" class="mobile-menu-button" type="button" aria-label="Open navigation menu">☰</button>
+
+      <a class="nav-brand" href="index.html" aria-label="ICT Resource Booking Portal home">
+        <span class="brand-icon">✓</span>
+        <span class="brand-text">
+          <span class="brand-title">ICT Resource Booking Portal</span>
+          <span class="brand-subtitle">Smart booking. Better learning.</span>
+        </span>
+      </a>
+
+      <div class="nav-main" aria-label="Main navigation links">
+        <a href="index.html" class="nav-link" data-page="create" data-role-link="teacher"><span class="nav-icon">⊞</span>Create Booking</a>
+        <a href="manage-bookings.html" class="nav-link" data-page="bookings" data-role-link="teacher"><span class="nav-icon">▣</span>My Bookings</a>
+        <a href="de-dashboard.html" id="deDashboardLink" class="nav-link desktop-extra" data-page="deployment" data-role-link="de"><span class="nav-icon">▰</span>Deployment Dashboard</a>
+        <a href="resources-admin.html" id="resourcesAdminLink" class="nav-link desktop-extra" data-page="resources" data-role-link="admin"><span class="nav-icon">▤</span>Resources Admin</a>
+        <a href="admin-users.html" id="adminUsersLink" class="nav-link desktop-extra" data-page="users" data-role-link="admin"><span class="nav-icon">♟</span>Users Admin</a>
+
+        <div id="moreDropdown" class="more-dropdown">
+          <button id="moreButton" class="more-button" type="button">More ▾</button>
+          <div class="more-menu" role="menu">
+            <a href="de-dashboard.html" class="nav-link" data-page="deployment" data-role-link="de"><span class="nav-icon">▰</span>Deployment Dashboard</a>
+            <a href="resources-admin.html" class="nav-link" data-page="resources" data-role-link="admin"><span class="nav-icon">▤</span>Resources Admin</a>
+            <a href="admin-users.html" class="nav-link" data-page="users" data-role-link="admin"><span class="nav-icon">♟</span>Users Admin</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="nav-user-zone">
+        <span class="user-avatar" data-nav-initial>A</span>
+        <span class="user-meta">
+          <span class="user-name" data-nav-name>User</span>
+          <span class="user-email" data-nav-email></span>
+        </span>
+        <span id="currentUserDisplay" class="nav-hidden-legacy"></span>
+        <button id="logoutBtn" class="logout-button" type="button">⇥ <span>Logout</span></button>
+      </div>
+
+      <div class="mobile-drawer" aria-label="Mobile navigation menu">
+        <div class="mobile-drawer-header">
+          <div class="mobile-user-summary">
+            <span class="user-avatar" data-nav-initial>A</span>
+            <span class="user-meta" style="display:grid;max-width:220px;">
+              <span class="user-name" data-nav-name>User</span>
+              <span class="user-email" data-nav-email></span>
+            </span>
+          </div>
+          <button id="mobileCloseButton" class="mobile-close-button" type="button" aria-label="Close navigation menu">✕</button>
+        </div>
+
+        <div class="mobile-drawer-links">
+          <a href="index.html" class="nav-link" data-page="create" data-mobile-role-link="teacher"><span class="nav-icon">⊞</span>Create Booking</a>
+          <a href="manage-bookings.html" class="nav-link" data-page="bookings" data-mobile-role-link="teacher"><span class="nav-icon">▣</span>My Bookings</a>
+          <a href="de-dashboard.html" class="nav-link" data-page="deployment" data-mobile-role-link="de"><span class="nav-icon">▰</span>Deployment Dashboard</a>
+          <a href="resources-admin.html" class="nav-link" data-page="resources" data-mobile-role-link="admin"><span class="nav-icon">▤</span>Resources Admin</a>
+          <a href="admin-users.html" class="nav-link" data-page="users" data-mobile-role-link="admin"><span class="nav-icon">♟</span>Users Admin</a>
+        </div>
+      </div>
+    </nav>
+    <section class="import-shell" aria-label="Booking import workspace">
+      <div class="import-card">
+        <div class="import-header">
+          <h1>Booking Import</h1>
+          <p>Preview and import legacy booking records so they can appear in My Bookings and the Deployment Dashboard.</p>
+        </div>
+        <div class="import-body">
+          <div class="note-box">
+            Paste rows copied from Excel, or upload a CSV file. The first row must contain column headers such as
+            <code>Booking Date</code>, <code>Start Time</code>, <code>End Time</code>, <code>Requester Email</code>,
+            <code>Location</code>, <code>Device Type</code>, <code>Number of Devices</code>, and optional accessory quantity columns such as
+            <code>Mouse Qty</code>, <code>Headset Qty</code>, or <code>Apple Pencil Qty</code>.
+          </div>
+
+          <div class="field">
+            <label for="csvFile">CSV / copied Excel rows</label>
+            <input id="csvFile" type="file" accept=".csv,.txt" />
+          </div>
+
+          <div class="field">
+            <label for="importText">Import data</label>
+            <textarea id="importText" placeholder="Paste tab-separated rows copied from Excel, or CSV data with headers..."></textarea>
+          </div>
+
+          <div class="import-actions">
+            <button id="previewBtn" class="btn btn-primary" type="button">Preview Import</button>
+            <button id="commitBtn" class="btn btn-secondary" type="button" disabled>Commit Valid Rows</button>
+            <button id="clearBtn" class="btn btn-secondary" type="button">Clear</button>
+          </div>
+
+          <div id="statusMessage" class="status-panel" role="status" aria-live="polite"></div>
+          <div id="previewResults" class="preview-grid"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="portalNavigation.js"></script>
+  <script>
+    const importText = document.getElementById('importText');
+    const csvFile = document.getElementById('csvFile');
+    const previewBtn = document.getElementById('previewBtn');
+    const commitBtn = document.getElementById('commitBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const statusMessage = document.getElementById('statusMessage');
+    const previewResults = document.getElementById('previewResults');
+    let lastRows = [];
+
+    function showStatus(type, message) {
+      statusMessage.className = 'status-panel ' + type;
+      statusMessage.textContent = message;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>'"]/g, char => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+      }[char]));
+    }
+
+    async function requireAdminUser() {
+      const response = await fetch('/api/me', { cache: 'no-store' });
+      const result = await response.json();
+      if (!result.user) { window.location.href = 'login.html'; return null; }
+      if (result.user.role !== 'Admin') { window.location.href = 'index.html'; return null; }
+      configurePortalNavigation(result.user, 'import');
+      return result.user;
+    }
+
+    function splitLine(line, delimiter) {
+      const output = [];
+      let current = '';
+      let quoted = false;
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"') { quoted = !quoted; continue; }
+        if (char === delimiter && !quoted) { output.push(current.trim()); current = ''; continue; }
+        current += char;
+      }
+      output.push(current.trim());
+      return output;
+    }
+
+    function parseRows(text) {
+      const lines = String(text || '').split(/?
+/).map(line => line.trim()).filter(Boolean);
+      if (lines.length < 2) return [];
+      const delimiter = lines[0].includes('	') ? '	' : ',';
+      const headers = splitLine(lines[0], delimiter);
+      return lines.slice(1).map(line => {
+        const values = splitLine(line, delimiter);
+        const row = {};
+        headers.forEach((header, index) => { row[header] = values[index] || ''; });
+        return row;
+      });
+    }
+
+    function renderPreview(data) {
+      const validRows = data.validRows || [];
+      const invalidRows = data.invalidRows || [];
+      commitBtn.disabled = validRows.length === 0;
+      previewResults.innerHTML = `
+        <div class="note-box"><strong>Preview complete:</strong> ${data.totalRows || 0} row(s), ${validRows.length} valid, ${invalidRows.length} invalid.</div>
+        <div class="preview-table-wrap">
+          <table>
+            <thead><tr><th>Row</th><th>Status</th><th>Date / Time</th><th>Requester</th><th>Resource</th><th>Accessories</th><th>Issues</th></tr></thead>
+            <tbody>
+              ${[...validRows, ...invalidRows].map(row => {
+                const booking = row.mappedBooking || {};
+                const accessories = booking.additionalResources?.resource || [];
+                const accessoryList = (Array.isArray(accessories) ? accessories : [accessories]).map(item => `${item.quantity} ${item.type}`).join(', ') || 'None';
+                return `<tr>
+                  <td>${escapeHtml(row.rowNumber)}</td>
+                  <td>${row.valid ? 'Valid' : 'Invalid'}</td>
+                  <td>${escapeHtml(booking.bookingDate || '-')}<br>${escapeHtml(booking.startTime || '-')}–${escapeHtml(booking.endTime || '-')}</td>
+                  <td>${escapeHtml(booking.importedRequesterName || booking.importedRequesterEmail || '-')}</td>
+                  <td>${escapeHtml(booking.devicesRequired || '-')} ${escapeHtml(booking.deviceType || '-')}</td>
+                  <td>${escapeHtml(accessoryList)}</td>
+                  <td>${escapeHtml((row.errors || []).join(' '))}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    }
+
+    csvFile.addEventListener('change', async () => {
+      const file = csvFile.files?.[0];
+      if (!file) return;
+      importText.value = await file.text();
+    });
+
+    previewBtn.addEventListener('click', async () => {
+      lastRows = parseRows(importText.value);
+      if (lastRows.length === 0) { showStatus('error', 'No import rows found. Check that the first row contains headers.'); return; }
+      const response = await fetch('/api/admin/import/bookings/preview', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows: lastRows })
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) { showStatus('error', result.message || 'Unable to preview import.'); return; }
+      showStatus(result.invalidRows?.length ? 'warning' : 'success', 'Preview generated. Review the rows before committing.');
+      renderPreview(result);
+    });
+
+    commitBtn.addEventListener('click', async () => {
+      if (!lastRows.length) return;
+      if (!confirm('Import all valid rows?')) return;
+      const response = await fetch('/api/admin/import/bookings/commit', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows: lastRows, allowPartialImport: true })
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) { showStatus('error', result.message || 'Unable to commit import.'); return; }
+      showStatus('success', result.message || 'Import completed.');
+      commitBtn.disabled = true;
+    });
+
+    clearBtn.addEventListener('click', () => {
+      importText.value = '';
+      csvFile.value = '';
+      lastRows = [];
+      previewResults.innerHTML = '';
+      commitBtn.disabled = true;
+      statusMessage.className = 'status-panel';
+      statusMessage.textContent = '';
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      await fetch('/api/logout', { method: 'POST' });
+      window.location.href = 'login.html';
+    });
+
+    requireAdminUser();
+  </script>
+</body>
+</html>
