@@ -1152,16 +1152,37 @@ return user;
     }
 
     function renderAdditionalResourceEditControls(booking) {
-      const selected = new Map(normaliseAdditionalResources(booking.additionalResources).map(item => [item.type.toLowerCase(), item.quantity]));
+      const selected = new Map(
+        normaliseAdditionalResources(booking.additionalResources)
+          .map(item => [item.type.toLowerCase(), item.quantity])
+      );
+
       if (accessoryTypes.length === 0 && selected.size === 0) return '';
-      const allTypes = Array.from(new Set([...accessoryTypes, ...Array.from(selected.keys()).map(key => key)]));
+
+      const typeMap = new Map();
+
+      accessoryTypes.forEach(type => {
+        const cleanType = String(type || '').trim();
+        if (!cleanType) return;
+        typeMap.set(cleanType.toLowerCase(), cleanType);
+      });
+
+      normaliseAdditionalResources(booking.additionalResources).forEach(item => {
+        const cleanType = String(item.type || '').trim();
+        if (!cleanType) return;
+        const key = cleanType.toLowerCase();
+        if (!typeMap.has(key)) typeMap.set(key, cleanType);
+      });
+
+      const allTypes = Array.from(typeMap.values()).sort((a, b) => a.localeCompare(b));
+
       return `
         <div class="additional-edit-list" data-accessory-edit-list>
           <label>Additional resources</label>
-          ${allTypes.map(typeRaw => {
-            const type = accessoryTypes.find(item => item.toLowerCase() === String(typeRaw).toLowerCase()) || typeRaw;
-            const quantity = selected.get(String(type).toLowerCase()) || '';
-            const checked = selected.has(String(type).toLowerCase());
+          ${allTypes.map(type => {
+            const key = String(type).toLowerCase();
+            const quantity = selected.get(key) || '';
+            const checked = selected.has(key);
             return `
               <div class="additional-edit-row">
                 <label><input type="checkbox" data-edit-accessory-check value="${type}" ${checked ? 'checked' : ''} /> ${type}</label>
