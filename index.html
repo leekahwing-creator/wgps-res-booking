@@ -334,6 +334,17 @@
       box-shadow: 0 8px 18px rgba(15, 118, 110, 0.22);
     }
 
+    .permission-note {
+      color: var(--muted);
+      font-size: 0.82rem;
+      line-height: 1.35;
+      margin-top: 6px;
+    }
+
+    .segmented-control.one-option {
+      grid-template-columns: 1fr;
+    }
+
     .recurrence-section {
       border: 1px solid var(--border);
       border-radius: 18px;
@@ -1183,6 +1194,7 @@
                 <button type="button" class="segment active" id="oneTimeBookingBtn" data-booking-type="one-time" aria-pressed="true">One-Time</button>
                 <button type="button" class="segment" id="recurringBookingBtn" data-booking-type="recurring" aria-pressed="false">Recurring</button>
               </div>
+              <span id="recurringPermissionNote" class="permission-note" style="display:none;">Recurring booking is available only to authorised users.</span>
             </div>
 
             <div class="field full recurrence-section" id="recurrenceSection" style="display: none;">
@@ -1319,6 +1331,7 @@
     console.log('ICT Resource Booking Portal script loaded.');
 
     let currentUser = null;
+    let canCreateRecurringBookings = false;
 
     async function requireAuthenticatedUser() {
       const response = await fetch("/api/me", { cache: "no-store" });
@@ -1346,6 +1359,8 @@
       configurePortalNavigation(user, "create");
 document.getElementById("requesterName").textContent = user.name;
       document.getElementById("requesterEmail").textContent = user.email;
+      canCreateRecurringBookings = Boolean(user.allowRecurringBookings || user.role === "Admin");
+      applyRecurringBookingPermission();
 
       return user;
     }
@@ -1393,6 +1408,7 @@ document.getElementById("requesterName").textContent = user.name;
     let decreaseRecurrence;
     let increaseRecurrence;
     let recurrencePreview;
+    let recurringPermissionNote;
     let bookingMode = 'one-time';
     let repeatIntervalWeeks = 1;
     function getRequiredElement(id) {
@@ -1429,6 +1445,7 @@ document.getElementById("requesterName").textContent = user.name;
       decreaseRecurrence = getRequiredElement('decreaseRecurrence');
       increaseRecurrence = getRequiredElement('increaseRecurrence');
       recurrencePreview = getRequiredElement('recurrencePreview');
+      recurringPermissionNote = getRequiredElement('recurringPermissionNote');
     }
 
     async function fetchJSONList(endpoint, key) {
@@ -1580,7 +1597,31 @@ document.getElementById("requesterName").textContent = user.name;
       `;
     }
 
+    function applyRecurringBookingPermission() {
+      const bookingTypeControl = recurringBookingBtn?.closest('.segmented-control');
+
+      if (canCreateRecurringBookings) {
+        recurringBookingBtn.style.display = '';
+        recurringPermissionNote.style.display = 'none';
+        bookingTypeControl?.classList.remove('one-option');
+        return;
+      }
+
+      recurringBookingBtn.style.display = 'none';
+      recurringPermissionNote.style.display = 'inline';
+      bookingTypeControl?.classList.add('one-option');
+
+      if (bookingMode === 'recurring') {
+        setBookingMode('one-time');
+      }
+    }
+
     function setBookingMode(mode) {
+      if (mode === 'recurring' && !canCreateRecurringBookings) {
+        showStatus('error', 'Recurring booking is available only to authorised users.');
+        mode = 'one-time';
+      }
+
       bookingMode = mode;
       const isRecurring = mode === 'recurring';
 
@@ -1779,6 +1820,7 @@ document.getElementById("requesterName").textContent = user.name;
           const earliestBookingDate = getNextAvailableBookingDate();
           bookingDate.value = earliestBookingDate;
           devicesRequired.value = 1;
+          setBookingMode('one-time');
           statusMessage.className = 'status';
           toggleCustomLocationField();
           updateSummary();

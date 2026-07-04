@@ -1251,6 +1251,31 @@
       cursor: not-allowed;
     }
 
+    .permission-toggle {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: #f8fafc;
+    }
+
+    .permission-toggle input[type="checkbox"] {
+      width: 20px;
+      min-height: 20px;
+      height: 20px;
+      margin-top: 2px;
+      accent-color: var(--primary);
+      flex: 0 0 auto;
+    }
+
+    .permission-toggle strong {
+      display: block;
+      color: #0f172a;
+      margin-bottom: 4px;
+    }
+
     @media (max-width: 680px) {
       .pagination-bar {
         align-items: stretch;
@@ -1387,6 +1412,7 @@
                 <th>User</th>
                 <th>User ID</th>
                 <th>Role</th>
+                <th>Recurring</th>
                 <th>Status</th>
                 <th>Activated</th>
                 <th>Last Updated</th>
@@ -1394,7 +1420,7 @@
               </tr>
             </thead>
             <tbody id="userTableBody">
-              <tr><td colspan="7"><div class="empty-panel">Loading users...</div></td></tr>
+              <tr><td colspan="8"><div class="empty-panel">Loading users...</div></td></tr>
             </tbody>
           </table>
         </div>
@@ -1455,6 +1481,13 @@
               </select>
             </div>
           </div>
+          <label class="permission-toggle" for="newAllowRecurringBookings">
+            <input id="newAllowRecurringBookings" type="checkbox" />
+            <span>
+              <strong>Allow recurring bookings</strong>
+              <span class="note">Admin users are automatically allowed. Use this for selected staff who need recurring booking access.</span>
+            </span>
+          </label>
           <p class="note">New users should normally be created as <strong>PendingActivation</strong>. They will activate their own account and set their own password.</p>
           <div class="modal-actions">
             <button id="cancelAddUserBtn" class="btn btn-secondary" type="button">Cancel</button>
@@ -1502,6 +1535,13 @@
               </select>
             </div>
           </div>
+          <label class="permission-toggle" for="editAllowRecurringBookings">
+            <input id="editAllowRecurringBookings" type="checkbox" />
+            <span>
+              <strong>Allow recurring bookings</strong>
+              <span id="editRecurringPermissionNote" class="note">Admin users are automatically allowed. For other users, enable this only when approved by the team.</span>
+            </span>
+          </label>
           <div class="two-col">
             <div class="field">
               <label>Activated</label>
@@ -1687,7 +1727,7 @@
       updatePaginationControls(filteredUsers.length, totalPages, startIndex, pageUsers.length);
 
       if (filteredUsers.length === 0) {
-        userTableBody.innerHTML = '<tr><td colspan="7"><div class="empty-panel">No users match the current search or filters.</div></td></tr>';
+        userTableBody.innerHTML = '<tr><td colspan="8"><div class="empty-panel">No users match the current search or filters.</div></td></tr>';
         return;
       }
 
@@ -1704,6 +1744,7 @@
           </td>
           <td>${escapeHtml(user.userId)}</td>
           <td><span class="${getRolePillClass(user.role)}">${escapeHtml(user.role)}</span></td>
+          <td><span class="${user.allowRecurringBookings ? 'status-pill' : 'status-pill disabled'}">${user.allowRecurringBookings ? 'Allowed' : 'No'}</span></td>
           <td><span class="${getStatusPillClass(user.status)}">${escapeHtml(user.status)}</span></td>
           <td>${user.hasPasswordHash ? 'Yes' : 'No'}</td>
           <td>${escapeHtml(formatDateTime(user.updatedAt || user.activatedAt || user.createdAt))}</td>
@@ -1738,7 +1779,7 @@
 
     async function loadUsers() {
       clearStatus();
-      userTableBody.innerHTML = '<tr><td colspan="7"><div class="empty-panel">Loading users...</div></td></tr>';
+      userTableBody.innerHTML = '<tr><td colspan="8"><div class="empty-panel">Loading users...</div></td></tr>';
 
       const response = await fetch('/api/admin/users', { cache: 'no-store' });
       const result = await response.json();
@@ -1755,6 +1796,7 @@
       addUserForm.reset();
       document.getElementById('newRole').value = 'User';
       document.getElementById('newStatus').value = 'PendingActivation';
+      document.getElementById('newAllowRecurringBookings').checked = false;
       addUserModal.classList.add('open');
       setTimeout(() => document.getElementById('newName').focus(), 0);
     }
@@ -1771,7 +1813,8 @@
         name: document.getElementById('newName').value.trim(),
         email: document.getElementById('newEmail').value.trim(),
         role: document.getElementById('newRole').value,
-        status: document.getElementById('newStatus').value
+        status: document.getElementById('newStatus').value,
+        allowRecurringBookings: document.getElementById('newRole').value === 'Admin' || document.getElementById('newAllowRecurringBookings').checked
       };
 
       const response = await fetch('/api/admin/users', {
@@ -1796,7 +1839,8 @@
         name: document.getElementById('editName').value.trim(),
         email: document.getElementById('editEmail').value.trim(),
         role: document.getElementById('editRole').value,
-        status: document.getElementById('editStatus').value
+        status: document.getElementById('editStatus').value,
+        allowRecurringBookings: document.getElementById('editRole').value === 'Admin' || document.getElementById('editAllowRecurringBookings').checked
       };
     }
 
@@ -1836,6 +1880,11 @@
       document.getElementById('editEmail').value = selectedUser.email || '';
       document.getElementById('editRole').value = selectedUser.role || 'User';
       document.getElementById('editStatus').value = selectedUser.status || 'PendingActivation';
+      document.getElementById('editAllowRecurringBookings').checked = Boolean(selectedUser.allowRecurringBookings);
+      document.getElementById('editAllowRecurringBookings').disabled = selectedUser.role === 'Admin';
+      document.getElementById('editRecurringPermissionNote').textContent = selectedUser.role === 'Admin'
+        ? 'Admin users are automatically allowed to create recurring bookings.'
+        : 'Enable this only for users approved by the team to create recurring bookings.';
       document.getElementById('editActivated').value = selectedUser.hasPasswordHash ? 'Yes' : 'No';
       document.getElementById('editUpdated').value = formatDateTime(selectedUser.updatedAt || selectedUser.activatedAt || selectedUser.createdAt);
       document.getElementById('editUpdatedBy').value = getUserNameById(selectedUser.updatedByUserId || selectedUser.activationResetByUserId || selectedUser.disabledByUserId || selectedUser.createdByUserId);
@@ -1970,10 +2019,29 @@
       addUser(event).catch(error => showStatus('error', error.message));
     });
 
-    ['editName', 'editEmail', 'editRole', 'editStatus'].forEach(id => {
+    ['editName', 'editEmail', 'editRole', 'editStatus', 'editAllowRecurringBookings'].forEach(id => {
       const input = document.getElementById(id);
       input.addEventListener('input', updateSaveButtonState);
       input.addEventListener('change', updateSaveButtonState);
+    });
+
+
+    document.getElementById('editRole').addEventListener('change', () => {
+      const isAdminRole = document.getElementById('editRole').value === 'Admin';
+      const recurringCheckbox = document.getElementById('editAllowRecurringBookings');
+      recurringCheckbox.disabled = isAdminRole;
+      if (isAdminRole) recurringCheckbox.checked = true;
+      document.getElementById('editRecurringPermissionNote').textContent = isAdminRole
+        ? 'Admin users are automatically allowed to create recurring bookings.'
+        : 'Enable this only for users approved by the team to create recurring bookings.';
+      updateSaveButtonState();
+    });
+
+    document.getElementById('newRole').addEventListener('change', () => {
+      const isAdminRole = document.getElementById('newRole').value === 'Admin';
+      const recurringCheckbox = document.getElementById('newAllowRecurringBookings');
+      recurringCheckbox.disabled = isAdminRole;
+      if (isAdminRole) recurringCheckbox.checked = true;
     });
 
     editUserForm.addEventListener('submit', event => {
@@ -2055,7 +2123,7 @@
 
       await loadUsers().catch(error => {
         showStatus('error', error.message);
-        userTableBody.innerHTML = '<tr><td colspan="7"><div class="empty-panel">Unable to load users.</div></td></tr>';
+        userTableBody.innerHTML = '<tr><td colspan="8"><div class="empty-panel">Unable to load users.</div></td></tr>';
       });
     }
 

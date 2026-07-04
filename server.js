@@ -220,11 +220,11 @@ function decryptText(value) {
 function sanitiseUserForStorage(user) {
   const storedUser = { ...user };
 
-  if (storedUser.name && !storedUser.encryptedName) {
+  if (storedUser.name !== undefined) {
     storedUser.encryptedName = encryptText(storedUser.name);
   }
 
-  if (storedUser.email && !storedUser.encryptedEmail) {
+  if (storedUser.email !== undefined) {
     storedUser.encryptedEmail = encryptText(normaliseEmail(storedUser.email));
   }
 
@@ -718,6 +718,16 @@ function normaliseUserRole(role) {
   return allowedRoles.includes(role) ? role : "User";
 }
 
+function normaliseBoolean(value) {
+  if (value === true) return true;
+  if (value === false) return false;
+  return String(value || "").trim().toLowerCase() === "true";
+}
+
+function userCanCreateRecurringBookings(user) {
+  return normaliseUserRole(user?.role) === "Admin" || normaliseBoolean(user?.allowRecurringBookings);
+}
+
 function formatAdminUserForResponse(user) {
   return {
     userId: user.userId,
@@ -734,6 +744,8 @@ function formatAdminUserForResponse(user) {
     updatedByUserId: user.updatedByUserId || "",
     disabledByUserId: user.disabledByUserId || "",
     activationResetByUserId: user.activationResetByUserId || "",
+    allowRecurringBookings: userCanCreateRecurringBookings(user),
+    allowRecurringBookingsByPermission: normaliseBoolean(user.allowRecurringBookings),
     hasPasswordHash: Boolean(user.passwordHash)
   };
 }
@@ -1134,7 +1146,8 @@ app.post("/api/auth/login", async (req, res) => {
       userId: user.userId,
       name: user.name,
       email: user.email,
-      role: user.role || "User"
+      role: user.role || "User",
+      allowRecurringBookings: userCanCreateRecurringBookings(user)
     };
 
     res.json({
@@ -1200,6 +1213,13 @@ app.post("/api/bookings", requireLogin, (req, res) => {
       bookingRequest.bookingMode === "recurring" &&
       bookingRequest.recurrence &&
       Array.isArray(bookingRequest.recurrence.dates);
+
+    if (isRecurring && !userCanCreateRecurringBookings(req.session.user)) {
+      return res.status(403).json({
+        success: false,
+        message: "Recurring booking is available only to authorised users."
+      });
+    }
 
     const bookingDates = isRecurring
       ? bookingRequest.recurrence.dates.slice(0, 4)
@@ -1797,6 +1817,7 @@ app.post("/api/admin/users", requireLogin, requireAdmin, (req, res) => {
     const email = normaliseEmail(req.body.email);
     const role = normaliseUserRole(req.body.role || "User");
     const status = normaliseUserStatus(req.body.status || "PendingActivation");
+    const allowRecurringBookings = role === "Admin" || normaliseBoolean(req.body.allowRecurringBookings);
 
     if (!name || !email) {
       return res.status(400).json({
@@ -1821,6 +1842,7 @@ app.post("/api/admin/users", requireLogin, requireAdmin, (req, res) => {
       email,
       role,
       status,
+      allowRecurringBookings,
       createdAt: new Date().toISOString(),
       createdByUserId: req.session.user.userId
     };
@@ -1850,6 +1872,7 @@ app.put("/api/admin/users/:userId", requireLogin, requireAdmin, (req, res) => {
     const email = normaliseEmail(req.body.email);
     const role = normaliseUserRole(req.body.role || "User");
     const status = normaliseUserStatus(req.body.status || "PendingActivation");
+    const allowRecurringBookings = role === "Admin" || normaliseBoolean(req.body.allowRecurringBookings);
 
     if (!name || !email) {
       return res.status(400).json({
@@ -1895,6 +1918,7 @@ app.put("/api/admin/users/:userId", requireLogin, requireAdmin, (req, res) => {
       email,
       role,
       status,
+      allowRecurringBookings,
       updatedAt: new Date().toISOString(),
       updatedByUserId: req.session.user.userId
     };
