@@ -220,17 +220,11 @@ function decryptText(value) {
 function sanitiseUserForStorage(user) {
   const storedUser = { ...user };
 
-  // Important: when Admin edits a user's name/email, getUsersFromXML() returns
-  // both the decrypted fields (name/email) and the existing encrypted fields.
-  // If we only encrypt when encryptedName/encryptedEmail are missing, edits are
-  // silently discarded because the old encrypted values are kept. Therefore,
-  // whenever name/email are supplied, treat them as the latest source of truth
-  // and re-encrypt them for storage.
-  if (storedUser.name !== undefined && storedUser.name !== null) {
+  if (storedUser.name && !storedUser.encryptedName) {
     storedUser.encryptedName = encryptText(storedUser.name);
   }
 
-  if (storedUser.email !== undefined && storedUser.email !== null) {
+  if (storedUser.email && !storedUser.encryptedEmail) {
     storedUser.encryptedEmail = encryptText(normaliseEmail(storedUser.email));
   }
 
@@ -736,6 +730,10 @@ function formatAdminUserForResponse(user) {
     roleUpdatedAt: user.roleUpdatedAt || "",
     updatedAt: user.updatedAt || "",
     createdAt: user.createdAt || "",
+    createdByUserId: user.createdByUserId || "",
+    updatedByUserId: user.updatedByUserId || "",
+    disabledByUserId: user.disabledByUserId || "",
+    activationResetByUserId: user.activationResetByUserId || "",
     hasPasswordHash: Boolean(user.passwordHash)
   };
 }

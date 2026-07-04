@@ -1235,6 +1235,22 @@
       cursor: not-allowed;
     }
 
+
+
+    .users-table tr.row-highlight td {
+      animation: rowSavedHighlight 2.2s ease-out;
+    }
+
+    @keyframes rowSavedHighlight {
+      0% { background: #dcfce7; }
+      100% { background: transparent; }
+    }
+
+    .btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
     @media (max-width: 680px) {
       .pagination-bar {
         align-items: stretch;
@@ -1496,6 +1512,10 @@
               <input id="editUpdated" type="text" readonly />
             </div>
           </div>
+          <div class="field">
+            <label>Last edited by</label>
+            <input id="editUpdatedBy" type="text" readonly />
+          </div>
           <div class="danger-zone">
             <strong>Account actions</strong>
             <span class="note">Use these actions only when an account needs to be recovered or access needs to be suspended.</span>
@@ -1506,7 +1526,7 @@
           </div>
           <div class="drawer-actions">
             <button id="cancelEditUserBtn" class="btn btn-secondary" type="button">Cancel</button>
-            <button class="btn btn-primary" type="submit">Save Changes</button>
+            <button id="saveEditUserBtn" class="btn btn-primary" type="submit" disabled>Save Changes</button>
           </div>
         </form>
       </aside>
@@ -1543,10 +1563,14 @@
     const editUserForm = document.getElementById('editUserForm');
     const resetActivationBtn = document.getElementById('resetActivationBtn');
     const disableUserBtn = document.getElementById('disableUserBtn');
+    const saveEditUserBtn = document.getElementById('saveEditUserBtn');
 
     let currentUser = null;
     let users = [];
     let selectedUser = null;
+    let originalEditPayload = null;
+    let isSavingUser = false;
+    let recentlyUpdatedUserId = '';
     let currentPage = 1;
     let rowsPerPage = Number(localStorage.getItem('aumRowsPerPage')) || 25;
 
@@ -1668,7 +1692,7 @@
       }
 
       userTableBody.innerHTML = pageUsers.map(user => `
-        <tr data-user-id="${escapeHtml(user.userId)}">
+        <tr data-user-id="${escapeHtml(user.userId)}" class="${String(user.userId) === String(recentlyUpdatedUserId) ? 'row-highlight' : ''}">
           <td>
             <div class="user-identity">
               <span class="small-avatar">${escapeHtml(getInitial(user.name))}</span>
@@ -1767,7 +1791,43 @@
       await loadUsers();
     }
 
+    function getCurrentEditPayload() {
+      return {
+        name: document.getElementById('editName').value.trim(),
+        email: document.getElementById('editEmail').value.trim(),
+        role: document.getElementById('editRole').value,
+        status: document.getElementById('editStatus').value
+      };
+    }
+
+    function editPayloadsEqual(a, b) {
+      return JSON.stringify(a || {}) === JSON.stringify(b || {});
+    }
+
+    function hasUnsavedUserChanges() {
+      return Boolean(selectedUser && !editPayloadsEqual(getCurrentEditPayload(), originalEditPayload));
+    }
+
+    function updateSaveButtonState() {
+      const hasChanges = hasUnsavedUserChanges();
+      saveEditUserBtn.disabled = !hasChanges || isSavingUser;
+      saveEditUserBtn.textContent = isSavingUser ? 'Saving...' : 'Save Changes';
+    }
+
+    function getUserNameById(userId) {
+      if (!userId) return '-';
+      const user = users.find(existingUser => String(existingUser.userId) === String(userId));
+      return user ? `${user.name} (${user.userId})` : userId;
+    }
+
+    function confirmDiscardUnsavedChanges() {
+      if (!hasUnsavedUserChanges()) return true;
+      return confirm('Discard unsaved changes? Your edits have not been saved.');
+    }
+
     function openEditDrawer(userId) {
+      if (selectedUser && String(selectedUser.userId) !== String(userId) && !confirmDiscardUnsavedChanges()) return;
+
       selectedUser = users.find(user => String(user.userId) === String(userId));
       if (!selectedUser) return;
 
@@ -1778,6 +1838,7 @@
       document.getElementById('editStatus').value = selectedUser.status || 'PendingActivation';
       document.getElementById('editActivated').value = selectedUser.hasPasswordHash ? 'Yes' : 'No';
       document.getElementById('editUpdated').value = formatDateTime(selectedUser.updatedAt || selectedUser.activatedAt || selectedUser.createdAt);
+      document.getElementById('editUpdatedBy').value = getUserNameById(selectedUser.updatedByUserId || selectedUser.activationResetByUserId || selectedUser.disabledByUserId || selectedUser.createdByUserId);
 
       document.getElementById('drawerUserSummary').innerHTML = `
         <span class="small-avatar">${escapeHtml(getInitial(selectedUser.name))}</span>
@@ -1793,12 +1854,20 @@
       resetActivationBtn.title = isSelf ? 'You cannot reset your own signed-in account.' : '';
       disableUserBtn.title = isSelf ? 'You cannot disable your own signed-in account.' : '';
 
+      originalEditPayload = getCurrentEditPayload();
+      isSavingUser = false;
+      updateSaveButtonState();
       editUserDrawer.classList.add('open');
     }
 
-    function closeEditDrawer() {
+    function closeEditDrawer(force = false) {
+      if (!force && !confirmDiscardUnsavedChanges()) return false;
       editUserDrawer.classList.remove('open');
       selectedUser = null;
+      originalEditPayload = null;
+      isSavingUser = false;
+      updateSaveButtonState();
+      return true;
     }
 
     async function saveSelectedUser(event) {
@@ -1806,12 +1875,16 @@
       if (!selectedUser) return;
 
       const userId = document.getElementById('editUserId').value;
-      const payload = {
-        name: document.getElementById('editName').value.trim(),
-        email: document.getElementById('editEmail').value.trim(),
-        role: document.getElementById('editRole').value,
-        status: document.getElementById('editStatus').value
-      };
+      const payload = getCurrentEditPayload();
+
+      if (editPayloadsEqual(payload, originalEditPayload)) {
+        showStatus('warning', 'No changes detected.');
+        updateSaveButtonState();
+        return;
+      }
+
+      isSavingUser = true;
+      updateSaveButtonState();
 
       const response = await fetch(`/api/admin/users/${encodeURIComponent(userId)}`, {
         method: 'PUT',
@@ -1825,9 +1898,16 @@
         throw new Error(result.message || 'Unable to update user.');
       }
 
-      closeEditDrawer();
+      recentlyUpdatedUserId = userId;
+      closeEditDrawer(true);
       showStatus('success', result.message || 'User updated successfully.');
       await loadUsers();
+      window.setTimeout(() => {
+        if (String(recentlyUpdatedUserId) === String(userId)) {
+          recentlyUpdatedUserId = '';
+          renderUsers();
+        }
+      }, 2300);
     }
 
     async function disableSelectedUser() {
@@ -1844,7 +1924,7 @@
         throw new Error(result.message || 'Unable to disable user.');
       }
 
-      closeEditDrawer();
+      closeEditDrawer(true);
       showStatus('success', result.message || 'User disabled successfully.');
       await loadUsers();
     }
@@ -1863,7 +1943,7 @@
         throw new Error(result.message || 'Unable to reset activation.');
       }
 
-      closeEditDrawer();
+      closeEditDrawer(true);
       showStatus('success', result.message || 'Activation reset successfully.');
       await loadUsers();
     }
@@ -1890,8 +1970,18 @@
       addUser(event).catch(error => showStatus('error', error.message));
     });
 
+    ['editName', 'editEmail', 'editRole', 'editStatus'].forEach(id => {
+      const input = document.getElementById(id);
+      input.addEventListener('input', updateSaveButtonState);
+      input.addEventListener('change', updateSaveButtonState);
+    });
+
     editUserForm.addEventListener('submit', event => {
-      saveSelectedUser(event).catch(error => showStatus('error', error.message));
+      saveSelectedUser(event).catch(error => {
+        isSavingUser = false;
+        updateSaveButtonState();
+        showStatus('error', error.message);
+      });
     });
 
     disableUserBtn.addEventListener('click', () => {
