@@ -1040,13 +1040,21 @@
       display: block;
     }
 
+    .modal-backdrop.open {
+      overflow-y: auto;
+      padding: 24px 0;
+    }
+
     .modal {
       width: min(560px, calc(100vw - 32px));
-      margin: 8vh auto 0;
+      max-height: calc(100vh - 48px);
+      margin: 0 auto;
       background: #ffffff;
       border-radius: 22px;
       box-shadow: 0 26px 70px rgba(15, 23, 42, 0.28);
       overflow: hidden;
+      display: flex;
+      flex-direction: column;
     }
 
     .drawer {
@@ -1110,6 +1118,12 @@
       gap: 16px;
     }
 
+    .modal-body {
+      overflow-y: auto;
+      min-height: 0;
+      flex: 1;
+    }
+
     .drawer-body {
       overflow-y: auto;
       flex: 1;
@@ -1132,6 +1146,18 @@
       flex-wrap: wrap;
       justify-content: flex-end;
       padding-top: 4px;
+    }
+
+    .modal-actions {
+      position: sticky;
+      bottom: -24px;
+      margin-left: -24px;
+      margin-right: -24px;
+      margin-bottom: -24px;
+      padding: 14px 24px;
+      background: #ffffff;
+      border-top: 1px solid var(--border);
+      z-index: 2;
     }
 
     .danger-zone {
@@ -1160,7 +1186,8 @@
 
     @media (max-width: 520px) {
       .stats-grid { grid-template-columns: 1fr; }
-      .modal { margin-top: 4vh; }
+      .modal-backdrop.open { padding: 12px 0; }
+      .modal { max-height: calc(100vh - 24px); }
       .modal-body, .drawer-body { padding: 18px; }
       .modal-header, .drawer-header { padding: 18px; }
     }
@@ -1661,7 +1688,7 @@
             <label for="resourceLocation">Storage / default location</label>
             <input id="resourceLocation" type="text" placeholder="e.g. ICT Room" />
           </div>
-          <div class="field">
+          <div class="field" id="addSoftwareField">
             <label>Installed software</label>
             <div id="softwareChecklist" class="software-checklist"></div>
           </div>
@@ -1740,7 +1767,7 @@
             <input id="editResourceLocation" type="text" placeholder="e.g. ICT Room" />
           </div>
 
-          <div class="field">
+          <div class="field" id="editSoftwareField">
             <label>Installed software</label>
             <div id="editSoftwareChecklist" class="software-checklist"></div>
           </div>
@@ -2037,6 +2064,20 @@
       return Array.from(document.querySelectorAll(`#${containerId} input:checked`)).map(input => input.value);
     }
 
+    function updateSoftwareFieldVisibility(category, fieldId, checklistId) {
+      const field = document.getElementById(fieldId);
+      if (!field) return;
+
+      const isAccessory = category === 'Accessory';
+      field.style.display = isAccessory ? 'none' : 'flex';
+
+      if (isAccessory && checklistId) {
+        document.querySelectorAll(`#${checklistId} input[type="checkbox"]`).forEach(input => {
+          input.checked = false;
+        });
+      }
+    }
+
     function getSoftwareUsageCount(softwareName) {
       const lowerName = String(softwareName || '').toLowerCase();
       return resources.filter(resource =>
@@ -2290,6 +2331,7 @@
       document.getElementById('resourceLocation').value = '';
       document.getElementById('notes').value = '';
       renderSoftwareChecklist('softwareChecklist', []);
+      updateSoftwareFieldVisibility(category, 'addSoftwareField', 'softwareChecklist');
       resourceModal.classList.add('open');
       setTimeout(() => document.getElementById('resourceName').focus(), 0);
     }
@@ -2307,7 +2349,7 @@
         capacity: Number(document.getElementById('capacity').value),
         status: document.getElementById('resourceStatus').value,
         location: document.getElementById('resourceLocation').value.trim(),
-        software: getSelectedSoftware('softwareChecklist'),
+        software: document.getElementById('resourceCategory').value === 'Accessory' ? [] : getSelectedSoftware('softwareChecklist'),
         notes: document.getElementById('notes').value.trim()
       };
     }
@@ -2347,6 +2389,7 @@
       document.getElementById('editResourceLocation').value = selectedResource.location || '';
       document.getElementById('editNotes').value = selectedResource.notes || '';
       renderSoftwareChecklist('editSoftwareChecklist', selectedResource.software || []);
+      updateSoftwareFieldVisibility(selectedResource.category || 'Device', 'editSoftwareField', 'editSoftwareChecklist');
 
       document.getElementById('drawerResourceSummary').innerHTML = `
         <span class="small-avatar">${escapeHtml(getInitial(selectedResource.name))}</span>
@@ -2373,7 +2416,7 @@
         capacity: Number(document.getElementById('editCapacity').value),
         status: document.getElementById('editResourceStatus').value,
         location: document.getElementById('editResourceLocation').value.trim(),
-        software: getSelectedSoftware('editSoftwareChecklist'),
+        software: document.getElementById('editResourceCategory').value === 'Accessory' ? [] : getSelectedSoftware('editSoftwareChecklist'),
         notes: document.getElementById('editNotes').value.trim()
       };
     }
@@ -2418,6 +2461,20 @@
       showStatus('success', result.message || 'Resource deleted successfully.');
       await loadResources();
     }
+
+    document.getElementById('resourceCategory').addEventListener('change', event => {
+      updateSoftwareFieldVisibility(event.target.value, 'addSoftwareField', 'softwareChecklist');
+      if (event.target.value === 'Accessory') {
+        document.getElementById('resourceType').value = 'Set';
+      }
+    });
+
+    document.getElementById('editResourceCategory').addEventListener('change', event => {
+      updateSoftwareFieldVisibility(event.target.value, 'editSoftwareField', 'editSoftwareChecklist');
+      if (event.target.value === 'Accessory') {
+        document.getElementById('editResourceType').value = 'Set';
+      }
+    });
 
     document.getElementById('logoutBtn').addEventListener('click', async () => {
       await fetch('/api/logout', { method: 'POST' });
