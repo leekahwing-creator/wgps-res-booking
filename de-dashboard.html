@@ -1005,6 +1005,32 @@ return currentUser;
       return resources.length ? resources.join(', ') : 'No allocation recorded';
     }
 
+
+    function normaliseAdditionalResources(additionalResources) {
+      const items = additionalResources?.resource || additionalResources || [];
+      return (Array.isArray(items) ? items : [items])
+        .map(item => ({ type: String(item?.type || '').trim(), quantity: Number(item?.quantity || 0) }))
+        .filter(item => item.type && item.quantity > 0);
+    }
+
+    function formatAdditionalResources(additionalResources) {
+      const items = normaliseAdditionalResources(additionalResources);
+      return items.length ? items.map(item => `${item.quantity} ${item.type}`).join(', ') : 'None';
+    }
+
+    function getAdditionalResourceAllocationList(booking) {
+      const allocations = booking.allocation?.additionalResources?.resource || [];
+      const items = Array.isArray(allocations) ? allocations : [allocations];
+      const labels = items
+        .filter(item => item?.type)
+        .map(item => {
+          const resourceIds = item.resources?.resourceId || [];
+          const resources = Array.isArray(resourceIds) ? resourceIds : [resourceIds];
+          return `${item.type}: ${resources.filter(Boolean).join(', ') || 'No allocation'}`;
+        });
+      return labels.length ? labels.join(' | ') : 'None';
+    }
+
     function getJobId(booking) {
       return booking.bookingId || booking['@_id'] || '';
     }
@@ -1039,6 +1065,8 @@ return currentUser;
             <div class="meta-row"><span>Quantity</span><strong>${escapeHtml(booking.devicesRequired || '-')}</strong></div>
             <div class="meta-row"><span>Software</span><strong>${escapeHtml(booking.softwareRequirement || 'None')}</strong></div>
             <div class="meta-row"><span>Resources</span><strong>${escapeHtml(getResourceList(booking))}</strong></div>
+            <div class="meta-row"><span>Accessories</span><strong>${escapeHtml(formatAdditionalResources(booking.additionalResources))}</strong></div>
+            <div class="meta-row"><span>Accessory Allocation</span><strong>${escapeHtml(getAdditionalResourceAllocationList(booking))}</strong></div>
             <div class="meta-row"><span>Booking</span><strong>${escapeHtml(booking.status || '-')}</strong></div>
             ${booking.claimedByName ? `<div class="meta-row"><span>Claimed by</span><strong>${escapeHtml(booking.claimedByName)}</strong></div>` : ''}
             ${booking.claimedAt ? `<div class="meta-row"><span>Claimed at</span><strong>${escapeHtml(formatDateTime(booking.claimedAt))}</strong></div>` : ''}

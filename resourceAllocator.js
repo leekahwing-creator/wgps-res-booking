@@ -27,6 +27,10 @@ function timeOverlaps(startA, endA, startB, endB) {
   return startA < endB && endA > startB;
 }
 
+function normaliseResourceCategory(resource) {
+  return String(resource?.category || "Device").trim() || "Device";
+}
+
 function normaliseSoftwareList(resource) {
   return toArray(resource.software?.item)
     .map(item => String(item || "").trim())
@@ -42,6 +46,43 @@ function resourceSupportsSoftware(resource, requiredSoftware) {
     .map(item => item.toLowerCase());
 
   return installedSoftware.includes(requirement.toLowerCase());
+}
+
+function normaliseAdditionalResources(additionalResources) {
+  const items = toArray(additionalResources?.resource || additionalResources)
+    .map(item => ({
+      type: String(item?.type || item?.deviceType || item?.name || "").trim(),
+      quantity: Number(item?.quantity || item?.devicesRequired || 0)
+    }))
+    .filter(item => item.type && Number.isInteger(item.quantity) && item.quantity > 0);
+
+  const byType = new Map();
+  items.forEach(item => {
+    const key = item.type.toLowerCase();
+    const existing = byType.get(key);
+    if (existing) {
+      existing.quantity += item.quantity;
+    } else {
+      byType.set(key, { ...item });
+    }
+  });
+
+  return Array.from(byType.values());
+}
+
+function collectResourceIdsFromAllocation(allocation) {
+  const bookedIds = [];
+
+  toArray(allocation?.resources?.resourceId)
+    .forEach(resourceId => bookedIds.push(String(resourceId)));
+
+  toArray(allocation?.additionalResources?.resource)
+    .forEach(additionalAllocation => {
+      toArray(additionalAllocation?.resources?.resourceId)
+        .forEach(resourceId => bookedIds.push(String(resourceId)));
+    });
+
+  return bookedIds;
 }
 
 function getBookedResourceIds(bookingRequest) {
@@ -64,19 +105,19 @@ function getBookedResourceIds(bookingRequest) {
   const bookedIds = new Set();
 
   overlappingBookings.forEach(booking => {
-    const resources = toArray(booking.allocation?.resources?.resourceId);
-    resources.forEach(resourceId => bookedIds.add(String(resourceId)));
+    collectResourceIdsFromAllocation(booking.allocation)
+      .forEach(resourceId => bookedIds.add(String(resourceId)));
   });
 
   return bookedIds;
 }
 
-function findBestResourceCombination(availableResources, devicesRequired) {
+function findBestResourceCombination(availableResources, quantityRequired) {
   let bestCombination = null;
 
   function search(index, currentResources, currentCapacity) {
-    if (currentCapacity >= devicesRequired) {
-      const currentSurplus = currentCapacity - devicesRequired;
+    if (currentCapacity >= quantityRequired) {
+      const currentSurplus = currentCapacity - quantityRequired;
 
       if (!bestCombination) {
         bestCombination = [...currentResources];
@@ -88,7 +129,7 @@ function findBestResourceCombination(availableResources, devicesRequired) {
         0
       );
 
-      const bestSurplus = bestCapacity - devicesRequired;
+      const bestSurplus = bestCapacity - quantityRequired;
 
       if (
         currentSurplus < bestSurplus ||
@@ -116,13 +157,14 @@ function findBestResourceCombination(availableResources, devicesRequired) {
   return bestCombination || [];
 }
 
-function buildAllocation(selectedResources) {
+function buildAllocationBlock(selectedResources, method = "Automatic Allocation") {
   const totalCapacity = selectedResources.reduce(
     (total, resource) => total + Number(resource.capacity),
     0
   );
 
   return {
+    allocationMethod: method,
     cartCount: selectedResources.filter(resource => resource.resourceType === "Cart").length,
     bagCount: selectedResources.filter(resource => resource.resourceType === "Bag").length,
     totalAllocatedCapacity: totalCapacity,
@@ -132,34 +174,86 @@ function buildAllocation(selectedResources) {
   };
 }
 
-function allocateResources(bookingRequest) {
-  const parsedResources = loadXML(getResourcesFilePath());
-  const allResources = toArray(parsedResources.resources?.resource);
-
-  const bookedResourceIds = getBookedResourceIds(bookingRequest);
-
+function selectResourcesForRequest(allResources, usedResourceIds, predicate, quantityRequired) {
   const availableResources = allResources
     .filter(resource => resource.status === "Available")
-    .filter(resource => resource.deviceType === bookingRequest.deviceType)
-    .filter(resource => resourceSupportsSoftware(resource, bookingRequest.softwareRequirement))
-    .filter(resource => !bookedResourceIds.has(String(resource.id)))
+    .filter(resource => !usedResourceIds.has(String(resource.id)))
+    .filter(predicate)
     .sort((a, b) => Number(b.capacity) - Number(a.capacity));
 
   const selectedResources = findBestResourceCombination(
     availableResources,
+    Number(quantityRequired)
+  );
+
+  selectedResources.forEach(resource => usedResourceIds.add(String(resource.id)));
+
+  return selectedResources;
+}
+
+function allocateResources(bookingRequest) {
+  const parsedResources = loadXML(getResourcesFilePath());
+  const allResources = toArray(parsedResources.resources?.resource);
+  const bookedResourceIds = getBookedResourceIds(bookingRequest);
+  const usedResourceIds = new Set(bookedResourceIds);
+
+  const selectedDeviceResources = selectResourcesForRequest(
+    allResources,
+    usedResourceIds,
+    resource =>
+      normaliseResourceCategory(resource) !== "Accessory" &&
+      resource.deviceType === bookingRequest.deviceType &&
+      resourceSupportsSoftware(resource, bookingRequest.softwareRequirement),
     Number(bookingRequest.devicesRequired)
   );
 
-  const allocation = buildAllocation(selectedResources);
-  const canFulfil = Number(allocation.totalAllocatedCapacity) >= Number(bookingRequest.devicesRequired);
+  const deviceAllocation = buildAllocationBlock(selectedDeviceResources);
+  const deviceCanFulfil =
+    Number(deviceAllocation.totalAllocatedCapacity) >= Number(bookingRequest.devicesRequired);
+
+  const additionalRequests = normaliseAdditionalResources(bookingRequest.additionalResources);
+  const additionalAllocations = additionalRequests.map(request => {
+    const selectedAccessoryResources = selectResourcesForRequest(
+      allResources,
+      usedResourceIds,
+      resource =>
+        normaliseResourceCategory(resource) === "Accessory" &&
+        String(resource.deviceType || "").toLowerCase() === request.type.toLowerCase(),
+      request.quantity
+    );
+
+    const allocationBlock = buildAllocationBlock(selectedAccessoryResources, "Accessory Allocation");
+
+    return {
+      type: request.type,
+      quantityRequested: request.quantity,
+      ...allocationBlock,
+      fulfilled: Number(allocationBlock.totalAllocatedCapacity) >= Number(request.quantity)
+    };
+  });
+
+  const accessoriesCanFulfil = additionalAllocations.every(item => item.fulfilled !== false);
 
   return {
-    status: canFulfil ? "Confirmed" : "Unable to Fulfil",
-    allocation
+    status: deviceCanFulfil && accessoriesCanFulfil ? "Confirmed" : "Unable to Fulfil",
+    allocation: {
+      ...deviceAllocation,
+      allocationMethod: deviceCanFulfil && accessoriesCanFulfil
+        ? "Automatic Allocation"
+        : "Partial Allocation",
+      additionalResources: {
+        resource: additionalAllocations
+      }
+    }
   };
 }
 
 module.exports = {
   allocateResources,
-  resourceSupportsSoftware
+  resourceSupportsSoftware,
+  normaliseAdditionalResources,
+  normaliseResourceCategory,
+  collectResourceIdsFromAllocation,
+  findBestResourceCombination,
+  buildAllocationBlock
 };

@@ -482,6 +482,44 @@
       background: #99f6e4;
     }
 
+
+    .additional-resources-section {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 16px;
+      background: #f8fafc;
+      display: grid;
+      gap: 12px;
+    }
+
+    .additional-resource-row {
+      display: grid;
+      grid-template-columns: 1fr 160px;
+      gap: 12px;
+      align-items: center;
+      padding: 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      background: #ffffff;
+    }
+
+    .additional-resource-row label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .additional-resource-row input[type="checkbox"] {
+      width: 18px;
+      min-height: 18px;
+      height: 18px;
+      accent-color: var(--primary);
+    }
+
+    .additional-resource-row input[type="number"] {
+      text-align: center;
+    }
+
     .summary {
       margin-top: 22px;
       border-radius: 18px;
@@ -1293,6 +1331,14 @@
                 <span class="helper">Use the + or − buttons for quick adjustment.</span>
               </div>
             </div>
+
+            <div class="field full additional-resources-section" id="additionalResourcesSection" style="display:none;">
+              <div>
+                <label>Additional bookable resources</label>
+                <span class="helper">Optional accessories such as mouse, headset or Apple Pencil will be allocated as separate resources.</span>
+              </div>
+              <div id="additionalResourcesList"></div>
+            </div>
           </div>
 
           <div class="summary" id="bookingSummary">
@@ -1374,6 +1420,7 @@ document.getElementById("requesterName").textContent = user.name;
     });
     
     let locationsDatabase = [];
+    let accessoryTypes = [];
 
 
     const fallbackLocationsDatabase = [
@@ -1399,6 +1446,8 @@ document.getElementById("requesterName").textContent = user.name;
     let customLocationInput;
     let deviceTypeSelect;
     let softwareProcreate;
+    let additionalResourcesSection;
+    let additionalResourcesList;
     let oneTimeBookingBtn;
     let recurringBookingBtn;
     let recurrenceSection;
@@ -1436,6 +1485,8 @@ document.getElementById("requesterName").textContent = user.name;
       customLocationInput = getRequiredElement('customLocation');
       deviceTypeSelect = getRequiredElement('deviceType');
       softwareProcreate = getRequiredElement('softwareProcreate');
+      additionalResourcesSection = getRequiredElement('additionalResourcesSection');
+      additionalResourcesList = getRequiredElement('additionalResourcesList');
       oneTimeBookingBtn = getRequiredElement('oneTimeBookingBtn');
       recurringBookingBtn = getRequiredElement('recurringBookingBtn');
       recurrenceSection = getRequiredElement('recurrenceSection');
@@ -1483,6 +1534,65 @@ document.getElementById("requesterName").textContent = user.name;
       updateSummary();
     }
 
+
+    async function loadResourceCatalog() {
+      try {
+        const response = await fetch('/api/resources/catalog', { cache: 'no-store' });
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.message || 'Unable to load resource catalog.');
+        accessoryTypes = Array.isArray(result.accessoryTypes) ? result.accessoryTypes : [];
+      } catch (error) {
+        console.warn('Unable to load accessory resource catalog.', error.message);
+        accessoryTypes = [];
+      }
+
+      renderAccessoryOptions();
+    }
+
+    function renderAccessoryOptions() {
+      if (!additionalResourcesSection || !additionalResourcesList) return;
+
+      if (accessoryTypes.length === 0) {
+        additionalResourcesSection.style.display = 'none';
+        additionalResourcesList.innerHTML = '';
+        return;
+      }
+
+      additionalResourcesSection.style.display = 'grid';
+      additionalResourcesList.innerHTML = accessoryTypes.map(type => `
+        <div class="additional-resource-row" data-accessory-type="${type}">
+          <label>
+            <input type="checkbox" data-accessory-check value="${type}" />
+            <span>${type}</span>
+          </label>
+          <input type="number" data-accessory-quantity value="${devicesRequired?.value || 1}" min="1" max="100" disabled />
+        </div>
+      `).join('');
+    }
+
+    function getSelectedAdditionalResources() {
+      if (!additionalResourcesList) return [];
+      return Array.from(additionalResourcesList.querySelectorAll('.additional-resource-row'))
+        .map(row => {
+          const checkbox = row.querySelector('[data-accessory-check]');
+          const quantityInput = row.querySelector('[data-accessory-quantity]');
+          return {
+            type: checkbox?.value || '',
+            quantity: Number(quantityInput?.value || 0),
+            selected: Boolean(checkbox?.checked)
+          };
+        })
+        .filter(item => item.selected && item.type && item.quantity > 0)
+        .map(({ type, quantity }) => ({ type, quantity }));
+    }
+
+    function syncAccessoryQuantitiesToDeviceCount() {
+      if (!additionalResourcesList) return;
+      additionalResourcesList.querySelectorAll('[data-accessory-quantity]').forEach(input => {
+        if (!input.dataset.manuallyChanged) input.value = devicesRequired.value || 1;
+      });
+    }
+
     function populateLocationDropdown() {
       const source = locationsDatabase.length > 0 ? locationsDatabase : fallbackLocationsDatabase;
 
@@ -1510,6 +1620,7 @@ document.getElementById("requesterName").textContent = user.name;
         deviceType: deviceTypeSelect.value,
         softwareRequirement: softwareProcreate.checked ? 'Procreate' : 'None',
         devicesRequired: Number(devicesRequired.value),
+        additionalResources: { resource: getSelectedAdditionalResources() },
         bookingMode,
         recurrence: bookingMode === 'recurring'
           ? {
@@ -1672,8 +1783,12 @@ document.getElementById("requesterName").textContent = user.name;
       const recurrenceText = bookingMode === 'recurring'
         ? ` This is a recurring request with <strong>${Number(recurrenceCount.value)}</strong> occurrences.`
         : '';
+      const additionalResources = getSelectedAdditionalResources();
+      const accessoryText = additionalResources.length
+        ? ` Additional resources requested: <strong>${additionalResources.map(item => `${item.quantity} ${item.type}`).join(', ')}</strong>.`
+        : '';
 
-      summary.innerHTML = `<strong>${name}</strong> is requesting <strong>${devices}</strong> <strong>${deviceType}</strong> device${devices > 1 ? 's' : ''}${softwareRequirement} for <strong>${location}</strong> on <strong>${date}</strong>, from <strong>${start}</strong> to <strong>${end}</strong>.${recurrenceText}`;
+      summary.innerHTML = `<strong>${name}</strong> is requesting <strong>${devices}</strong> <strong>${deviceType}</strong> device${devices > 1 ? 's' : ''}${softwareRequirement} for <strong>${location}</strong> on <strong>${date}</strong>, from <strong>${start}</strong> to <strong>${end}</strong>.${accessoryText}${recurrenceText}`;
     }
 
     function showStatus(type, message) {
@@ -1756,6 +1871,7 @@ document.getElementById("requesterName").textContent = user.name;
       const min = Number(devicesRequired.min);
       const max = Number(devicesRequired.max);
       devicesRequired.value = Math.min(max, Math.max(min, current + change));
+      syncAccessoryQuantitiesToDeviceCount();
       updateSummary();
     }
 
@@ -1796,6 +1912,22 @@ document.getElementById("requesterName").textContent = user.name;
       increaseDevices.addEventListener('click', () => adjustDeviceCount(1));
       decreaseDevices.addEventListener('click', () => adjustDeviceCount(-1));
 
+      additionalResourcesList.addEventListener('change', event => {
+        const row = event.target.closest('.additional-resource-row');
+        if (!row) return;
+        const checkbox = row.querySelector('[data-accessory-check]');
+        const quantityInput = row.querySelector('[data-accessory-quantity]');
+        if (event.target.matches('[data-accessory-check]')) {
+          quantityInput.disabled = !checkbox.checked;
+          if (checkbox.checked && !quantityInput.value) quantityInput.value = devicesRequired.value || 1;
+        }
+        if (event.target.matches('[data-accessory-quantity]')) {
+          quantityInput.dataset.manuallyChanged = 'true';
+        }
+        updateSummary();
+      });
+
+      additionalResourcesList.addEventListener('input', updateSummary);
 
       locationSelect.addEventListener('change', () => {
         toggleCustomLocationField();
@@ -1907,7 +2039,8 @@ document.getElementById("requesterName").textContent = user.name;
       updateSummary();
 
       await Promise.allSettled([
-        loadLocations()
+        loadLocations(),
+        loadResourceCatalog()
       ]);
 
       console.log('Initialisation completed.', {

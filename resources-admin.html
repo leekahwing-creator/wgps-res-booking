@@ -1481,12 +1481,23 @@
             <input id="searchInput" type="search" placeholder="Search by name, ID, type, location or software" />
           </div>
           <div class="field">
-            <label for="deviceTypeFilter">Device type</label>
+            <label for="categoryFilter">Category</label>
+            <select id="categoryFilter">
+              <option value="All">All Categories</option>
+              <option value="Device">Device</option>
+              <option value="Accessory">Accessory</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="deviceTypeFilter">Resource type</label>
             <select id="deviceTypeFilter">
-              <option value="All">All Device Types</option>
+              <option value="All">All Types</option>
               <option value="iPad">iPad</option>
               <option value="iPad with Keyboard">iPad with Keyboard</option>
               <option value="Laptop">Laptop</option>
+              <option value="Mouse">Mouse</option>
+              <option value="Headset">Headset</option>
+              <option value="Apple Pencil">Apple Pencil</option>
             </select>
           </div>
           <div class="field">
@@ -1507,7 +1518,8 @@
             <thead>
               <tr>
                 <th>Resource</th>
-                <th>Device Type</th>
+                <th>Category</th>
+                <th>Resource Type</th>
                 <th>Capacity</th>
                 <th>Status</th>
                 <th>Location</th>
@@ -1516,7 +1528,7 @@
               </tr>
             </thead>
             <tbody id="resourceTableBody">
-              <tr><td colspan="7"><div class="empty-panel">Loading resources...</div></td></tr>
+              <tr><td colspan="8"><div class="empty-panel">Loading resources...</div></td></tr>
             </tbody>
           </table>
         </div>
@@ -1601,12 +1613,23 @@
           </div>
           <div class="two-col">
             <div class="field">
-              <label for="deviceType">Device type</label>
-              <select id="deviceType">
-                <option value="iPad">iPad</option>
-                <option value="iPad with Keyboard">iPad with Keyboard</option>
-                <option value="Laptop">Laptop</option>
+              <label for="resourceCategory">Category</label>
+              <select id="resourceCategory">
+                <option value="Device">Device</option>
+                <option value="Accessory">Accessory</option>
               </select>
+            </div>
+            <div class="field">
+              <label for="deviceType">Resource type</label>
+              <input id="deviceType" list="resourceTypeSuggestions" placeholder="e.g. Laptop, Mouse, Apple Pencil" />
+              <datalist id="resourceTypeSuggestions">
+                <option value="iPad"></option>
+                <option value="iPad with Keyboard"></option>
+                <option value="Laptop"></option>
+                <option value="Mouse"></option>
+                <option value="Headset"></option>
+                <option value="Apple Pencil"></option>
+              </datalist>
             </div>
             <div class="field">
               <label for="resourceType">Resource type</label>
@@ -1674,12 +1697,15 @@
 
           <div class="two-col">
             <div class="field">
-              <label for="editDeviceType">Device type</label>
-              <select id="editDeviceType">
-                <option value="iPad">iPad</option>
-                <option value="iPad with Keyboard">iPad with Keyboard</option>
-                <option value="Laptop">Laptop</option>
+              <label for="editResourceCategory">Category</label>
+              <select id="editResourceCategory">
+                <option value="Device">Device</option>
+                <option value="Accessory">Accessory</option>
               </select>
+            </div>
+            <div class="field">
+              <label for="editDeviceType">Resource type</label>
+              <input id="editDeviceType" list="resourceTypeSuggestions" placeholder="e.g. Laptop, Mouse, Apple Pencil" />
             </div>
             <div class="field">
               <label for="editResourceType">Resource type</label>
@@ -1786,6 +1812,7 @@
     const statusMessage = document.getElementById('statusMessage');
     const resourceTableBody = document.getElementById('resourceTableBody');
     const searchInput = document.getElementById('searchInput');
+    const categoryFilter = document.getElementById('categoryFilter');
     const deviceTypeFilter = document.getElementById('deviceTypeFilter');
     const statusFilter = document.getElementById('statusFilter');
     const clearFiltersBtn = document.getElementById('clearFiltersBtn');
@@ -1891,10 +1918,12 @@
         ];
 
         const matchesSearch = !query || searchValues.some(value => String(value || '').toLowerCase().includes(query));
+        const category = categoryFilter.value;
+        const matchesCategory = category === 'All' || (resource.category || 'Device') === category;
         const matchesDeviceType = deviceType === 'All' || resource.deviceType === deviceType;
         const matchesStatus = status === 'All' || resource.status === status;
 
-        return matchesSearch && matchesDeviceType && matchesStatus;
+        return matchesSearch && matchesCategory && matchesDeviceType && matchesStatus;
       });
     }
 
@@ -1937,7 +1966,7 @@
       updatePaginationControls(filteredResources.length, totalPages, startIndex, pageResources.length);
 
       if (filteredResources.length === 0) {
-        resourceTableBody.innerHTML = '<tr><td colspan="7"><div class="empty-panel">No resources match the current search or filters.</div></td></tr>';
+        resourceTableBody.innerHTML = '<tr><td colspan="8"><div class="empty-panel">No resources match the current search or filters.</div></td></tr>';
         return;
       }
 
@@ -1952,6 +1981,7 @@
               </span>
             </div>
           </td>
+          <td><span class="role-pill ${resource.category === 'Accessory' ? 'de' : ''}">${escapeHtml(resource.category || 'Device')}</span></td>
           <td><span class="role-pill">${escapeHtml(resource.deviceType)}</span></td>
           <td>${escapeHtml(resource.capacity)}</td>
           <td><span class="${getStatusPillClass(resource.status)}">${escapeHtml(resource.status)}</span></td>
@@ -2080,7 +2110,7 @@
 
     async function loadResources() {
       clearStatus();
-      resourceTableBody.innerHTML = '<tr><td colspan="7"><div class="empty-panel">Loading resources...</div></td></tr>';
+      resourceTableBody.innerHTML = '<tr><td colspan="8"><div class="empty-panel">Loading resources...</div></td></tr>';
 
       const response = await fetch('/api/admin/resources', { cache: 'no-store' });
       const result = await response.json();
@@ -2215,7 +2245,8 @@
       resourceForm.reset();
       document.getElementById('resourceId').value = '';
       document.getElementById('resourceName').value = '';
-      document.getElementById('deviceType').value = 'iPad';
+      document.getElementById('resourceCategory').value = 'Device';
+        document.getElementById('deviceType').value = 'iPad';
       document.getElementById('resourceType').value = 'Cart';
       document.getElementById('capacity').value = 1;
       document.getElementById('resourceStatus').value = 'Available';
@@ -2233,6 +2264,7 @@
     function buildAddResourcePayload() {
       return {
         name: document.getElementById('resourceName').value.trim(),
+        category: document.getElementById('resourceCategory').value,
         deviceType: document.getElementById('deviceType').value,
         resourceType: document.getElementById('resourceType').value,
         capacity: Number(document.getElementById('capacity').value),
@@ -2270,6 +2302,7 @@
 
       document.getElementById('editResourceId').value = selectedResource.id || '';
       document.getElementById('editResourceName').value = selectedResource.name || '';
+      document.getElementById('editResourceCategory').value = selectedResource.category || 'Device';
       document.getElementById('editDeviceType').value = selectedResource.deviceType || 'iPad';
       document.getElementById('editResourceType').value = selectedResource.resourceType || 'Cart';
       document.getElementById('editCapacity').value = selectedResource.capacity || 1;
@@ -2297,6 +2330,7 @@
     function buildEditResourcePayload() {
       return {
         name: document.getElementById('editResourceName').value.trim(),
+        category: document.getElementById('editResourceCategory').value,
         deviceType: document.getElementById('editDeviceType').value,
         resourceType: document.getElementById('editResourceType').value,
         capacity: Number(document.getElementById('editCapacity').value),
@@ -2431,13 +2465,14 @@
 
     clearFiltersBtn.addEventListener('click', () => {
       searchInput.value = '';
+      categoryFilter.value = 'All';
       deviceTypeFilter.value = 'All';
       statusFilter.value = 'All';
       resetPagination();
       renderResources();
     });
 
-    [searchInput, deviceTypeFilter, statusFilter].forEach(input => {
+    [searchInput, categoryFilter, deviceTypeFilter, statusFilter].forEach(input => {
       input.addEventListener('input', () => {
         resetPagination();
         renderResources();
@@ -2490,7 +2525,7 @@
 
       await loadResources().catch(error => {
         showStatus('error', error.message);
-        resourceTableBody.innerHTML = '<tr><td colspan="7"><div class="empty-panel">Unable to load resources.</div></td></tr>';
+        resourceTableBody.innerHTML = '<tr><td colspan="8"><div class="empty-panel">Unable to load resources.</div></td></tr>';
       });
     }
 

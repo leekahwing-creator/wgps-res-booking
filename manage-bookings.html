@@ -297,6 +297,37 @@
       background: #f8fafc;
     }
 
+
+    .additional-edit-list {
+      display: grid;
+      gap: 10px;
+      grid-column: 1 / -1;
+    }
+
+    .additional-edit-row {
+      display: grid;
+      grid-template-columns: 1fr 150px;
+      gap: 10px;
+      align-items: center;
+      padding: 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      background: #f8fafc;
+    }
+
+    .additional-edit-row label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .additional-edit-row input[type="checkbox"] {
+      width: 18px;
+      min-height: 18px;
+      height: 18px;
+      accent-color: var(--primary);
+    }
+
     .suggestions {
       display: none;
       border: 1px solid var(--border);
@@ -936,6 +967,7 @@
     const statusMessage = document.getElementById('statusMessage');
 
     let currentUser = null;
+    let accessoryTypes = [];
 
     async function requireAuthenticatedUser() {
       const response = await fetch("/api/me", { cache: "no-store" });
@@ -1078,6 +1110,69 @@ return user;
       return resources.length ? resources.join(', ') : 'No allocation recorded';
     }
 
+
+    async function loadResourceCatalog() {
+      try {
+        const response = await fetch('/api/resources/catalog', { cache: 'no-store' });
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.message || 'Unable to load resource catalog.');
+        accessoryTypes = Array.isArray(result.accessoryTypes) ? result.accessoryTypes : [];
+      } catch (error) {
+        console.warn('Unable to load accessory resource catalog:', error.message);
+        accessoryTypes = [];
+      }
+    }
+
+    function normaliseAdditionalResources(additionalResources) {
+      const items = additionalResources?.resource || additionalResources || [];
+      return (Array.isArray(items) ? items : [items])
+        .map(item => ({
+          type: String(item?.type || '').trim(),
+          quantity: Number(item?.quantity || 0)
+        }))
+        .filter(item => item.type && item.quantity > 0);
+    }
+
+    function formatAdditionalResources(additionalResources) {
+      const items = normaliseAdditionalResources(additionalResources);
+      return items.length ? items.map(item => `${item.quantity} ${item.type}`).join(', ') : 'None';
+    }
+
+    function getAdditionalResourceAllocationList(booking) {
+      const allocations = booking.allocation?.additionalResources?.resource || [];
+      const items = Array.isArray(allocations) ? allocations : [allocations];
+      const labels = items
+        .filter(item => item?.type)
+        .map(item => {
+          const resourceIds = item.resources?.resourceId || [];
+          const resources = Array.isArray(resourceIds) ? resourceIds : [resourceIds];
+          return `${item.type}: ${resources.filter(Boolean).join(', ') || 'No allocation'}`;
+        });
+      return labels.length ? labels.join(' | ') : 'None';
+    }
+
+    function renderAdditionalResourceEditControls(booking) {
+      const selected = new Map(normaliseAdditionalResources(booking.additionalResources).map(item => [item.type.toLowerCase(), item.quantity]));
+      if (accessoryTypes.length === 0 && selected.size === 0) return '';
+      const allTypes = Array.from(new Set([...accessoryTypes, ...Array.from(selected.keys()).map(key => key)]));
+      return `
+        <div class="additional-edit-list" data-accessory-edit-list>
+          <label>Additional resources</label>
+          ${allTypes.map(typeRaw => {
+            const type = accessoryTypes.find(item => item.toLowerCase() === String(typeRaw).toLowerCase()) || typeRaw;
+            const quantity = selected.get(String(type).toLowerCase()) || '';
+            const checked = selected.has(String(type).toLowerCase());
+            return `
+              <div class="additional-edit-row">
+                <label><input type="checkbox" data-edit-accessory-check value="${type}" ${checked ? 'checked' : ''} /> ${type}</label>
+                <input type="number" data-edit-accessory-quantity min="1" max="100" value="${quantity || booking.devicesRequired || 1}" ${checked ? '' : 'disabled'} />
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }
+
     function normaliseBookings(bookings) {
       if (!bookings) return [];
       return Array.isArray(bookings) ? bookings : [bookings];
@@ -1111,6 +1206,8 @@ return user;
               <div class="meta-box"><span>Status</span><strong>${booking.status || '-'}</strong></div>
               <div class="meta-box"><span>Software</span><strong>${booking.softwareRequirement || 'None'}</strong></div>
               <div class="meta-box"><span>Resources</span><strong>${getResourceList(booking)}</strong></div>
+              <div class="meta-box"><span>Accessories</span><strong>${formatAdditionalResources(booking.additionalResources)}</strong></div>
+              <div class="meta-box"><span>Accessory Allocation</span><strong>${getAdditionalResourceAllocationList(booking)}</strong></div>
               <div class="meta-box"><span>Allocation</span><strong>${booking.allocation?.allocationMethod || '-'}</strong></div>
             </div>
 
@@ -1146,6 +1243,7 @@ return user;
                     ${generateTimeOptions(booking.endTime || '')}
                   </select>
                 </div>
+                ${renderAdditionalResourceEditControls(booking)}
               </div>
               <div class="booking-actions">
                 <button class="btn btn-primary" type="button" data-action="save-edit">Save Changes</button>
@@ -1182,7 +1280,8 @@ return user;
       nameSearch.readOnly = true;
 
       await Promise.allSettled([
-        loadLocations()
+        loadLocations(),
+        loadResourceCatalog()
       ]);
 
       try {
@@ -1203,6 +1302,14 @@ return user;
         bookingList.innerHTML = '<div class="empty-state">Unable to load bookings.</div>';
       }
     });
+    bookingList.addEventListener('change', event => {
+      const checkbox = event.target.closest('[data-edit-accessory-check]');
+      if (!checkbox) return;
+      const row = checkbox.closest('.additional-edit-row');
+      const quantityInput = row?.querySelector('[data-edit-accessory-quantity]');
+      if (quantityInput) quantityInput.disabled = !checkbox.checked;
+    });
+
     bookingList.addEventListener('click', async event => {
       const button = event.target.closest('button');
       if (!button) return;
@@ -1248,6 +1355,20 @@ return user;
         card.querySelectorAll('[data-edit-field]').forEach(input => {
           updatedBooking[input.dataset.editField] = input.value;
         });
+        updatedBooking.additionalResources = {
+          resource: Array.from(card.querySelectorAll('.additional-edit-row'))
+            .map(row => {
+              const checkbox = row.querySelector('[data-edit-accessory-check]');
+              const quantityInput = row.querySelector('[data-edit-accessory-quantity]');
+              return {
+                type: checkbox?.value || '',
+                quantity: Number(quantityInput?.value || 0),
+                selected: Boolean(checkbox?.checked)
+              };
+            })
+            .filter(item => item.selected && item.type && item.quantity > 0)
+            .map(({ type, quantity }) => ({ type, quantity }))
+        };
 
         if (!updatedBooking.bookingDate || updatedBooking.bookingDate < getNextAvailableBookingDate()) {
           showStatus('error', `Same-day booking is not allowed. The earliest available booking date is ${formatDate(getNextAvailableBookingDate())}.`);

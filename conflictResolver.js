@@ -2,7 +2,14 @@ const fs = require("fs");
 const path = require("path");
 const { XMLParser } = require("fast-xml-parser");
 const { ensureMonthlyBookingsFile } = require("./bookingFileHelper");
-const { resourceSupportsSoftware } = require("./resourceAllocator");
+const {
+  resourceSupportsSoftware,
+  normaliseAdditionalResources,
+  normaliseResourceCategory,
+  findBestResourceCombination,
+  buildAllocationBlock,
+  collectResourceIdsFromAllocation
+} = require("./resourceAllocator");
 
 const parser = new XMLParser({ ignoreAttributes: false });
 
@@ -28,54 +35,62 @@ function timeOverlaps(startA, endA, startB, endB) {
   return startA < endB && endA > startB;
 }
 
-function findBestResourceCombination(resources, devicesRequired) {
-  let best = null;
+function selectResourcesForRequest(allResources, remainingResourceIds, predicate, quantityRequired) {
+  const availableResources = allResources
+    .filter(resource => remainingResourceIds.has(String(resource.id)))
+    .filter(resource => resource.status === "Available")
+    .filter(predicate)
+    .sort((a, b) => Number(b.capacity) - Number(a.capacity));
 
-  function search(index, selected, capacity) {
-    if (capacity >= devicesRequired) {
-      const surplus = capacity - devicesRequired;
+  const selectedResources = findBestResourceCombination(availableResources, Number(quantityRequired));
 
-      if (!best) {
-        best = [...selected];
-        return;
-      }
+  selectedResources.forEach(resource => remainingResourceIds.delete(String(resource.id)));
 
-      const bestCapacity = best.reduce((sum, r) => sum + Number(r.capacity), 0);
-      const bestSurplus = bestCapacity - devicesRequired;
-
-      if (
-        surplus < bestSurplus ||
-        (surplus === bestSurplus && selected.length < best.length)
-      ) {
-        best = [...selected];
-      }
-
-      return;
-    }
-
-    if (index >= resources.length) return;
-
-    search(index + 1, [...selected, resources[index]], capacity + Number(resources[index].capacity));
-    search(index + 1, selected, capacity);
-  }
-
-  search(0, [], 0);
-  return best || [];
+  return selectedResources;
 }
 
-function buildAllocation(resources, method = "Reallocated") {
-  const totalAllocatedCapacity = resources.reduce(
-    (sum, resource) => sum + Number(resource.capacity),
-    0
+function allocateBookingPackage(allResources, remainingResourceIds, booking, method) {
+  const selectedDeviceResources = selectResourcesForRequest(
+    allResources,
+    remainingResourceIds,
+    resource =>
+      normaliseResourceCategory(resource) !== "Accessory" &&
+      resource.deviceType === booking.deviceType &&
+      resourceSupportsSoftware(resource, booking.softwareRequirement),
+    Number(booking.devicesRequired)
   );
 
+  const deviceAllocation = buildAllocationBlock(selectedDeviceResources, method);
+  const deviceFulfilled = Number(deviceAllocation.totalAllocatedCapacity) >= Number(booking.devicesRequired);
+
+  const additionalAllocations = normaliseAdditionalResources(booking.additionalResources).map(request => {
+    const selectedAccessoryResources = selectResourcesForRequest(
+      allResources,
+      remainingResourceIds,
+      resource =>
+        normaliseResourceCategory(resource) === "Accessory" &&
+        String(resource.deviceType || "").toLowerCase() === request.type.toLowerCase(),
+      request.quantity
+    );
+
+    const allocationBlock = buildAllocationBlock(selectedAccessoryResources, "Accessory Reallocation");
+    return {
+      type: request.type,
+      quantityRequested: request.quantity,
+      ...allocationBlock,
+      fulfilled: Number(allocationBlock.totalAllocatedCapacity) >= Number(request.quantity)
+    };
+  });
+
+  const accessoriesFulfilled = additionalAllocations.every(item => item.fulfilled !== false);
+
   return {
-    allocationMethod: method,
-    cartCount: resources.filter(r => r.resourceType === "Cart").length,
-    bagCount: resources.filter(r => r.resourceType === "Bag").length,
-    totalAllocatedCapacity,
-    resources: {
-      resourceId: resources.map(r => r.id)
+    success: deviceFulfilled && accessoriesFulfilled,
+    allocation: {
+      ...deviceAllocation,
+      additionalResources: {
+        resource: additionalAllocations
+      }
     }
   };
 }
@@ -86,15 +101,12 @@ function resolveConflict(newBookingRequest) {
   const parsedBookings = loadXML(bookingsFile);
 
   const allResources = toArray(parsedResources.resources?.resource)
-    .filter(resource => resource.status === "Available")
-    .filter(resource => resource.deviceType === newBookingRequest.deviceType)
-    .sort((a, b) => Number(b.capacity) - Number(a.capacity));
+    .filter(resource => resource.status === "Available");
 
   const existingBookings = toArray(parsedBookings.bookings?.booking);
 
   const affectedBookings = existingBookings.filter(booking => {
     if (["Cancelled", "Deleted"].includes(booking.status)) return false;
-    if (booking.deviceType !== newBookingRequest.deviceType) return false;
     if (booking.bookingDate !== newBookingRequest.bookingDate) return false;
 
     return timeOverlaps(
@@ -105,47 +117,43 @@ function resolveConflict(newBookingRequest) {
     );
   });
 
+  const unaffectedResourceIds = new Set(allResources.map(resource => String(resource.id)));
+  affectedBookings.forEach(booking => {
+    collectResourceIdsFromAllocation(booking.allocation)
+      .forEach(resourceId => unaffectedResourceIds.add(String(resourceId)));
+  });
+
+  const remainingResourceIds = new Set(allResources.map(resource => String(resource.id)));
+
   const bookingsToReallocate = [
     ...affectedBookings.map(booking => ({ ...booking, isNewBooking: false })),
     { ...newBookingRequest, isNewBooking: true }
-  ].sort((a, b) => Number(b.devicesRequired) - Number(a.devicesRequired));
+  ].sort((a, b) => {
+    const aDemand = Number(a.devicesRequired || 0) + normaliseAdditionalResources(a.additionalResources).reduce((sum, item) => sum + item.quantity, 0);
+    const bDemand = Number(b.devicesRequired || 0) + normaliseAdditionalResources(b.additionalResources).reduce((sum, item) => sum + item.quantity, 0);
+    return bDemand - aDemand;
+  });
 
-  const remainingResources = [...allResources];
   const allocationResults = [];
 
   for (const booking of bookingsToReallocate) {
-    const compatibleRemainingResources = remainingResources.filter(resource =>
-      resourceSupportsSoftware(resource, booking.softwareRequirement)
+    const result = allocateBookingPackage(
+      allResources,
+      remainingResourceIds,
+      booking,
+      booking.isNewBooking ? "Conflict Resolution" : "Reallocated"
     );
 
-    const selectedResources = findBestResourceCombination(
-      compatibleRemainingResources,
-      Number(booking.devicesRequired)
-    );
-
-    const selectedCapacity = selectedResources.reduce(
-      (sum, resource) => sum + Number(resource.capacity),
-      0
-    );
-
-    if (selectedCapacity < Number(booking.devicesRequired)) {
+    if (!result.success) {
       return {
         success: false,
-        reason: "Unable to reallocate resources without affecting existing bookings."
+        reason: "Unable to reallocate resources and accessories without affecting existing bookings."
       };
     }
 
-    selectedResources.forEach(selected => {
-      const index = remainingResources.findIndex(r => r.id === selected.id);
-      if (index !== -1) remainingResources.splice(index, 1);
-    });
-
     allocationResults.push({
       booking,
-      allocation: buildAllocation(
-        selectedResources,
-        booking.isNewBooking ? "Conflict Resolution" : "Reallocated"
-      )
+      allocation: result.allocation
     });
   }
 

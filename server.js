@@ -353,14 +353,17 @@ function normaliseResourceStatus(status) {
   return allowedStatuses.includes(status) ? status : "Available";
 }
 
+function normaliseResourceCategory(category) {
+  return String(category || "Device").trim() === "Accessory" ? "Accessory" : "Device";
+}
+
 function normaliseResourceType(type) {
   const allowedTypes = ["Cart", "Bag", "Set", "Other"];
-  return allowedTypes.includes(type) ? type : "Cart";
+  return allowedTypes.includes(type) ? type : "Set";
 }
 
 function normaliseDeviceType(type) {
-  const allowedTypes = ["iPad", "iPad with Keyboard", "Laptop"];
-  return allowedTypes.includes(type) ? type : "iPad";
+  return String(type || "").trim() || "iPad";
 }
 
 function normaliseSoftwareStatus(status) {
@@ -463,6 +466,7 @@ function buildResourcesXml(resources, softwareCatalog) {
         return {
           id: String(resource.id || "").trim(),
           name: String(resource.name || "").trim(),
+          category: normaliseResourceCategory(resource.category),
           deviceType: normaliseDeviceType(resource.deviceType),
           capacity: Number(resource.capacity) || 0,
           resourceType: normaliseResourceType(resource.resourceType),
@@ -553,6 +557,7 @@ function formatResourceForResponse(resource) {
   return {
     id: resource.id,
     name: resource.name || "",
+    category: normaliseResourceCategory(resource.category),
     deviceType: normaliseDeviceType(resource.deviceType),
     capacity: Number(resource.capacity) || 0,
     resourceType: normaliseResourceType(resource.resourceType),
@@ -1193,6 +1198,66 @@ app.get("/api/locations", (req, res) => {
   res.json({ locations });
 });
 
+
+app.get("/api/resources/catalog", requireLogin, (req, res) => {
+  try {
+    const resources = readResourcesFromXML().map(formatResourceForResponse);
+
+    const deviceTypes = Array.from(new Set(
+      resources
+        .filter(resource => resource.category !== "Accessory")
+        .filter(resource => resource.status === "Available")
+        .map(resource => resource.deviceType)
+        .filter(Boolean)
+    )).sort((a, b) => a.localeCompare(b));
+
+    const accessoryTypes = Array.from(new Set(
+      resources
+        .filter(resource => resource.category === "Accessory")
+        .filter(resource => resource.status === "Available")
+        .map(resource => resource.deviceType)
+        .filter(Boolean)
+    )).sort((a, b) => a.localeCompare(b));
+
+    res.json({
+      success: true,
+      deviceTypes,
+      accessoryTypes
+    });
+  } catch (error) {
+    console.error("Resource catalog retrieval error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+function normaliseAdditionalResourceRequests(additionalResources) {
+  return toArray(additionalResources?.resource || additionalResources)
+    .map(item => ({
+      type: String(item?.type || item?.deviceType || item?.name || "").trim(),
+      quantity: Number(item?.quantity || 0)
+    }))
+    .filter(item => item.type && Number.isInteger(item.quantity) && item.quantity > 0);
+}
+
+function validateAdditionalResourceRequests(bookingRequest) {
+  const errors = [];
+  const accessoryTypes = new Set(
+    readResourcesFromXML()
+      .map(formatResourceForResponse)
+      .filter(resource => resource.category === "Accessory")
+      .filter(resource => resource.status === "Available")
+      .map(resource => resource.deviceType.toLowerCase())
+  );
+
+  normaliseAdditionalResourceRequests(bookingRequest.additionalResources).forEach(item => {
+    if (!accessoryTypes.has(item.type.toLowerCase())) {
+      errors.push(`${item.type} is not an available accessory resource.`);
+    }
+  });
+
+  return errors;
+}
+
 /* ---------------- BOOKING ROUTES ---------------- */
 
 app.post("/api/bookings", requireLogin, (req, res) => {
@@ -1220,6 +1285,18 @@ app.post("/api/bookings", requireLogin, (req, res) => {
         message: "Recurring booking is available only to authorised users."
       });
     }
+
+    const additionalResourceErrors = validateAdditionalResourceRequests(bookingRequest);
+    if (additionalResourceErrors.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: additionalResourceErrors.join(" ")
+      });
+    }
+
+    bookingRequest.additionalResources = {
+      resource: normaliseAdditionalResourceRequests(bookingRequest.additionalResources)
+    };
 
     const bookingDates = isRecurring
       ? bookingRequest.recurrence.dates.slice(0, 4)
@@ -1504,6 +1581,18 @@ app.put("/api/bookings/:bookingId", requireLogin, (req, res) => {
       bookingDate: req.body.bookingDate || existingBooking.bookingDate,
       status: "Pending Allocation"
     });
+
+    const additionalResourceErrors = validateAdditionalResourceRequests(updatedBookingRequest);
+    if (additionalResourceErrors.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: additionalResourceErrors.join(" ")
+      });
+    }
+
+    updatedBookingRequest.additionalResources = {
+      resource: normaliseAdditionalResourceRequests(updatedBookingRequest.additionalResources)
+    };
 
     const remainingOriginalBookings = originalBookings.filter(
       booking => String(booking["@_id"]) !== String(bookingId)
@@ -2057,6 +2146,7 @@ app.post("/api/admin/resources", requireLogin, requireAdmin, (req, res) => {
     const payload = req.body || {};
 
     const name = String(payload.name || "").trim();
+    const category = normaliseResourceCategory(payload.category);
     const deviceType = normaliseDeviceType(payload.deviceType);
     const resourceType = normaliseResourceType(payload.resourceType);
     const capacity = Number(payload.capacity);
@@ -2079,6 +2169,7 @@ app.post("/api/admin/resources", requireLogin, requireAdmin, (req, res) => {
     const newResource = {
       id,
       name,
+      category,
       deviceType,
       capacity,
       resourceType,
@@ -2129,6 +2220,7 @@ app.put("/api/admin/resources/:resourceId", requireLogin, requireAdmin, (req, re
     resources[index] = {
       ...existing,
       name: String(payload.name || "").trim(),
+      category: normaliseResourceCategory(payload.category),
       deviceType: normaliseDeviceType(payload.deviceType),
       capacity,
       resourceType: normaliseResourceType(payload.resourceType),
