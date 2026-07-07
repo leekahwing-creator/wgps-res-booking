@@ -1584,6 +1584,35 @@ function normaliseImportDate(value) {
   return text;
 }
 
+
+function normaliseImportDateRange(value) {
+  const text = normaliseImportValue(value);
+  if (!text) return "";
+  const normalised = normaliseImportDate(text);
+  return /^\d{4}-\d{2}-\d{2}$/.test(normalised) ? normalised : "";
+}
+
+function getImportDateRange(body = {}) {
+  const importFrom = normaliseImportDateRange(body.importFrom);
+  const importTo = normaliseImportDateRange(body.importTo);
+
+  if (importFrom && importTo && importFrom > importTo) {
+    const error = new Error("Import From date cannot be later than Import To date.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return { importFrom, importTo };
+}
+
+function bookingIsWithinImportDateRange(bookingDate, dateRange = {}) {
+  const normalisedDate = normaliseImportDateRange(bookingDate);
+  if (!normalisedDate) return false;
+  if (dateRange.importFrom && normalisedDate < dateRange.importFrom) return false;
+  if (dateRange.importTo && normalisedDate > dateRange.importTo) return false;
+  return true;
+}
+
 function normaliseImportTime(value) {
   const text = normaliseImportValue(value);
   if (!text) return "";
@@ -1711,13 +1740,35 @@ function mapLegacyBookingRow(row, index, users) {
   };
 }
 
-function previewLegacyBookingRows(rows) {
+function previewLegacyBookingRows(rows, dateRange = {}) {
   const users = getUsersFromXML();
-  const results = toArray(rows).map((row, index) => mapLegacyBookingRow(row || {}, index, users));
+  const allRows = toArray(rows).map((row, index) => mapLegacyBookingRow(row || {}, index, users));
+
+  const inRangeRows = [];
+  const outOfRangeRows = [];
+
+  allRows.forEach(row => {
+    const bookingDate = row.mappedBooking?.bookingDate || "";
+    if (bookingIsWithinImportDateRange(bookingDate, dateRange)) {
+      inRangeRows.push(row);
+    } else {
+      outOfRangeRows.push({
+        ...row,
+        skippedReason: bookingDate
+          ? "Outside selected import date range."
+          : "No valid booking date found for date-range filtering."
+      });
+    }
+  });
+
   return {
-    totalRows: results.length,
-    validRows: results.filter(row => row.valid),
-    invalidRows: results.filter(row => !row.valid)
+    totalRows: allRows.length,
+    rowsWithinRange: inRangeRows.length,
+    rowsOutsideRange: outOfRangeRows.length,
+    dateRange,
+    validRows: inRangeRows.filter(row => row.valid),
+    invalidRows: inRangeRows.filter(row => !row.valid),
+    outOfRangeRows
   };
 }
 
@@ -1794,11 +1845,12 @@ app.post("/api/admin/import/bookings/preview", requireLogin, requireAdmin, (req,
       return res.status(400).json({ success: false, message: "rows must be an array of booking records." });
     }
 
-    const preview = previewLegacyBookingRows(rows);
+    const dateRange = getImportDateRange(req.body);
+    const preview = previewLegacyBookingRows(rows, dateRange);
     res.json({ success: true, ...preview });
   } catch (error) {
     console.error("Booking import preview error:", error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 
@@ -1809,11 +1861,12 @@ app.post("/api/admin/import/bookings/commit", requireLogin, requireAdmin, (req, 
       return res.status(400).json({ success: false, message: "rows must be an array of booking records." });
     }
 
-    const preview = previewLegacyBookingRows(rows);
+    const dateRange = getImportDateRange(req.body);
+    const preview = previewLegacyBookingRows(rows, dateRange);
     if (preview.invalidRows.length > 0 && !req.body.allowPartialImport) {
       return res.status(400).json({
         success: false,
-        message: "Some rows are invalid. Fix them or set allowPartialImport to true.",
+        message: "Some rows within the selected date range are invalid. Fix them or set allowPartialImport to true.",
         ...preview
       });
     }
@@ -1824,16 +1877,20 @@ app.post("/api/admin/import/bookings/commit", requireLogin, requireAdmin, (req, 
 
     res.json({
       success: true,
-      message: `${importedBookings.length} booking record(s) imported. ${duplicateRows.length} duplicate row(s) skipped.`,
+      message: `${importedBookings.length} booking record(s) imported from the selected date range. ${duplicateRows.length} duplicate row(s) skipped. ${preview.rowsOutsideRange} row(s) were outside the selected date range.`,
       importedCount: importedBookings.length,
-      skippedCount: preview.invalidRows.length + duplicateRows.length,
+      skippedCount: preview.invalidRows.length + duplicateRows.length + preview.rowsOutsideRange,
       duplicateRows,
       importedBookings,
-      invalidRows: preview.invalidRows
+      invalidRows: preview.invalidRows,
+      outOfRangeRows: preview.outOfRangeRows,
+      rowsWithinRange: preview.rowsWithinRange,
+      rowsOutsideRange: preview.rowsOutsideRange,
+      dateRange: preview.dateRange
     });
   } catch (error) {
     console.error("Booking import commit error:", error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 

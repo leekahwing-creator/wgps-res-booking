@@ -1142,6 +1142,60 @@
     code { background:#f1f5f9; padding:2px 5px; border-radius:6px; }
   
 
+
+    .range-card {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 16px;
+      background: #f8fafc;
+      display: grid;
+      gap: 14px;
+    }
+    .range-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .quick-preset-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .quick-preset-row .btn {
+      min-height: 42px;
+      font-size: .9rem;
+      border-radius: 14px;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .stat-card {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px;
+      background: #ffffff;
+    }
+    .stat-card strong {
+      display: block;
+      font-size: 1.45rem;
+      color: var(--primary-dark);
+      line-height: 1.1;
+    }
+    .stat-card span {
+      display: block;
+      margin-top: 6px;
+      font-size: .78rem;
+      color: var(--muted);
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    @media (max-width: 860px) {
+      .range-grid, .stats-grid { grid-template-columns: 1fr; }
+    }
+
     /* Prevent old standalone navigation from flashing/overlapping before the shared navigation controller finishes applying role-aware layout. */
     .portal-nav-v2:not(.nav-ready) .nav-main > .desktop-extra { display: none !important; }
     .portal-nav-v2:not(.nav-ready) .more-dropdown { display: inline-flex !important; }
@@ -1228,6 +1282,30 @@
             <input id="csvFile" type="file" accept=".csv,.txt" />
           </div>
 
+
+          <div class="range-card" aria-label="Import date range filter">
+            <div>
+              <label>Import range</label>
+              <div class="helper">Only rows with booking dates within this range will be previewed and committed. Leave both dates blank to process the full file.</div>
+            </div>
+            <div class="range-grid">
+              <div class="field">
+                <label for="importFrom">Import From</label>
+                <input id="importFrom" type="date" />
+              </div>
+              <div class="field">
+                <label for="importTo">Import To</label>
+                <input id="importTo" type="date" />
+              </div>
+            </div>
+            <div class="quick-preset-row" aria-label="Import range presets">
+              <button id="fullFilePresetBtn" class="btn btn-secondary" type="button">Full File</button>
+              <button id="thisMonthPresetBtn" class="btn btn-secondary" type="button">This Month</button>
+              <button id="nextMonthPresetBtn" class="btn btn-secondary" type="button">Next Month</button>
+              <button id="clearDatesBtn" class="btn btn-secondary" type="button">Clear Dates</button>
+            </div>
+          </div>
+
           <div class="field">
             <label for="importText">Import data</label>
             <textarea id="importText" placeholder="Paste tab-separated rows copied from Excel, or CSV data with headers..."></textarea>
@@ -1255,6 +1333,12 @@
     const clearBtn = document.getElementById('clearBtn');
     const statusMessage = document.getElementById('statusMessage');
     const previewResults = document.getElementById('previewResults');
+    const importFrom = document.getElementById('importFrom');
+    const importTo = document.getElementById('importTo');
+    const fullFilePresetBtn = document.getElementById('fullFilePresetBtn');
+    const thisMonthPresetBtn = document.getElementById('thisMonthPresetBtn');
+    const nextMonthPresetBtn = document.getElementById('nextMonthPresetBtn');
+    const clearDatesBtn = document.getElementById('clearDatesBtn');
     let lastRows = [];
 
     function showStatus(type, message) {
@@ -1267,6 +1351,41 @@
         '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
       }[char]));
     }
+
+    function formatDateForInput(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    function getImportRangePayload() {
+      const from = importFrom.value || '';
+      const to = importTo.value || '';
+
+      if (from && to && from > to) {
+        throw new Error('Import From date cannot be later than Import To date.');
+      }
+
+      return {
+        importFrom: from,
+        importTo: to
+      };
+    }
+
+    function clearImportRange() {
+      importFrom.value = '';
+      importTo.value = '';
+    }
+
+    function setMonthRange(monthOffset) {
+      const today = new Date();
+      const firstDay = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
+      const lastDay = new Date(today.getFullYear(), today.getMonth() + monthOffset + 1, 0);
+      importFrom.value = formatDateForInput(firstDay);
+      importTo.value = formatDateForInput(lastDay);
+    }
+
 
     async function requireAdminUser() {
       const response = await fetch('/api/me', { cache: 'no-store' });
@@ -1307,9 +1426,20 @@
     function renderPreview(data) {
       const validRows = data.validRows || [];
       const invalidRows = data.invalidRows || [];
+      const outOfRangeRows = data.outOfRangeRows || [];
+      const totalRows = data.totalRows || 0;
+      const rowsWithinRange = data.rowsWithinRange ?? (validRows.length + invalidRows.length);
+      const rowsOutsideRange = data.rowsOutsideRange ?? outOfRangeRows.length;
       commitBtn.disabled = validRows.length === 0;
       previewResults.innerHTML = `
-        <div class="note-box"><strong>Preview complete:</strong> ${data.totalRows || 0} row(s), ${validRows.length} valid, ${invalidRows.length} invalid.</div>
+        <div class="stats-grid" aria-label="Import preview summary">
+          <div class="stat-card"><strong>${totalRows}</strong><span>Total rows in file</span></div>
+          <div class="stat-card"><strong>${rowsWithinRange}</strong><span>Within selected range</span></div>
+          <div class="stat-card"><strong>${validRows.length}</strong><span>Valid bookings</span></div>
+          <div class="stat-card"><strong>${invalidRows.length}</strong><span>Needs review</span></div>
+          <div class="stat-card"><strong>${rowsOutsideRange}</strong><span>Outside range</span></div>
+        </div>
+        <div class="note-box"><strong>Preview complete:</strong> Only rows within the selected date range will be committed. ${rowsOutsideRange} row(s) outside the selected range will be ignored.</div>
         <div class="preview-table-wrap">
           <table>
             <thead><tr><th>Row</th><th>Status</th><th>Date / Time</th><th>Requester</th><th>Resource</th><th>Accessories</th><th>Issues</th></tr></thead>
@@ -1342,8 +1472,15 @@
     previewBtn.addEventListener('click', async () => {
       lastRows = parseRows(importText.value);
       if (lastRows.length === 0) { showStatus('error', 'No import rows found. Check that the first row contains headers.'); return; }
+      let importRange;
+      try {
+        importRange = getImportRangePayload();
+      } catch (error) {
+        showStatus('error', error.message);
+        return;
+      }
       const response = await fetch('/api/admin/import/bookings/preview', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows: lastRows })
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows: lastRows, ...importRange })
       });
       const result = await response.json();
       if (!response.ok || !result.success) { showStatus('error', result.message || 'Unable to preview import.'); return; }
@@ -1354,8 +1491,15 @@
     commitBtn.addEventListener('click', async () => {
       if (!lastRows.length) return;
       if (!confirm('Import all valid rows?')) return;
+      let importRange;
+      try {
+        importRange = getImportRangePayload();
+      } catch (error) {
+        showStatus('error', error.message);
+        return;
+      }
       const response = await fetch('/api/admin/import/bookings/commit', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows: lastRows, allowPartialImport: true })
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows: lastRows, allowPartialImport: true, ...importRange })
       });
       const result = await response.json();
       if (!response.ok || !result.success) { showStatus('error', result.message || 'Unable to commit import.'); return; }
@@ -1366,11 +1510,43 @@
     clearBtn.addEventListener('click', () => {
       importText.value = '';
       csvFile.value = '';
+      clearImportRange();
       lastRows = [];
       previewResults.innerHTML = '';
       commitBtn.disabled = true;
       statusMessage.className = 'status-panel';
       statusMessage.textContent = '';
+    });
+
+
+
+    fullFilePresetBtn.addEventListener('click', () => {
+      clearImportRange();
+      showStatus('success', 'Full File selected. All dated rows in the uploaded data will be considered.');
+    });
+
+    thisMonthPresetBtn.addEventListener('click', () => {
+      setMonthRange(0);
+      showStatus('success', 'This Month range selected.');
+    });
+
+    nextMonthPresetBtn.addEventListener('click', () => {
+      setMonthRange(1);
+      showStatus('success', 'Next Month range selected.');
+    });
+
+    clearDatesBtn.addEventListener('click', () => {
+      clearImportRange();
+      showStatus('success', 'Import date range cleared.');
+    });
+
+    [importFrom, importTo].forEach(input => {
+      input.addEventListener('change', () => {
+        commitBtn.disabled = true;
+        previewResults.innerHTML = '';
+        statusMessage.className = 'status-panel';
+        statusMessage.textContent = '';
+      });
     });
 
     document.getElementById('logoutBtn').addEventListener('click', async () => {
