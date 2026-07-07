@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Manage My Bookings</title>
+  <title>Manage Bookings</title>
   <style>
     :root {
       --primary: #0f766e;
@@ -932,8 +932,8 @@
 
     <section class="card">
       <div class="card-header">
-        <h1>Manage My Bookings</h1>
-        <p>View, modify, or delete your upcoming ICT resource bookings linked to your signed-in account.</p>
+        <h1 id="pageTitle">Manage My Bookings</h1>
+        <p id="pageDescription">View, modify, or delete your upcoming ICT resource bookings linked to your signed-in account.</p>
       </div>
 
       <div class="card-body">
@@ -941,11 +941,15 @@
 
         <div class="search-row">
           <div class="field">
-            <label>Booking owner</label>
+            <label id="bookingOwnerLabel">Booking owner</label>
             <input id="nameSearch" name="nameSearch" type="text" value="Signed-in user" readonly />
           </div>
 
           <button id="refreshBookingsBtn" class="btn btn-primary" type="button">Refresh Bookings</button>
+        </div>
+
+        <div id="adminModeNote" class="empty-state" style="display:none;margin-bottom:16px;text-align:left;">
+          Admin mode: Showing all upcoming bookings. Use the booking owner search field to filter by requester, email, location, device, accessory or status.
         </div>
 
         <div id="bookingList" class="booking-list">
@@ -965,9 +969,15 @@
     const refreshBookingsBtn = document.getElementById('refreshBookingsBtn');
     const bookingList = document.getElementById('bookingList');
     const statusMessage = document.getElementById('statusMessage');
+    const pageTitle = document.getElementById('pageTitle');
+    const pageDescription = document.getElementById('pageDescription');
+    const bookingOwnerLabel = document.getElementById('bookingOwnerLabel');
+    const adminModeNote = document.getElementById('adminModeNote');
 
     let currentUser = null;
+    let isAdminUser = false;
     let accessoryTypes = [];
+    let allLoadedBookings = [];
 
     async function requireAuthenticatedUser() {
       const response = await fetch("/api/me", { cache: "no-store" });
@@ -992,8 +1002,9 @@
 
       
       if (user.role === "DE") { window.location.href = "de-dashboard.html"; return null; }
+      isAdminUser = user.role === "Admin";
       configurePortalNavigation(user, "bookings");
-return user;
+      return user;
     }
 
     document.getElementById("logoutBtn").addEventListener("click", async () => {
@@ -1031,6 +1042,48 @@ return user;
     function clearStatus() {
       statusMessage.className = 'status';
       statusMessage.textContent = '';
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>'"]/g, char => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        "'": '&#39;',
+        '"': '&quot;'
+      }[char]));
+    }
+
+    function getRequesterLabel(booking) {
+      const name = booking.requesterName || booking.importedRequesterName || 'Requester';
+      const email = booking.requesterEmail || booking.importedRequesterEmail || '';
+      return email ? `${name} (${email})` : name;
+    }
+
+    function getFilteredBookings() {
+      const query = String(nameSearch.value || '').trim().toLowerCase();
+
+      if (!isAdminUser || !query) return allLoadedBookings;
+
+      return allLoadedBookings.filter(booking => {
+        const haystack = [
+          getRequesterLabel(booking),
+          booking.location,
+          booking.deviceType,
+          booking.softwareRequirement,
+          booking.status,
+          booking.deploymentStatus,
+          formatAdditionalResources(booking.additionalResources),
+          getResourceList(booking),
+          booking.recurringGroupId
+        ].join(' ').toLowerCase();
+
+        return haystack.includes(query);
+      });
+    }
+
+    function applyBookingFilter() {
+      renderBookings(getFilteredBookings());
     }
 
     function parseLocalDate(dateString) {
@@ -1203,7 +1256,7 @@ return user;
       const normalisedBookings = normaliseBookings(bookings);
 
       if (normalisedBookings.length === 0) {
-        bookingList.innerHTML = '<div class="empty-state">No upcoming bookings found for your account.</div>';
+        bookingList.innerHTML = `<div class="empty-state">${isAdminUser ? 'No upcoming bookings found in the portal.' : 'No upcoming bookings found for your account.'}</div>`;
         return;
       }
 
@@ -1216,13 +1269,15 @@ return user;
             <div class="booking-top">
               <div>
                 <h2 class="booking-title">${formatDate(booking.bookingDate)} · ${booking.startTime}–${booking.endTime}</h2>
-                <div>${booking.location || '-'}</div>
+                <div>${escapeHtml(booking.location || '-')}</div>
+                ${isAdminUser ? `<div style="margin-top:6px;color:var(--muted);font-size:0.9rem;"><strong>Requester:</strong> ${escapeHtml(getRequesterLabel(booking))}</div>` : ''}
               </div>
               <span class="pill">${isRecurring ? 'Recurring' : 'One-Time'}</span>
             </div>
 
             <div class="booking-meta">
-              <div class="meta-box"><span>Device</span><strong>${booking.deviceType || '-'}</strong></div>
+              ${isAdminUser ? `<div class="meta-box"><span>Requester</span><strong>${escapeHtml(getRequesterLabel(booking))}</strong></div>` : ''}
+              <div class="meta-box"><span>Device</span><strong>${escapeHtml(booking.deviceType || '-')}</strong></div>
               <div class="meta-box"><span>Quantity</span><strong>${booking.devicesRequired || '-'}</strong></div>
               <div class="meta-box"><span>Status</span><strong>${booking.status || '-'}</strong></div>
               <div class="meta-box"><span>Software</span><strong>${booking.softwareRequirement || 'None'}</strong></div>
@@ -1290,15 +1345,30 @@ return user;
         throw new Error(result.message || 'Unable to retrieve bookings.');
       }
 
-      renderBookings(result.bookings);
+      allLoadedBookings = normaliseBookings(result.bookings);
+      renderBookings(getFilteredBookings());
     }
 
     async function initialiseManagePage() {
       const user = await initialiseUser();
       if (!user) return;
 
-      nameSearch.value = `${user.name} (${user.email})`;
-      nameSearch.readOnly = true;
+      if (isAdminUser) {
+        pageTitle.textContent = 'Booking Administration';
+        pageDescription.textContent = 'View, modify, or delete upcoming ICT resource bookings made by any user in the portal.';
+        bookingOwnerLabel.textContent = 'Search bookings';
+        nameSearch.value = '';
+        nameSearch.placeholder = 'Search by requester, email, location, resource, status or recurring group';
+        nameSearch.readOnly = false;
+        adminModeNote.style.display = 'block';
+      } else {
+        pageTitle.textContent = 'Manage My Bookings';
+        pageDescription.textContent = 'View, modify, or delete your upcoming ICT resource bookings linked to your signed-in account.';
+        bookingOwnerLabel.textContent = 'Booking owner';
+        nameSearch.value = `${user.name} (${user.email})`;
+        nameSearch.readOnly = true;
+        adminModeNote.style.display = 'none';
+      }
 
       await Promise.allSettled([
         loadLocations(),
@@ -1314,6 +1384,10 @@ return user;
     }
 
     initialiseManagePage();
+
+    nameSearch.addEventListener('input', () => {
+      if (isAdminUser) applyBookingFilter();
+    });
 
     refreshBookingsBtn.addEventListener('click', async () => {
       try {

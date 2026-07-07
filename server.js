@@ -728,6 +728,20 @@ function userOwnsBooking(req, booking) {
   return Boolean(sameUserId || sameLegacyEmail);
 }
 
+function userCanManageBooking(req, booking) {
+  return req.session.user?.role === "Admin" || userOwnsBooking(req, booking);
+}
+
+function formatBookingForManagementResponse(booking, users) {
+  const requester = users.find(user => String(user.userId || "") === String(booking.userId || ""));
+  return {
+    ...booking,
+    requesterName: requester?.name || booking.importedRequesterName || "Requester",
+    requesterEmail: requester?.email || booking.importedRequesterEmail || "",
+    isManagedByAdmin: true
+  };
+}
+
 function removePersonalDataFromBooking(booking) {
   const cleanedBooking = { ...booking };
   delete cleanedBooking.name;
@@ -1777,7 +1791,7 @@ app.post("/api/bookings", requireLogin, (req, res) => {
         }
       }
 
-      const bookingsFile = ensureMonthlyBookingsFile(date);
+      const bookingsFile = ensureMonthlyBookingsFile(singleBookingRequest.bookingDate);
       const xmlData = fs.readFileSync(bookingsFile, "utf8");
       const parsed = parser.parse(xmlData);
 
@@ -1862,16 +1876,20 @@ app.get("/api/bookings/search", requireLogin, (req, res) => {
   try {
     const files = getAllMonthlyBookingFiles();
     const today = new Date().toISOString().split("T")[0];
+    const isAdmin = req.session.user.role === "Admin";
+    const users = isAdmin ? getUsersFromXML() : [];
 
     const bookings = files.flatMap(file => readBookingsFromFile(file))
       .filter(booking => {
-        return (
-          userOwnsBooking(req, booking) &&
+        const activeFutureBooking =
           booking.bookingDate >= today &&
           booking.status !== "Deleted" &&
-          booking.status !== "Cancelled"
-        );
+          booking.status !== "Cancelled";
+
+        if (!activeFutureBooking) return false;
+        return isAdmin || userOwnsBooking(req, booking);
       })
+      .map(booking => isAdmin ? formatBookingForManagementResponse(booking, users) : booking)
       .sort((a, b) => {
         return `${a.bookingDate} ${a.startTime}`.localeCompare(
           `${b.bookingDate} ${b.startTime}`
@@ -1880,6 +1898,7 @@ app.get("/api/bookings/search", requireLogin, (req, res) => {
 
     res.json({
       success: true,
+      mode: isAdmin ? "admin" : "user",
       bookings
     });
   } catch (error) {
@@ -1918,7 +1937,7 @@ app.delete("/api/bookings/:bookingId", requireLogin, (req, res) => {
       });
     }
 
-    if (!userOwnsBooking(req, bookingToDelete)) {
+    if (!userCanManageBooking(req, bookingToDelete)) {
       return res.status(403).json({
         success: false,
         message: "You are not authorised to delete this booking."
@@ -1958,7 +1977,7 @@ app.delete("/api/bookings/recurring/:recurringGroupId", requireLogin, (req, res)
       const updatedBookings = bookings.filter(booking => {
         const shouldDelete =
           booking.recurringGroupId === recurringGroupId &&
-          userOwnsBooking(req, booking);
+          userCanManageBooking(req, booking);
 
         if (shouldDelete) deletedCount++;
 
@@ -2011,7 +2030,7 @@ app.put("/api/bookings/:bookingId", requireLogin, (req, res) => {
 
     const existingBooking = originalBookings[bookingIndex];
 
-    if (!userOwnsBooking(req, existingBooking)) {
+    if (!userCanManageBooking(req, existingBooking)) {
       return res.status(403).json({
         success: false,
         message: "You are not authorised to modify this booking."
@@ -2021,9 +2040,11 @@ app.put("/api/bookings/:bookingId", requireLogin, (req, res) => {
     const updatedBookingRequest = prepareBookingForSave(removePersonalDataFromBooking({
       ...existingBooking,
       ...req.body,
-      userId: req.session.user.userId,
+      userId: existingBooking.userId || req.session.user.userId,
       bookingDate: req.body.bookingDate || existingBooking.bookingDate,
-      status: "Pending Allocation"
+      status: "Pending Allocation",
+      modifiedByUserId: req.session.user.userId,
+      modifiedByName: req.session.user.name
     }));
 
     const additionalResourceErrors = validateAdditionalResourceRequests(updatedBookingRequest);
