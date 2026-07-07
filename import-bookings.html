@@ -1141,6 +1141,17 @@
     .note-box { border:1px dashed #cbd5e1; background:#f8fafc; border-radius:16px; padding:14px; color:#334155; line-height:1.5; }
     code { background:#f1f5f9; padding:2px 5px; border-radius:6px; }
   
+    .file-info-panel {
+      display: none;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px;
+      background: #f8fafc;
+      color: #334155;
+      line-height: 1.5;
+    }
+    .file-info-panel.active { display: block; }
+    .file-info-panel strong { color: var(--primary-dark); }
 
 
     .range-card {
@@ -1271,15 +1282,17 @@
         </div>
         <div class="import-body">
           <div class="note-box">
-            Paste rows copied from Excel, or upload a CSV file. The first row must contain column headers such as
+            Upload an Excel (.xlsx) or CSV file, or paste rows copied from Excel. The first row must contain column headers such as
             <code>Booking Date</code>, <code>Start Time</code>, <code>End Time</code>, <code>Requester Email</code>,
             <code>Location</code>, <code>Device Type</code>, <code>Number of Devices</code>, and optional accessory quantity columns such as
             <code>Mouse Qty</code>, <code>Headset Qty</code>, or <code>Apple Pencil Qty</code>.
           </div>
 
           <div class="field">
-            <label for="csvFile">CSV / copied Excel rows</label>
-            <input id="csvFile" type="file" accept=".csv,.txt" />
+            <label for="csvFile">Booking report file</label>
+            <input id="csvFile" type="file" accept=".xlsx,.csv,.txt" />
+            <span class="helper">Supports Excel workbook (.xlsx), CSV (.csv), text (.txt), or pasted rows copied from Excel.</span>
+            <div id="fileInfoPanel" class="file-info-panel" aria-live="polite"></div>
           </div>
 
 
@@ -1308,7 +1321,7 @@
 
           <div class="field">
             <label for="importText">Import data</label>
-            <textarea id="importText" placeholder="Paste tab-separated rows copied from Excel, or CSV data with headers..."></textarea>
+            <textarea id="importText" placeholder="Paste tab-separated rows copied from Excel, or Excel/CSV data with headers..."></textarea>
           </div>
 
           <div class="import-actions">
@@ -1324,6 +1337,7 @@
     </section>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="portalNavigation.js"></script>
   <script>
     const importText = document.getElementById('importText');
@@ -1339,7 +1353,9 @@
     const thisMonthPresetBtn = document.getElementById('thisMonthPresetBtn');
     const nextMonthPresetBtn = document.getElementById('nextMonthPresetBtn');
     const clearDatesBtn = document.getElementById('clearDatesBtn');
+    const fileInfoPanel = document.getElementById('fileInfoPanel');
     let lastRows = [];
+    let structuredRowsFromFile = null;
 
     function showStatus(type, message) {
       statusMessage.className = 'status-panel ' + type;
@@ -1411,7 +1427,22 @@
     }
 
     function parseRows(text) {
-      const lines = String(text || '').split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+      const rawText = String(text || '').trim();
+      if (!rawText) return [];
+
+      // Excel uploads are converted into JSON for display in the textarea.
+      // If the admin clicks Preview after loading an Excel file, reuse that JSON directly.
+      if (rawText.startsWith('[')) {
+        try {
+          const parsed = JSON.parse(rawText);
+          if (Array.isArray(parsed)) return parsed;
+        } catch (error) {
+          // Fall through to CSV/TSV parsing so pasted text still works.
+        }
+      }
+
+      const lines = rawText.split(/?
+/).map(line => line.trim()).filter(Boolean);
       if (lines.length < 2) return [];
       const delimiter = lines[0].includes('	') ? '	' : ',';
       const headers = splitLine(lines[0], delimiter);
@@ -1421,6 +1452,57 @@
         headers.forEach((header, index) => { row[header] = values[index] || ''; });
         return row;
       });
+    }
+
+    function normaliseExcelCellValue(value) {
+      if (value instanceof Date && !Number.isNaN(value.getTime())) {
+        return value.toISOString().slice(0, 10);
+      }
+      return value ?? '';
+    }
+
+    function normaliseExcelRow(row) {
+      const normalised = {};
+      Object.entries(row || {}).forEach(([key, value]) => {
+        normalised[String(key).trim()] = normaliseExcelCellValue(value);
+      });
+      return normalised;
+    }
+
+    async function parseExcelFile(file) {
+      if (!window.XLSX) {
+        throw new Error('Excel parser could not be loaded. Please check the internet connection or use CSV as a fallback.');
+      }
+
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, {
+        type: 'array',
+        cellDates: true
+      });
+
+      if (!workbook.SheetNames.length) {
+        throw new Error('The Excel workbook does not contain any worksheet.');
+      }
+
+      const firstSheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[firstSheetName];
+      const rows = XLSX.utils.sheet_to_json(sheet, {
+        defval: '',
+        raw: false
+      }).map(normaliseExcelRow);
+
+      return {
+        rows,
+        workbookName: file.name,
+        sheetName: firstSheetName,
+        sheetCount: workbook.SheetNames.length
+      };
+    }
+
+    function setFileInfo(html) {
+      if (!fileInfoPanel) return;
+      fileInfoPanel.innerHTML = html;
+      fileInfoPanel.classList.toggle('active', Boolean(html));
     }
 
     function renderPreview(data) {
@@ -1466,11 +1548,40 @@
     csvFile.addEventListener('change', async () => {
       const file = csvFile.files?.[0];
       if (!file) return;
-      importText.value = await file.text();
+
+      structuredRowsFromFile = null;
+      lastRows = [];
+      previewResults.innerHTML = '';
+      commitBtn.disabled = true;
+
+      try {
+        const lowerName = file.name.toLowerCase();
+
+        if (lowerName.endsWith('.xlsx')) {
+          const parsedWorkbook = await parseExcelFile(file);
+          structuredRowsFromFile = parsedWorkbook.rows;
+          lastRows = structuredRowsFromFile;
+          importText.value = JSON.stringify(structuredRowsFromFile, null, 2);
+          setFileInfo(`✓ <strong>${escapeHtml(parsedWorkbook.workbookName)}</strong><br>Excel workbook loaded · Worksheet: <strong>${escapeHtml(parsedWorkbook.sheetName)}</strong> · Rows detected: <strong>${structuredRowsFromFile.length}</strong> · Worksheets: <strong>${parsedWorkbook.sheetCount}</strong>`);
+          showStatus('success', `${structuredRowsFromFile.length} Excel row(s) loaded. Select an import range, then preview the import.`);
+          return;
+        }
+
+        importText.value = await file.text();
+        structuredRowsFromFile = null;
+        setFileInfo(`✓ <strong>${escapeHtml(file.name)}</strong><br>Text/CSV file loaded. Rows will be parsed from the header row during preview.`);
+        showStatus('success', 'File loaded. Select an import range, then preview the import.');
+      } catch (error) {
+        structuredRowsFromFile = null;
+        lastRows = [];
+        importText.value = '';
+        setFileInfo('');
+        showStatus('error', `Unable to read the selected file. ${error.message}`);
+      }
     });
 
     previewBtn.addEventListener('click', async () => {
-      lastRows = parseRows(importText.value);
+      lastRows = structuredRowsFromFile && importText.value.trim().startsWith('[') ? structuredRowsFromFile : parseRows(importText.value);
       if (lastRows.length === 0) { showStatus('error', 'No import rows found. Check that the first row contains headers.'); return; }
       let importRange;
       try {
@@ -1510,6 +1621,8 @@
     clearBtn.addEventListener('click', () => {
       importText.value = '';
       csvFile.value = '';
+      structuredRowsFromFile = null;
+      setFileInfo('');
       clearImportRange();
       lastRows = [];
       previewResults.innerHTML = '';
