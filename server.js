@@ -13,7 +13,10 @@ const { ensureMonthlyBookingsFile } = require("./bookingFileHelper");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json());
+// Large yearly booking-import files can exceed Express' default 100kb JSON limit
+// after the browser converts Excel rows into JSON for preview/commit.
+app.use(express.json({ limit: "25mb" }));
+app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 app.set("trust proxy", 1);
 
 app.use(session({
