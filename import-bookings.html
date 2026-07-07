@@ -1128,7 +1128,16 @@
     .import-body { padding: 24px; display: grid; gap: 18px; }
     textarea { width: 100%; min-height: 220px; border: 1px solid var(--border); border-radius: 14px; padding: 13px; font: 0.95rem/1.45 Arial, Helvetica, sans-serif; resize: vertical; }
     textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.14); outline: none; }
-    .import-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .import-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .import-actions-primary { display: flex; gap: 10px; flex-wrap: wrap; flex: 1 1 auto; }
+    .import-actions-secondary { display: flex; gap: 10px; flex-wrap: wrap; margin-left: auto; }
+    .btn-danger-soft { background: #fee2e2; color: #991b1b; }
+    .btn-danger-soft:hover { background: #fecaca; }
+    .btn[disabled] { opacity: .55; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+    .action-helper { color: var(--muted); font-size: .82rem; line-height: 1.35; width: 100%; }
+    @media (max-width: 640px) {
+      .import-actions, .import-actions-primary, .import-actions-secondary { display: grid; grid-template-columns: 1fr; width: 100%; margin-left: 0; }
+    }
     .status-panel { display:none; padding: 13px 14px; border-radius: 14px; font-weight: 700; }
     .status-panel.success { display:block; background:#dcfce7; color:#166534; }
     .status-panel.warning { display:block; background:#fef3c7; color:#92400e; }
@@ -1325,9 +1334,14 @@
           </div>
 
           <div class="import-actions">
-            <button id="previewBtn" class="btn btn-primary" type="button">Preview Import</button>
-            <button id="commitBtn" class="btn btn-secondary" type="button" disabled>Commit Valid Rows</button>
-            <button id="clearBtn" class="btn btn-secondary" type="button">Clear</button>
+            <div class="import-actions-primary">
+              <button id="previewBtn" class="btn btn-primary" type="button">Preview Selected Range</button>
+              <button id="commitBtn" class="btn btn-secondary" type="button" disabled>Import Valid Previewed Bookings</button>
+            </div>
+            <div class="import-actions-secondary">
+              <button id="clearBtn" class="btn btn-danger-soft" type="button">Reset Import</button>
+            </div>
+            <div class="action-helper">Step 1: preview the selected date range. Step 2: import only the rows marked as valid.</div>
           </div>
 
           <div id="statusMessage" class="status-panel" role="status" aria-live="polite"></div>
@@ -1441,8 +1455,7 @@
         }
       }
 
-      const lines = rawText.split(/?
-/).map(line => line.trim()).filter(Boolean);
+      const lines = rawText.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
       if (lines.length < 2) return [];
       const delimiter = lines[0].includes('	') ? '	' : ',';
       const headers = splitLine(lines[0], delimiter);
@@ -1503,6 +1516,21 @@
       if (!fileInfoPanel) return;
       fileInfoPanel.innerHTML = html;
       fileInfoPanel.classList.toggle('active', Boolean(html));
+    }
+
+    function setButtonBusy(button, isBusy, busyLabel) {
+      if (!button) return;
+      if (isBusy) {
+        button.dataset.originalLabel = button.textContent;
+        button.textContent = busyLabel;
+        button.disabled = true;
+        return;
+      }
+      if (button.dataset.originalLabel) {
+        button.textContent = button.dataset.originalLabel;
+        delete button.dataset.originalLabel;
+      }
+      button.disabled = false;
     }
 
     function renderPreview(data) {
@@ -1581,41 +1609,85 @@
     });
 
     previewBtn.addEventListener('click', async () => {
-      lastRows = structuredRowsFromFile && importText.value.trim().startsWith('[') ? structuredRowsFromFile : parseRows(importText.value);
-      if (lastRows.length === 0) { showStatus('error', 'No import rows found. Check that the first row contains headers.'); return; }
-      let importRange;
+      setButtonBusy(previewBtn, true, 'Previewing selected range...');
+      commitBtn.disabled = true;
+
       try {
-        importRange = getImportRangePayload();
+        lastRows = structuredRowsFromFile && importText.value.trim().startsWith('[') ? structuredRowsFromFile : parseRows(importText.value);
+        if (lastRows.length === 0) {
+          showStatus('error', 'No import rows found. Check that the first row contains headers, or re-select the Excel/CSV file.');
+          return;
+        }
+
+        const importRange = getImportRangePayload();
+        const response = await fetch('/api/admin/import/bookings/preview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows: lastRows, ...importRange })
+        });
+
+        let result;
+        try {
+          result = await response.json();
+        } catch (jsonError) {
+          throw new Error('The server did not return a valid preview response. Please check the Render logs.');
+        }
+
+        if (!response.ok || !result.success) {
+          showStatus('error', result.message || 'Unable to preview import.');
+          return;
+        }
+
+        showStatus(result.invalidRows?.length ? 'warning' : 'success', 'Preview generated. Review the rows before importing valid bookings.');
+        renderPreview(result);
       } catch (error) {
-        showStatus('error', error.message);
-        return;
+        showStatus('error', error.message || 'Unable to preview import.');
+      } finally {
+        setButtonBusy(previewBtn, false);
       }
-      const response = await fetch('/api/admin/import/bookings/preview', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows: lastRows, ...importRange })
-      });
-      const result = await response.json();
-      if (!response.ok || !result.success) { showStatus('error', result.message || 'Unable to preview import.'); return; }
-      showStatus(result.invalidRows?.length ? 'warning' : 'success', 'Preview generated. Review the rows before committing.');
-      renderPreview(result);
     });
 
     commitBtn.addEventListener('click', async () => {
-      if (!lastRows.length) return;
-      if (!confirm('Import all valid rows?')) return;
-      let importRange;
-      try {
-        importRange = getImportRangePayload();
-      } catch (error) {
-        showStatus('error', error.message);
+      if (!lastRows.length) {
+        showStatus('error', 'Please preview the import before importing bookings.');
         return;
       }
-      const response = await fetch('/api/admin/import/bookings/commit', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows: lastRows, allowPartialImport: true, ...importRange })
-      });
-      const result = await response.json();
-      if (!response.ok || !result.success) { showStatus('error', result.message || 'Unable to commit import.'); return; }
-      showStatus('success', result.message || 'Import completed.');
-      commitBtn.disabled = true;
+      if (!confirm('Import all rows marked as valid in the current preview? Rows outside the selected range and rows needing review will not be imported.')) return;
+
+      setButtonBusy(commitBtn, true, 'Importing valid bookings...');
+      previewBtn.disabled = true;
+
+      try {
+        const importRange = getImportRangePayload();
+        const response = await fetch('/api/admin/import/bookings/commit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows: lastRows, allowPartialImport: true, ...importRange })
+        });
+
+        let result;
+        try {
+          result = await response.json();
+        } catch (jsonError) {
+          throw new Error('The server did not return a valid import response. Please check the Render logs.');
+        }
+
+        if (!response.ok || !result.success) {
+          showStatus('error', result.message || 'Unable to commit import.');
+          return;
+        }
+
+        showStatus('success', result.message || 'Import completed.');
+        commitBtn.disabled = true;
+      } catch (error) {
+        showStatus('error', error.message || 'Unable to commit import.');
+        commitBtn.disabled = false;
+      } finally {
+        const shouldRemainDisabled = commitBtn.disabled;
+        setButtonBusy(commitBtn, false);
+        commitBtn.disabled = shouldRemainDisabled;
+        previewBtn.disabled = false;
+      }
     });
 
     clearBtn.addEventListener('click', () => {
