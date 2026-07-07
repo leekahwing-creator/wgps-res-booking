@@ -16,29 +16,50 @@
       return false;
     }
 
-    function ensureImportNavigationLink() {
+    function ensureAdminNavigationLinks() {
       if (!isAdmin) return;
 
+      const adminLinks = [
+        {
+          page: 'locations',
+          href: 'locations-admin.html',
+          icon: '⌖',
+          label: 'Locations Admin'
+        },
+        {
+          page: 'import',
+          href: 'import-bookings.html',
+          icon: '⇪',
+          label: 'Booking Import'
+        }
+      ];
+
       const moreMenu = nav.querySelector('.more-menu');
-      if (moreMenu && !moreMenu.querySelector('[data-page="import"]')) {
-        const importLink = document.createElement('a');
-        importLink.href = 'import-bookings.html';
-        importLink.className = 'nav-link';
-        importLink.dataset.page = 'import';
-        importLink.dataset.roleLink = 'admin';
-        importLink.innerHTML = '<span class="nav-icon">⇪</span>Booking Import';
-        moreMenu.appendChild(importLink);
+      if (moreMenu) {
+        adminLinks.forEach(item => {
+          if (moreMenu.querySelector(`[data-page="${item.page}"]`)) return;
+          const link = document.createElement('a');
+          link.href = item.href;
+          link.className = 'nav-link';
+          link.dataset.page = item.page;
+          link.dataset.roleLink = 'admin';
+          link.innerHTML = `<span class="nav-icon">${item.icon}</span>${item.label}`;
+          moreMenu.appendChild(link);
+        });
       }
 
       const mobileLinks = nav.querySelector('.mobile-drawer-links');
-      if (mobileLinks && !mobileLinks.querySelector('[data-page="import"]')) {
-        const importLink = document.createElement('a');
-        importLink.href = 'import-bookings.html';
-        importLink.className = 'nav-link';
-        importLink.dataset.page = 'import';
-        importLink.dataset.mobileRoleLink = 'admin';
-        importLink.innerHTML = '<span class="nav-icon">⇪</span>Booking Import';
-        mobileLinks.appendChild(importLink);
+      if (mobileLinks) {
+        adminLinks.forEach(item => {
+          if (mobileLinks.querySelector(`[data-page="${item.page}"]`)) return;
+          const link = document.createElement('a');
+          link.href = item.href;
+          link.className = 'nav-link';
+          link.dataset.page = item.page;
+          link.dataset.mobileRoleLink = 'admin';
+          link.innerHTML = `<span class="nav-icon">${item.icon}</span>${item.label}`;
+          mobileLinks.appendChild(link);
+        });
       }
     }
 
@@ -111,7 +132,7 @@
       }
     }
 
-    ensureImportNavigationLink();
+    ensureAdminNavigationLinks();
     applyRoleVisibility();
     setActiveState();
     updateUserDisplay();

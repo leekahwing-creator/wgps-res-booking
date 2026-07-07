@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Locations Admin | ICT Resource Booking Portal</title>
+  <style>
+    :root { --primary:#0f766e; --primary-dark:#115e59; --primary-light:#ccfbf1; --card:#fff; --text:#0f172a; --muted:#64748b; --border:#dbe4ee; --danger:#dc2626; --warning:#92400e; --shadow:0 18px 45px rgba(15,23,42,.08); --radius:22px; }
+    *{box-sizing:border-box} body{margin:0;font-family:Arial,Helvetica,sans-serif;background:linear-gradient(135deg,#ecfeff 0%,#f8fafc 48%,#eef2ff 100%);color:var(--text);min-height:100vh}.page{width:min(1180px,100%);margin:0 auto;padding:32px 18px}.portal-nav{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:22px;padding:14px 16px;border-radius:18px;background:rgba(255,255,255,.78);border:1px solid rgba(226,232,240,.95);box-shadow:0 12px 30px rgba(15,23,42,.06)}
+    .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);border:1px solid rgba(226,232,240,.95);overflow:hidden}.card-header{padding:22px 24px;background:linear-gradient(135deg,var(--primary),#164e63);color:white;display:flex;justify-content:space-between;gap:18px;align-items:flex-start}.card-header h1{margin:0 0 6px;font-size:clamp(1.7rem,3vw,2.45rem);letter-spacing:-.03em}.card-header p{margin:0;opacity:.9;line-height:1.45}.card-body{padding:24px}.toolbar{display:grid;grid-template-columns:1fr 180px auto;gap:12px;align-items:end;margin-bottom:18px}.field{display:flex;flex-direction:column;gap:8px}label{font-size:.88rem;font-weight:900;color:#1e293b}input,select,textarea{width:100%;min-height:48px;border:1px solid var(--border);border-radius:14px;padding:11px 13px;font-size:1rem;background:white;color:var(--text);outline:none}textarea{min-height:96px;resize:vertical}input:focus,select:focus,textarea:focus{border-color:var(--primary);box-shadow:0 0 0 4px rgba(15,118,110,.14)}.btn{border:0;min-height:48px;padding:0 16px;border-radius:14px;font-weight:900;font-size:.95rem;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none}.btn-primary{background:var(--primary);color:white}.btn-secondary{background:#e2e8f0;color:#334155}.btn-danger{background:#fee2e2;color:var(--danger)}.btn-ghost{background:white;color:#334155;border:1px solid var(--border)}.status{display:none;margin-bottom:16px;padding:13px 14px;border-radius:14px;font-weight:700;font-size:.92rem}.status.success{display:block;background:#dcfce7;color:#166534}.status.warning{display:block;background:#fef3c7;color:var(--warning)}.status.error{display:block;background:#fee2e2;color:var(--danger)}.table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:18px;background:white}table{width:100%;border-collapse:collapse;min-width:880px}th,td{padding:14px 16px;border-bottom:1px solid #e2e8f0;text-align:left;vertical-align:top}th{background:#f8fafc;color:var(--muted);font-size:.76rem;text-transform:uppercase;letter-spacing:.06em}tr:last-child td{border-bottom:0}.pill{display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;background:var(--primary-light);color:var(--primary-dark);font-size:.78rem;font-weight:900;white-space:nowrap}.pill.retired{background:#f1f5f9;color:#64748b}.pill.inactive{background:#fef3c7;color:#92400e}.row-actions{display:flex;justify-content:flex-end}.icon-button{border:1px solid var(--border);background:white;border-radius:12px;width:40px;height:40px;font-weight:900;cursor:pointer}.pagination{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-top:16px;flex-wrap:wrap}.mobile-list{display:none;gap:12px}.mobile-card{border:1px solid var(--border);border-radius:18px;background:white;padding:16px;display:grid;gap:10px}.mobile-card-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.muted{color:var(--muted)}.drawer-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.35);z-index:100}.drawer-overlay.show{display:block}.drawer{position:fixed;top:0;right:0;width:min(520px,100%);height:100vh;background:white;box-shadow:-24px 0 50px rgba(15,23,42,.18);z-index:101;transform:translateX(100%);transition:transform .22s ease;display:grid;grid-template-rows:auto 1fr auto}.drawer.show{transform:translateX(0)}.drawer-header{padding:22px 24px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.drawer-header h2{margin:0 0 4px}.drawer-body{padding:24px;overflow:auto;display:grid;gap:16px}.drawer-footer{padding:18px 24px;border-top:1px solid var(--border);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}.danger-zone{border:1px dashed #fecaca;background:#fff7f7;border-radius:16px;padding:14px;color:#7f1d1d}.empty-state{text-align:center;color:var(--muted);padding:28px;border:1px dashed #cbd5e1;border-radius:18px;background:#f8fafc}.nav-hidden-legacy{display:none!important}
+    /* Portal navigation shared styling */
+    .portal-nav-v2{width:100%;max-width:100%;display:grid!important;grid-template-columns:auto minmax(0,1fr) auto!important;align-items:center!important;gap:18px;padding:14px 18px;overflow:visible!important;position:relative}.nav-brand{display:flex;align-items:center;gap:12px;min-width:0!important;max-width:clamp(190px,23vw,280px);color:var(--primary-dark);text-decoration:none;white-space:nowrap}.brand-icon,.user-avatar{width:42px;height:42px;border-radius:16px;display:inline-flex;align-items:center;justify-content:center;background:var(--primary-light);color:var(--primary-dark);font-weight:900;flex:0 0 auto}.brand-text{display:grid;gap:2px}.brand-title{font-size:1rem;font-weight:900;line-height:1.15;max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.brand-subtitle{color:var(--muted);font-size:.76rem;font-weight:700}.nav-main{display:flex;align-items:center;justify-content:center;gap:8px;min-width:0;overflow:visible;flex-wrap:nowrap;white-space:nowrap}.nav-link,.more-button,.mobile-menu-button,.mobile-close-button{border:0;text-decoration:none;color:#334155;font-weight:900;padding:10px 12px;border-radius:14px;background:transparent;cursor:pointer;display:inline-flex;align-items:center;gap:7px;line-height:1;white-space:nowrap;font-size:clamp(.82rem,.72vw,.92rem)}.nav-link.active,.nav-link:hover,.more-button:hover{background:var(--primary);color:white}.nav-user-zone{display:flex;align-items:center;gap:12px;padding-left:16px;border-left:1px solid var(--border);min-width:0}.user-avatar{width:38px;height:38px;border-radius:999px;background:var(--primary);color:white}.user-meta{display:grid;gap:2px;min-width:0;max-width:clamp(86px,10vw,150px)}.user-name{font-weight:900;color:#0f172a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.user-email{color:var(--muted);font-size:.75rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.logout-button{border:1px solid #fecaca!important;background:white!important;color:var(--danger)!important;font-weight:900!important;padding:10px 14px!important;border-radius:14px!important;cursor:pointer;white-space:nowrap}.logout-button:hover{background:#fee2e2!important}.more-dropdown{display:none!important;position:relative}.more-menu{display:none;position:absolute;top:calc(100% + 10px);right:0;min-width:230px;padding:8px;border:1px solid var(--border);border-radius:16px;background:white;box-shadow:0 18px 40px rgba(15,23,42,.14);z-index:50}.more-dropdown.open .more-menu{display:grid;gap:4px}.more-menu .nav-link{width:100%;justify-content:flex-start}.portal-nav-v2.nav-compact .more-dropdown.has-items{display:inline-flex!important}.portal-nav-v2.nav-compact .nav-main>.desktop-extra{display:none!important}.mobile-menu-button,.mobile-close-button,.mobile-drawer{display:none}@media(max-width:1100px){.brand-subtitle{display:none}}@media(max-width:900px){.portal-nav-v2{grid-template-columns:auto 1fr auto!important}.nav-main{display:none!important}.nav-brand{justify-self:center}.nav-user-zone{border-left:0;padding-left:0}.nav-user-zone .user-meta{display:none}.logout-button{padding:9px 10px!important}.logout-button span{display:none}.mobile-menu-button{display:inline-flex!important;justify-content:center;width:44px;height:44px}.mobile-drawer{display:none;position:absolute;top:calc(100% + 10px);left:0;right:0;padding:16px;border:1px solid var(--border);border-radius:18px;background:white;box-shadow:0 22px 45px rgba(15,23,42,.14);z-index:60}.portal-nav-v2.mobile-open .mobile-drawer{display:grid;gap:12px}.mobile-drawer-header{display:flex;justify-content:space-between;align-items:center;gap:12px}.mobile-user-summary{display:flex;align-items:center;gap:10px;min-width:0}.mobile-drawer-links{display:grid;gap:4px;border:1px solid var(--border);border-radius:16px;overflow:hidden}.mobile-drawer-links .nav-link{border-radius:0;padding:16px;border-bottom:1px solid var(--border)}.mobile-drawer-links .nav-link:last-child{border-bottom:0}}@media(max-width:760px){.toolbar{grid-template-columns:1fr}.table-wrap{display:none}.mobile-list{display:grid}.card-header{display:block}.page{padding:18px 12px}.card-body{padding:18px}.drawer-footer{display:grid}.drawer-footer .btn{width:100%}}@media(max-width:520px){.portal-nav-v2{gap:10px;padding:12px}.brand-title{font-size:.92rem}.brand-icon{width:38px;height:38px}}
+  </style>
+</head>
+<body>
+  <main class="page">
+    <nav class="portal-nav portal-nav-v2" aria-label="Portal navigation">
+      <button id="mobileMenuButton" class="mobile-menu-button" type="button" aria-label="Open navigation menu">☰</button>
+      <a class="nav-brand" href="index.html" aria-label="ICT Resource Booking Portal home"><span class="brand-icon">✓</span><span class="brand-text"><span class="brand-title">ICT Resource Booking Portal</span><span class="brand-subtitle">Smart booking. Better learning.</span></span></a>
+      <div class="nav-main" aria-label="Main navigation links">
+        <a href="index.html" class="nav-link" data-page="create" data-role-link="teacher"><span class="nav-icon">⊞</span>Create Booking</a>
+        <a href="manage-bookings.html" class="nav-link" data-page="bookings" data-role-link="teacher"><span class="nav-icon">▣</span>My Bookings</a>
+        <a href="de-dashboard.html" class="nav-link desktop-extra" data-page="deployment" data-role-link="de"><span class="nav-icon">▰</span>Deployment Dashboard</a>
+        <a href="resources-admin.html" class="nav-link desktop-extra" data-page="resources" data-role-link="admin"><span class="nav-icon">▤</span>Resources Admin</a>
+        <a href="admin-users.html" class="nav-link desktop-extra" data-page="users" data-role-link="admin"><span class="nav-icon">♟</span>Users Admin</a>
+        <div id="moreDropdown" class="more-dropdown"><button id="moreButton" class="more-button" type="button">More ▾</button><div class="more-menu" role="menu"><a href="de-dashboard.html" class="nav-link" data-page="deployment" data-role-link="de"><span class="nav-icon">▰</span>Deployment Dashboard</a><a href="resources-admin.html" class="nav-link" data-page="resources" data-role-link="admin"><span class="nav-icon">▤</span>Resources Admin</a><a href="admin-users.html" class="nav-link" data-page="users" data-role-link="admin"><span class="nav-icon">♟</span>Users Admin</a></div></div>
+      </div>
+      <div class="nav-user-zone"><span class="user-avatar" data-nav-initial>A</span><span class="user-meta"><span class="user-name" data-nav-name>User</span><span class="user-email" data-nav-email></span></span><span id="currentUserDisplay" class="nav-hidden-legacy"></span><button id="logoutBtn" class="logout-button" type="button">⇥ <span>Logout</span></button></div>
+      <div class="mobile-drawer" aria-label="Mobile navigation menu"><div class="mobile-drawer-header"><div class="mobile-user-summary"><span class="user-avatar" data-nav-initial>A</span><span class="user-meta" style="display:grid;max-width:220px;"><span class="user-name" data-nav-name>User</span><span class="user-email" data-nav-email></span></span></div><button id="mobileCloseButton" class="mobile-close-button" type="button" aria-label="Close navigation menu">✕</button></div><div class="mobile-drawer-links"><a href="index.html" class="nav-link" data-page="create" data-mobile-role-link="teacher"><span class="nav-icon">⊞</span>Create Booking</a><a href="manage-bookings.html" class="nav-link" data-page="bookings" data-mobile-role-link="teacher"><span class="nav-icon">▣</span>My Bookings</a><a href="de-dashboard.html" class="nav-link" data-page="deployment" data-mobile-role-link="de"><span class="nav-icon">▰</span>Deployment Dashboard</a><a href="resources-admin.html" class="nav-link" data-page="resources" data-mobile-role-link="admin"><span class="nav-icon">▤</span>Resources Admin</a><a href="admin-users.html" class="nav-link" data-page="users" data-mobile-role-link="admin"><span class="nav-icon">♟</span>Users Admin</a></div></div>
+    </nav>
+
+    <section class="card">
+      <div class="card-header">
+        <div><h1>Locations Admin</h1><p>Manage deployable locations and aliases used by the booking form and future import matching.</p></div>
+        <button id="addLocationBtn" class="btn btn-primary" type="button">+ Add Location</button>
+      </div>
+      <div class="card-body">
+        <div id="statusMessage" class="status" role="status" aria-live="polite"></div>
+        <div class="toolbar">
+          <div class="field"><label for="searchInput">Search locations</label><input id="searchInput" type="search" placeholder="Search by name, alias or notes" /></div>
+          <div class="field"><label for="statusFilter">Status</label><select id="statusFilter"><option value="All">All statuses</option><option value="Active">Active</option><option value="Inactive">Inactive</option><option value="Retired">Retired</option></select></div>
+          <button id="clearFiltersBtn" class="btn btn-secondary" type="button">Clear</button>
+        </div>
+        <div id="locationsTableWrap" class="table-wrap"></div>
+        <div id="locationsMobileList" class="mobile-list"></div>
+        <div class="pagination"><div class="field" style="max-width:190px"><label for="rowsPerPage">Rows per page</label><select id="rowsPerPage"><option>10</option><option selected>20</option><option>50</option></select></div><div class="row-actions" style="gap:10px"><button id="prevPageBtn" class="btn btn-secondary" type="button">Previous</button><span id="pageInfo" class="muted" style="align-self:center"></span><button id="nextPageBtn" class="btn btn-secondary" type="button">Next</button></div></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="drawerOverlay" class="drawer-overlay"></div>
+  <aside id="locationDrawer" class="drawer" aria-label="Location editor">
+    <div class="drawer-header"><div><h2 id="drawerTitle">Add Location</h2><div id="drawerSubtitle" class="muted">Create a deployable location.</div></div><button id="closeDrawerBtn" class="icon-button" type="button" aria-label="Close drawer">✕</button></div>
+    <div class="drawer-body">
+      <input id="locationId" type="hidden" />
+      <div class="field"><label for="locationName">Location name</label><input id="locationName" type="text" placeholder="e.g. Music Room" /></div>
+      <div class="field"><label for="locationStatus">Status</label><select id="locationStatus"><option>Active</option><option>Inactive</option><option>Retired</option></select></div>
+      <div class="field"><label for="locationAliases">Aliases</label><textarea id="locationAliases" placeholder="One alias per line, e.g. Music Rm&#10;MR"></textarea><div class="muted">Aliases will be used later by the booking import module for location matching.</div></div>
+      <div class="field"><label for="locationNotes">Notes</label><textarea id="locationNotes" placeholder="Optional notes for administrators"></textarea></div>
+      <div class="danger-zone"><strong>Remove location</strong><p style="margin:8px 0 0;line-height:1.45">If the location is used by future bookings, it will be marked as Retired instead of permanently deleted.</p></div>
+    </div>
+    <div class="drawer-footer"><button id="deleteLocationBtn" class="btn btn-danger" type="button">Remove Location</button><div style="display:flex;gap:10px;flex-wrap:wrap"><button id="cancelDrawerBtn" class="btn btn-secondary" type="button">Cancel</button><button id="saveLocationBtn" class="btn btn-primary" type="button">Save Changes</button></div></div>
+  </aside>
+
+  <script src="portalNavigation.js"></script>
+  <script>
+    const elements = {
+      status: document.getElementById('statusMessage'),
+      add: document.getElementById('addLocationBtn'),
+      search: document.getElementById('searchInput'),
+      statusFilter: document.getElementById('statusFilter'),
+      clear: document.getElementById('clearFiltersBtn'),
+      tableWrap: document.getElementById('locationsTableWrap'),
+      mobileList: document.getElementById('locationsMobileList'),
+      rowsPerPage: document.getElementById('rowsPerPage'),
+      prev: document.getElementById('prevPageBtn'),
+      next: document.getElementById('nextPageBtn'),
+      pageInfo: document.getElementById('pageInfo'),
+      overlay: document.getElementById('drawerOverlay'),
+      drawer: document.getElementById('locationDrawer'),
+      drawerTitle: document.getElementById('drawerTitle'),
+      drawerSubtitle: document.getElementById('drawerSubtitle'),
+      close: document.getElementById('closeDrawerBtn'),
+      cancel: document.getElementById('cancelDrawerBtn'),
+      save: document.getElementById('saveLocationBtn'),
+      delete: document.getElementById('deleteLocationBtn'),
+      id: document.getElementById('locationId'),
+      name: document.getElementById('locationName'),
+      locStatus: document.getElementById('locationStatus'),
+      aliases: document.getElementById('locationAliases'),
+      notes: document.getElementById('locationNotes')
+    };
+    let currentUser = null;
+    let locations = [];
+    let currentPage = 1;
+
+    function escapeHtml(value){return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+    function showStatus(type,msg){elements.status.className='status '+type;elements.status.textContent=msg;}
+    function clearStatus(){elements.status.className='status';elements.status.textContent='';}
+    function getAliasesFromText(){return elements.aliases.value.split(/\n|,/).map(v=>v.trim()).filter(Boolean);}
+    function setBusy(button,busy,label){button.disabled=busy;if(label)button.textContent=busy?'Working...':label;}
+    function statusPill(status){const cls=status==='Retired'?'retired':status==='Inactive'?'inactive':'';return `<span class="pill ${cls}">${escapeHtml(status)}</span>`;}
+
+    async function requireAdminUser(){
+      const response = await fetch('/api/me', {cache:'no-store'});
+      const result = await response.json();
+      if(!result.user){window.location.href='login.html';return null;}
+      if(result.user.role!=='Admin'){window.location.href='index.html';return null;}
+      currentUser = result.user;
+      document.getElementById('currentUserDisplay').textContent = `Signed in as ${result.user.name}`;
+      configurePortalNavigation(result.user, 'locations');
+      return result.user;
+    }
+
+    async function loadLocations(){
+      const response = await fetch('/api/admin/locations', {cache:'no-store'});
+      const result = await response.json();
+      if(!response.ok || !result.success) throw new Error(result.message || 'Unable to load locations.');
+      locations = Array.isArray(result.locations) ? result.locations : [];
+      render();
+    }
+
+    function getFilteredLocations(){
+      const q = elements.search.value.trim().toLowerCase();
+      const status = elements.statusFilter.value;
+      return locations.filter(loc => {
+        const haystack = [loc.name, loc.status, loc.notes, ...(loc.aliases || [])].join(' ').toLowerCase();
+        const matchesSearch = !q || haystack.includes(q);
+        const matchesStatus = status === 'All' || loc.status === status;
+        return matchesSearch && matchesStatus;
+      });
+    }
+
+    function getPageSlice(items){
+      const perPage = Number(elements.rowsPerPage.value) || 20;
+      const totalPages = Math.max(1, Math.ceil(items.length / perPage));
+      currentPage = Math.min(Math.max(1, currentPage), totalPages);
+      const start = (currentPage - 1) * perPage;
+      return {items: items.slice(start, start + perPage), totalPages};
+    }
+
+    function render(){
+      const filtered = getFilteredLocations();
+      const page = getPageSlice(filtered);
+      if(page.items.length === 0){
+        elements.tableWrap.innerHTML = '<div class="empty-state">No locations found.</div>';
+        elements.mobileList.innerHTML = '<div class="empty-state">No locations found.</div>';
+      } else {
+        elements.tableWrap.innerHTML = `<table><thead><tr><th>Location</th><th>Status</th><th>Aliases</th><th>Notes</th><th></th></tr></thead><tbody>${page.items.map(loc => `<tr><td><strong>${escapeHtml(loc.name)}</strong><div class="muted">${escapeHtml(loc.id)}</div></td><td>${statusPill(loc.status)}</td><td>${escapeHtml((loc.aliases||[]).join(', ') || 'None')}</td><td>${escapeHtml(loc.notes || '-')}</td><td><div class="row-actions"><button class="icon-button" type="button" data-edit-id="${escapeHtml(loc.id)}">...</button></div></td></tr>`).join('')}</tbody></table>`;
+        elements.mobileList.innerHTML = page.items.map(loc => `<article class="mobile-card"><div class="mobile-card-top"><div><strong>${escapeHtml(loc.name)}</strong><div class="muted">${escapeHtml(loc.id)}</div></div>${statusPill(loc.status)}</div><div><strong>Aliases:</strong> ${escapeHtml((loc.aliases||[]).join(', ') || 'None')}</div><div class="muted">${escapeHtml(loc.notes || '')}</div><button class="btn btn-secondary" type="button" data-edit-id="${escapeHtml(loc.id)}">Edit</button></article>`).join('');
+      }
+      elements.pageInfo.textContent = `Page ${currentPage} of ${page.totalPages} · ${filtered.length} location(s)`;
+      elements.prev.disabled = currentPage <= 1;
+      elements.next.disabled = currentPage >= page.totalPages;
+    }
+
+    function openDrawer(location=null){
+      clearStatus();
+      elements.id.value = location?.id || '';
+      elements.name.value = location?.name || '';
+      elements.locStatus.value = location?.status || 'Active';
+      elements.aliases.value = (location?.aliases || []).join('\n');
+      elements.notes.value = location?.notes || '';
+      const isEdit = Boolean(location);
+      elements.drawerTitle.textContent = isEdit ? 'Edit Location' : 'Add Location';
+      elements.drawerSubtitle.textContent = isEdit ? `Manage ${location.name}.` : 'Create a deployable location.';
+      elements.delete.style.display = isEdit ? 'inline-flex' : 'none';
+      elements.overlay.classList.add('show');
+      elements.drawer.classList.add('show');
+      setTimeout(()=>elements.name.focus(),80);
+    }
+    function closeDrawer(){elements.overlay.classList.remove('show');elements.drawer.classList.remove('show');}
+    function getFormPayload(){return {name:elements.name.value.trim(),status:elements.locStatus.value,aliases:getAliasesFromText(),notes:elements.notes.value.trim()};}
+
+    async function saveLocation(){
+      const payload = getFormPayload();
+      if(!payload.name){showStatus('error','Location name is required.');return;}
+      const id = elements.id.value;
+      setBusy(elements.save,true,'Save Changes');
+      try{
+        const response = await fetch(id ? `/api/admin/locations/${encodeURIComponent(id)}` : '/api/admin/locations', {method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        const result = await response.json();
+        if(!response.ok || !result.success) throw new Error(result.message || 'Unable to save location.');
+        closeDrawer();
+        showStatus('success', result.message || 'Location saved.');
+        await loadLocations();
+      }catch(error){showStatus('error',error.message);}finally{setBusy(elements.save,false,'Save Changes');}
+    }
+
+    async function deleteLocation(){
+      const id = elements.id.value;
+      if(!id) return;
+      if(!confirm('Remove this location? If it is used by future bookings, it will be retired instead.')) return;
+      setBusy(elements.delete,true,'Remove Location');
+      try{
+        const response = await fetch(`/api/admin/locations/${encodeURIComponent(id)}`, {method:'DELETE'});
+        const result = await response.json();
+        if(!response.ok || !result.success) throw new Error(result.message || 'Unable to remove location.');
+        closeDrawer();
+        showStatus('success', result.message || 'Location removed.');
+        await loadLocations();
+      }catch(error){showStatus('error',error.message);}finally{setBusy(elements.delete,false,'Remove Location');}
+    }
+
+    elements.add.addEventListener('click',()=>openDrawer());
+    elements.close.addEventListener('click',closeDrawer);elements.cancel.addEventListener('click',closeDrawer);elements.overlay.addEventListener('click',closeDrawer);
+    elements.save.addEventListener('click',saveLocation);elements.delete.addEventListener('click',deleteLocation);
+    elements.search.addEventListener('input',()=>{currentPage=1;render();});elements.statusFilter.addEventListener('change',()=>{currentPage=1;render();});elements.rowsPerPage.addEventListener('change',()=>{currentPage=1;render();});
+    elements.clear.addEventListener('click',()=>{elements.search.value='';elements.statusFilter.value='All';currentPage=1;render();});
+    elements.prev.addEventListener('click',()=>{currentPage--;render();});elements.next.addEventListener('click',()=>{currentPage++;render();});
+    document.addEventListener('click', event => { const btn = event.target.closest('[data-edit-id]'); if(!btn) return; const loc = locations.find(item => item.id === btn.dataset.editId); if(loc) openDrawer(loc); });
+    document.getElementById('logoutBtn').addEventListener('click', async()=>{await fetch('/api/logout',{method:'POST'});window.location.href='login.html';});
+    requireAdminUser().then(user => { if(user) return loadLocations(); }).catch(error => { showStatus('error', error.message); });
+  </script>
+</body>
+</html>

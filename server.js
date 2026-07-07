@@ -36,6 +36,7 @@ const dataDir = process.env.DATA_DIR || path.join(__dirname, "data");
 const sourceUsersFile = path.join(appDir, "users.xml");
 const liveUsersFile = path.join(dataDir, "users.xml");
 const locationsFile = path.join(appDir, "locations.xml");
+const liveLocationsFile = path.join(dataDir, "locations.xml");
 const sourceResourcesFile = path.join(appDir, "resources.xml");
 const liveResourcesFile = path.join(dataDir, "resources.xml");
 
@@ -611,6 +612,154 @@ function resourceHasFutureBookings(resourceId) {
       if (["Cancelled", "Deleted"].includes(booking.status)) return false;
       const allocatedResourceIds = toArray(booking.allocation?.resources?.resourceId).map(String);
       return allocatedResourceIds.includes(String(resourceId));
+    });
+  });
+}
+
+
+function ensureLiveLocationsFile() {
+  ensureDataDir();
+
+  if (!fs.existsSync(liveLocationsFile)) {
+    if (fs.existsSync(locationsFile)) {
+      fs.copyFileSync(locationsFile, liveLocationsFile);
+    } else {
+      fs.writeFileSync(
+        liveLocationsFile,
+        `<?xml version="1.0" encoding="UTF-8"?>\n<deploymentLocations></deploymentLocations>`
+      );
+    }
+  }
+}
+
+function normaliseLocationStatus(status) {
+  const allowedStatuses = ["Active", "Inactive", "Retired"];
+  return allowedStatuses.includes(status) ? status : "Active";
+}
+
+function normaliseLocationAliases(aliases) {
+  if (!aliases) return [];
+  if (Array.isArray(aliases)) return aliases.map(item => String(item || "").trim()).filter(Boolean);
+  if (typeof aliases === "string") return aliases.split(/[\n,]/).map(item => item.trim()).filter(Boolean);
+  if (aliases.alias) return toArray(aliases.alias).map(item => String(item || "").trim()).filter(Boolean);
+  return [];
+}
+
+function generateNextLocationId(locations) {
+  const maxNumber = locations.reduce((max, location) => {
+    const match = String(location.id || "").match(/^LOC(\d+)$/i);
+    if (!match) return max;
+    return Math.max(max, Number(match[1]));
+  }, 0);
+
+  return `LOC${String(maxNumber + 1).padStart(3, "0")}`;
+}
+
+function formatLocationForResponse(location) {
+  return {
+    id: String(location.id || "").trim(),
+    name: String(location.name || location || "").trim(),
+    status: normaliseLocationStatus(location.status),
+    aliases: normaliseLocationAliases(location.aliases),
+    notes: String(location.notes || "").trim(),
+    createdAt: location.createdAt || "",
+    updatedAt: location.updatedAt || ""
+  };
+}
+
+function readLocationsFromXML() {
+  ensureLiveLocationsFile();
+
+  const xml = fs.readFileSync(liveLocationsFile, "utf8");
+  const parsed = new XMLParser({ ignoreAttributes: false }).parse(xml);
+  const rawLocations = toArray(parsed.deploymentLocations?.location);
+
+  return rawLocations
+    .map((location, index) => {
+      if (typeof location === "string") {
+        return {
+          id: `LOC${String(index + 1).padStart(3, "0")}`,
+          name: location,
+          status: location === "Other" ? "Active" : "Active",
+          aliases: { alias: [] },
+          notes: "",
+          createdAt: "",
+          updatedAt: ""
+        };
+      }
+
+      return {
+        ...location,
+        id: location.id || `LOC${String(index + 1).padStart(3, "0")}`,
+        name: location.name || "",
+        status: normaliseLocationStatus(location.status),
+        aliases: { alias: normaliseLocationAliases(location.aliases) }
+      };
+    })
+    .map(formatLocationForResponse)
+    .filter(location => location.name);
+}
+
+function saveLocationsToXML(locations) {
+  ensureLiveLocationsFile();
+
+  const builder = new XMLBuilder({
+    ignoreAttributes: false,
+    format: true,
+    suppressEmptyNode: true
+  });
+
+  const xml = builder.build({
+    deploymentLocations: {
+      location: locations.map(location => {
+        const formatted = formatLocationForResponse(location);
+        return {
+          id: formatted.id,
+          name: formatted.name,
+          status: formatted.status,
+          aliases: {
+            alias: formatted.aliases
+          },
+          notes: formatted.notes,
+          createdAt: formatted.createdAt,
+          updatedAt: formatted.updatedAt
+        };
+      })
+    }
+  });
+
+  fs.writeFileSync(liveLocationsFile, xml);
+}
+
+function initialiseLocationStorage() {
+  ensureLiveLocationsFile();
+  const locations = readLocationsFromXML();
+  saveLocationsToXML(locations);
+  return locations.length;
+}
+
+function getActiveDeploymentLocationNames() {
+  const names = readLocationsFromXML()
+    .filter(location => location.status === "Active")
+    .map(location => location.name)
+    .filter(name => name && name !== "Other")
+    .sort((a, b) => a.localeCompare(b));
+
+  if (!names.includes("Other")) names.push("Other");
+  return names;
+}
+
+function locationHasFutureBookings(locationName) {
+  const today = new Date().toISOString().split("T")[0];
+  const target = String(locationName || "").trim().toLowerCase();
+  if (!target) return false;
+
+  return getAllMonthlyBookingFiles().some(file => {
+    const bookings = readBookingsFromFile(file);
+    return bookings.some(booking => {
+      if (String(booking.bookingDate || "") < today) return false;
+      if (["Cancelled", "Deleted"].includes(booking.status)) return false;
+      return String(booking.location || "").trim().toLowerCase() === target;
     });
   });
 }
@@ -1235,13 +1384,12 @@ app.get("/api/users", requireLogin, (req, res) => {
 });
 
 app.get("/api/locations", (req, res) => {
-  const xml = fs.readFileSync(locationsFile, "utf8");
-  const parsed = new XMLParser().parse(xml);
-
-  const locations = toArray(parsed.deploymentLocations?.location)
-    .filter(Boolean);
-
-  res.json({ locations });
+  try {
+    res.json({ locations: getActiveDeploymentLocationNames() });
+  } catch (error) {
+    console.error("Locations retrieval error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
 });
 
 
@@ -2596,6 +2744,159 @@ app.post("/api/admin/users/:userId/reset-activation", requireLogin, requireAdmin
 });
 
 
+
+/* ---------------- ADMIN LOCATION MANAGEMENT ROUTES ---------------- */
+
+app.get("/api/admin/locations", requireLogin, requireAdmin, (req, res) => {
+  try {
+    const locations = readLocationsFromXML()
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    res.json({
+      success: true,
+      locations
+    });
+  } catch (error) {
+    console.error("Admin locations retrieval error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.post("/api/admin/locations", requireLogin, requireAdmin, (req, res) => {
+  try {
+    const locations = readLocationsFromXML();
+    const name = String(req.body.name || "").trim();
+    const status = normaliseLocationStatus(req.body.status || "Active");
+    const aliases = normaliseLocationAliases(req.body.aliases);
+    const notes = String(req.body.notes || "").trim();
+
+    if (!name) {
+      return res.status(400).json({ success: false, message: "Location name is required." });
+    }
+
+    const nameExists = locations.some(location => location.name.toLowerCase() === name.toLowerCase());
+    if (nameExists) {
+      return res.status(409).json({ success: false, message: "A location with this name already exists." });
+    }
+
+    const now = new Date().toISOString();
+    const newLocation = {
+      id: generateNextLocationId(locations),
+      name,
+      status,
+      aliases,
+      notes,
+      createdAt: now,
+      updatedAt: now
+    };
+
+    locations.push(newLocation);
+    saveLocationsToXML(locations);
+
+    res.json({
+      success: true,
+      message: "Location added successfully.",
+      location: formatLocationForResponse(newLocation)
+    });
+  } catch (error) {
+    console.error("Admin location creation error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.put("/api/admin/locations/:locationId", requireLogin, requireAdmin, (req, res) => {
+  try {
+    const locationId = req.params.locationId;
+    const locations = readLocationsFromXML();
+    const index = locations.findIndex(location => String(location.id) === String(locationId));
+
+    if (index === -1) {
+      return res.status(404).json({ success: false, message: "Location not found." });
+    }
+
+    const name = String(req.body.name || "").trim();
+    const status = normaliseLocationStatus(req.body.status || "Active");
+    const aliases = normaliseLocationAliases(req.body.aliases);
+    const notes = String(req.body.notes || "").trim();
+
+    if (!name) {
+      return res.status(400).json({ success: false, message: "Location name is required." });
+    }
+
+    const nameUsedByAnotherLocation = locations.some(location =>
+      String(location.id) !== String(locationId) &&
+      location.name.toLowerCase() === name.toLowerCase()
+    );
+
+    if (nameUsedByAnotherLocation) {
+      return res.status(409).json({ success: false, message: "Another location already uses this name." });
+    }
+
+    locations[index] = {
+      ...locations[index],
+      name,
+      status,
+      aliases,
+      notes,
+      updatedAt: new Date().toISOString()
+    };
+
+    saveLocationsToXML(locations);
+
+    res.json({
+      success: true,
+      message: "Location updated successfully.",
+      location: formatLocationForResponse(locations[index])
+    });
+  } catch (error) {
+    console.error("Admin location update error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.delete("/api/admin/locations/:locationId", requireLogin, requireAdmin, (req, res) => {
+  try {
+    const locationId = req.params.locationId;
+    const locations = readLocationsFromXML();
+    const index = locations.findIndex(location => String(location.id) === String(locationId));
+
+    if (index === -1) {
+      return res.status(404).json({ success: false, message: "Location not found." });
+    }
+
+    const selectedLocation = locations[index];
+
+    if (selectedLocation.name === "Other") {
+      return res.status(400).json({ success: false, message: "The Other location cannot be deleted because it is needed for custom locations." });
+    }
+
+    if (locationHasFutureBookings(selectedLocation.name)) {
+      locations[index] = {
+        ...selectedLocation,
+        status: "Retired",
+        updatedAt: new Date().toISOString()
+      };
+      saveLocationsToXML(locations);
+
+      return res.json({
+        success: true,
+        message: "This location is used by future bookings, so it has been marked as Retired instead of deleted."
+      });
+    }
+
+    locations.splice(index, 1);
+    saveLocationsToXML(locations);
+
+    res.json({
+      success: true,
+      message: "Location deleted successfully."
+    });
+  } catch (error) {
+    console.error("Admin location deletion error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 /* ---------------- ADMIN RESOURCE MANAGEMENT ROUTES ---------------- */
 
 app.get("/api/admin/resources", requireLogin, requireAdmin, (req, res) => {
@@ -2917,11 +3218,15 @@ app.get("/api/debug/storage", requireLogin, requireAdmin, (req, res) => {
       liveUsersFile,
       sourceResourcesFile,
       liveResourcesFile,
+      locationsFile,
+      liveLocationsFile,
       dataDirExists: fs.existsSync(dataDir),
       sourceUsersFileExists: fs.existsSync(sourceUsersFile),
       liveUsersFileExists: fs.existsSync(liveUsersFile),
       sourceResourcesFileExists: fs.existsSync(sourceResourcesFile),
       liveResourcesFileExists: fs.existsSync(liveResourcesFile),
+      locationsFileExists: fs.existsSync(locationsFile),
+      liveLocationsFileExists: fs.existsSync(liveLocationsFile),
       filesInDataDir: fs.existsSync(dataDir) ? fs.readdirSync(dataDir) : [],
       liveUsersFileSizeBytes: fs.existsSync(liveUsersFile)
         ? fs.statSync(liveUsersFile).size
@@ -2966,6 +3271,7 @@ app.listen(PORT, () => {
   try {
     const userCount = initialiseUserStorage();
     const resourceCount = initialiseResourceStorage();
+    const locationCount = initialiseLocationStorage();
 
     console.log(`ICT booking server running on port ${PORT}`);
     console.log("Monthly booking storage enabled.");
@@ -2977,6 +3283,8 @@ app.listen(PORT, () => {
     console.log(`User records loaded from persistent storage: ${userCount}`);
     console.log(`Live resources file: ${liveResourcesFile}`);
     console.log(`Resource records loaded from persistent storage: ${resourceCount}`);
+    console.log(`Live locations file: ${liveLocationsFile}`);
+    console.log(`Location records loaded from persistent storage: ${locationCount}`);
   } catch (error) {
     console.error("Failed to initialise encrypted user storage:", error);
     process.exit(1);
