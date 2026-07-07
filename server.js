@@ -1643,16 +1643,218 @@ function getAvailableAccessoryTypes() {
   ));
 }
 
+
+function parseLegacyPerson(value) {
+  const text = normaliseImportValue(value);
+  const match = text.match(/^(.*?)\s*\(([^()@\s]+@[^()\s]+)\)\s*$/);
+  if (match) {
+    return {
+      name: match[1].trim(),
+      email: normaliseEmail(match[2])
+    };
+  }
+  return {
+    name: text,
+    email: ""
+  };
+}
+
+function parseLegacyTimeslots(value) {
+  const text = normaliseImportValue(value);
+  const matches = Array.from(text.matchAll(/\((\d{1,2}:\d{2})-(\d{1,2}:\d{2})\)/g));
+  if (matches.length === 0) {
+    return {
+      startTime: normaliseImportTime(text),
+      endTime: ""
+    };
+  }
+
+  return {
+    startTime: normaliseImportTime(matches[0][1]),
+    endTime: normaliseImportTime(matches[matches.length - 1][2])
+  };
+}
+
+function normaliseSearchText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function inferLegacyResource(resourceText) {
+  const text = normaliseSearchText(resourceText);
+  const result = {
+    isICT: false,
+    isNonICT: false,
+    deviceType: "",
+    accessoryResources: [],
+    softwareRequirement: "None",
+    reason: ""
+  };
+
+  if (!text) {
+    result.reason = "Resource field is empty.";
+    return result;
+  }
+
+  const nonIctPatterns = [
+    /meeting\s*room/,
+    /conference\s*room/,
+    /seminar\s*room/,
+    /staff\s*room/,
+    /training\s*room/,
+    /computer\s*lab/,
+    /\blab\s*[0-9a-z]?\b/,
+    /\bhall\b/,
+    /auditorium/
+  ];
+
+  if (nonIctPatterns.some(pattern => pattern.test(text))) {
+    result.isNonICT = true;
+    result.reason = "Legacy resource is not managed by the ICT Resource Booking Portal.";
+    return result;
+  }
+
+  if (/ipad/.test(text)) {
+    result.isICT = true;
+    result.deviceType = /keyboard/.test(text) ? "iPad with Keyboard" : "iPad";
+  } else if (/laptop|notebook|chromebook/.test(text)) {
+    result.isICT = true;
+    result.deviceType = "Laptop";
+  }
+
+  const accessoryMappings = [
+    { pattern: /apple\s*pencil|stylus/, type: "Apple Pencil" },
+    { pattern: /head\s*set|headphone|earpiece/, type: "Headset" },
+    { pattern: /\bmouse\b|mice/, type: "Mouse" }
+  ];
+
+  accessoryMappings.forEach(mapping => {
+    if (mapping.pattern.test(text)) {
+      result.accessoryResources.push({ type: mapping.type, quantity: 0 });
+      result.isICT = true;
+    }
+  });
+
+  if (/procreate/.test(text)) {
+    result.softwareRequirement = "Procreate";
+  }
+
+  if (!result.isICT) {
+    result.reason = "No supported ICT device or accessory was detected in the resource field.";
+  }
+
+  return result;
+}
+
+function extractLegacyQuantity(value, fallback = 1) {
+  const numeric = Number(value);
+  if (Number.isInteger(numeric) && numeric > 0) return numeric;
+
+  const text = normaliseImportValue(value);
+  const bracketMatch = text.match(/\((\d+)\)/);
+  if (bracketMatch) return Number(bracketMatch[1]);
+
+  const numberMatch = text.match(/\b(\d+)\b/);
+  if (numberMatch) return Number(numberMatch[1]);
+
+  return fallback;
+}
+
+function getKnownLocationNames() {
+  return readLocationsFromXML()
+    .filter(location => location.status === "Active")
+    .map(location => location.name)
+    .filter(name => name && name !== "Other")
+    .sort((a, b) => b.length - a.length);
+}
+
+function extractLegacyLocation(row) {
+  const sources = [
+    getImportValue(row, ["Deployment Location", "Location", "Venue", "location"]),
+    getImportValue(row, ["Booking Remarks", "Remarks", "Remark"]),
+    getImportValue(row, ["Purpose"]),
+    getImportValue(row, ["Booked For"])
+  ].map(normaliseImportValue).filter(Boolean);
+
+  const searchableText = sources.join("\n");
+  const knownLocations = getKnownLocationNames();
+
+  for (const locationName of knownLocations) {
+    const escaped = locationName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pattern = new RegExp(`(?:^|[^A-Za-z0-9])(?:class\\s*)?${escaped}(?:\\s*class(?:room)?)?(?=$|[^A-Za-z0-9])`, "i");
+    if (pattern.test(searchableText)) {
+      return {
+        location: locationName,
+        resolution: "Matched existing location",
+        sourceText: searchableText
+      };
+    }
+  }
+
+  const classMatch = searchableText.match(/\b(?:class\s*)?([1-6][A-G])(?:\s*class(?:room)?)?\b/i);
+  if (classMatch) {
+    return {
+      location: classMatch[1].toUpperCase(),
+      resolution: "Custom class-like location",
+      sourceText: searchableText
+    };
+  }
+
+  const roomMatch = searchableText.match(/\b(?:room|rm)\s*[A-Z0-9.-]+\b/i);
+  if (roomMatch) {
+    return {
+      location: roomMatch[0].trim(),
+      resolution: "Custom room location",
+      sourceText: searchableText
+    };
+  }
+
+  return {
+    location: "",
+    resolution: "No location detected",
+    sourceText: searchableText
+  };
+}
+
+function mergeAccessoryQuantities(accessories, defaultQuantity) {
+  const byType = new Map();
+
+  accessories.forEach(item => {
+    const type = String(item.type || "").trim();
+    if (!type) return;
+    const quantity = Number(item.quantity) > 0 ? Number(item.quantity) : defaultQuantity;
+    const key = type.toLowerCase();
+    if (!byType.has(key)) {
+      byType.set(key, { type, quantity });
+    } else {
+      byType.get(key).quantity += quantity;
+    }
+  });
+
+  return Array.from(byType.values());
+}
+
 function mapLegacyBookingRow(row, index, users) {
   const errors = [];
+  const warnings = [];
   const accessoryTypes = getAvailableAccessoryTypes();
 
-  const requesterEmail = normaliseEmail(getImportValue(row, [
-    "Requester Email", "Email", "User Email", "Teacher Email", "requesterEmail", "email"
+  const legacyResourceText = normaliseImportValue(getImportValue(row, [
+    "Resources", "Resource", "Device Type", "Resource Type", "Main Resource", "deviceType"
   ]));
-  const requesterName = normaliseImportValue(getImportValue(row, [
-    "Requester Name", "Name", "Teacher", "User", "requesterName", "name"
+  const legacyResourceInference = inferLegacyResource(legacyResourceText);
+
+  const bookedFor = parseLegacyPerson(getImportValue(row, [
+    "Booked For", "Requester", "Requester Email", "Email", "User Email", "Teacher Email", "requesterEmail", "email"
   ]));
+  const bookedBy = parseLegacyPerson(getImportValue(row, [
+    "Booked By", "Requester Name", "Name", "Teacher", "User", "requesterName", "name"
+  ]));
+
+  const requesterEmail = bookedFor.email || bookedBy.email;
+  const requesterName = bookedFor.name || bookedBy.name;
 
   const matchedUser = requesterEmail
     ? users.find(user => normaliseEmail(user.email) === requesterEmail)
@@ -1661,24 +1863,31 @@ function mapLegacyBookingRow(row, index, users) {
   const bookingDate = normaliseImportDate(getImportValue(row, [
     "Booking Date", "Date", "bookingDate", "BookingDate"
   ]));
+
+  const timeslotParse = parseLegacyTimeslots(getImportValue(row, [
+    "Timeslots", "Timeslot", "Time Slots", "Time", "Start Time", "Start", "startTime", "StartTime"
+  ]));
   const startTime = normaliseImportTime(getImportValue(row, [
     "Start Time", "Start", "startTime", "StartTime"
-  ]));
+  ])) || timeslotParse.startTime;
   const endTime = normaliseImportTime(getImportValue(row, [
     "End Time", "End", "endTime", "EndTime"
-  ]));
-  const location = normaliseImportValue(getImportValue(row, [
-    "Deployment Location", "Location", "Venue", "location"
-  ]));
+  ])) || timeslotParse.endTime;
+
+  const locationResolution = extractLegacyLocation(row);
+  const location = locationResolution.location;
+
   const deviceType = normaliseImportValue(getImportValue(row, [
-    "Device Type", "Resource Type", "Main Resource", "deviceType"
-  ]));
-  const devicesRequired = Number(getImportValue(row, [
-    "Number of Devices", "Devices Required", "Quantity", "Qty", "devicesRequired"
-  ]));
+    "Device Type", "deviceType"
+  ])) || legacyResourceInference.deviceType;
+
+  const devicesRequired = extractLegacyQuantity(getImportValue(row, [
+    "Number of Devices", "Devices Required", "Quantity", "Qty", "Participants", "devicesRequired"
+  ]), 1);
+
   const softwareRequirement = normaliseImportValue(getImportValue(row, [
     "Software Requirement", "Software", "softwareRequirement"
-  ])) || "None";
+  ])) || legacyResourceInference.softwareRequirement || "None";
 
   const additionalResources = [];
 
@@ -1691,6 +1900,8 @@ function mapLegacyBookingRow(row, index, users) {
     }
   });
 
+  legacyResourceInference.accessoryResources.forEach(item => additionalResources.push(item));
+
   const legacyResourceType = normaliseImportValue(getImportValue(row, [
     "Accessory Type", "Additional Resource Type", "Additional Resource", "Peripheral", "Accessory"
   ]));
@@ -1702,12 +1913,24 @@ function mapLegacyBookingRow(row, index, users) {
     additionalResources.push({ type: legacyResourceType, quantity: legacyResourceQuantity });
   }
 
+  if (legacyResourceInference.isNonICT) {
+    errors.push(legacyResourceInference.reason);
+  }
+
   if (!bookingDate) errors.push("Booking date is required.");
   if (!startTime) errors.push("Start time is required.");
   if (!endTime) errors.push("End time is required.");
-  if (!location) errors.push("Deployment location is required.");
-  if (!deviceType) errors.push("Device type is required.");
+  if (!location) errors.push("Deployment location could not be detected from the legacy record.");
+  if (!deviceType) errors.push(legacyResourceInference.reason || "Device type is required.");
   if (!Number.isInteger(devicesRequired) || devicesRequired <= 0) errors.push("Number of devices must be a positive whole number.");
+
+  if (!matchedUser && requesterEmail) {
+    warnings.push("Requester was not found in Users Admin; importer account will own the booking while preserving legacy requester details.");
+  }
+
+  if (locationResolution.resolution && locationResolution.resolution !== "Matched existing location") {
+    warnings.push(locationResolution.resolution);
+  }
 
   const mappedBooking = {
     userId: matchedUser?.userId || "",
@@ -1722,10 +1945,17 @@ function mapLegacyBookingRow(row, index, users) {
     softwareRequirement,
     bookingMode: "one-time",
     additionalResources: {
-      resource: normaliseAdditionalResourceRequests(additionalResources)
+      resource: normaliseAdditionalResourceRequests(mergeAccessoryQuantities(additionalResources, devicesRequired))
     },
     importSource: "Legacy Platform",
-    importRowNumber: index + 1
+    importRowNumber: index + 1,
+    legacyResourceText,
+    legacyPurpose: normaliseImportValue(getImportValue(row, ["Purpose"])),
+    legacyBookingRemarks: normaliseImportValue(getImportValue(row, ["Booking Remarks", "Remarks", "Remark"])),
+    legacyLocationResolution: locationResolution.resolution,
+    importWarnings: {
+      warning: warnings
+    }
   };
 
   const additionalErrors = validateAdditionalResourceRequests(mappedBooking);
@@ -1738,7 +1968,10 @@ function mapLegacyBookingRow(row, index, users) {
   return {
     rowNumber: index + 1,
     valid: errors.length === 0,
+    skipped: legacyResourceInference.isNonICT,
+    classification: legacyResourceInference.isNonICT ? "Skipped non-ICT" : (legacyResourceInference.isICT ? "ICT booking" : "Needs review"),
     errors,
+    warnings,
     mappedBooking
   };
 }
@@ -1764,14 +1997,43 @@ function previewLegacyBookingRows(rows, dateRange = {}) {
     }
   });
 
+  const validRows = inRangeRows.filter(row => row.valid);
+  const skippedRows = inRangeRows.filter(row => row.skipped);
+  const invalidRows = inRangeRows.filter(row => !row.valid && !row.skipped);
+
+  const classificationSummary = inRangeRows.reduce((summary, row) => {
+    const key = row.classification || "Needs review";
+    summary[key] = (summary[key] || 0) + 1;
+    return summary;
+  }, {});
+
+  const resourceSummary = validRows.reduce((summary, row) => {
+    const key = row.mappedBooking?.deviceType || "Unknown";
+    summary[key] = (summary[key] || 0) + 1;
+    return summary;
+  }, {});
+
+  const accessorySummary = validRows.reduce((summary, row) => {
+    const accessories = toArray(row.mappedBooking?.additionalResources?.resource);
+    accessories.forEach(item => {
+      const key = item.type || "Unknown";
+      summary[key] = (summary[key] || 0) + Number(item.quantity || 0);
+    });
+    return summary;
+  }, {});
+
   return {
     totalRows: allRows.length,
     rowsWithinRange: inRangeRows.length,
     rowsOutsideRange: outOfRangeRows.length,
     dateRange,
-    validRows: inRangeRows.filter(row => row.valid),
-    invalidRows: inRangeRows.filter(row => !row.valid),
-    outOfRangeRows
+    validRows,
+    invalidRows,
+    skippedRows,
+    outOfRangeRows,
+    classificationSummary,
+    resourceSummary,
+    accessorySummary
   };
 }
 
@@ -1882,10 +2144,11 @@ app.post("/api/admin/import/bookings/commit", requireLogin, requireAdmin, (req, 
       success: true,
       message: `${importedBookings.length} booking record(s) imported from the selected date range. ${duplicateRows.length} duplicate row(s) skipped. ${preview.rowsOutsideRange} row(s) were outside the selected date range.`,
       importedCount: importedBookings.length,
-      skippedCount: preview.invalidRows.length + duplicateRows.length + preview.rowsOutsideRange,
+      skippedCount: preview.invalidRows.length + preview.skippedRows.length + duplicateRows.length + preview.rowsOutsideRange,
       duplicateRows,
       importedBookings,
       invalidRows: preview.invalidRows,
+      skippedRows: preview.skippedRows,
       outOfRangeRows: preview.outOfRangeRows,
       rowsWithinRange: preview.rowsWithinRange,
       rowsOutsideRange: preview.rowsOutsideRange,

@@ -1188,7 +1188,7 @@
     }
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(5, minmax(0, 1fr));
+      grid-template-columns: repeat(6, minmax(0, 1fr));
       gap: 12px;
     }
     .stat-card {
@@ -1212,6 +1212,35 @@
       text-transform: uppercase;
       letter-spacing: .04em;
     }
+
+    .summary-section {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px;
+      background: #ffffff;
+      display: grid;
+      gap: 10px;
+    }
+    .summary-section h3 {
+      margin: 0;
+      font-size: 1rem;
+      color: #0f172a;
+    }
+    .summary-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .summary-pill {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 8px 10px;
+      background: #f8fafc;
+      font-weight: 800;
+      color: #334155;
+      font-size: .85rem;
+    }
+
     @media (max-width: 860px) {
       .range-grid, .stats-grid { grid-template-columns: 1fr; }
     }
@@ -1291,7 +1320,7 @@
         </div>
         <div class="import-body">
           <div class="note-box">
-            Upload an Excel (.xlsx) or CSV file, or paste rows copied from Excel. The first row must contain column headers such as
+            Upload an Excel (.xlsx) or CSV file, or paste rows copied from Excel. The importer will detect the legacy report header row automatically. Supported headers include
             <code>Booking Date</code>, <code>Start Time</code>, <code>End Time</code>, <code>Requester Email</code>,
             <code>Location</code>, <code>Device Type</code>, <code>Number of Devices</code>, and optional accessory quantity columns such as
             <code>Mouse Qty</code>, <code>Headset Qty</code>, or <code>Apple Pencil Qty</code>.
@@ -1482,6 +1511,24 @@
       return normalised;
     }
 
+    function findLegacyHeaderRow(sheet) {
+      const rows = XLSX.utils.sheet_to_json(sheet, {
+        header: 1,
+        defval: '',
+        raw: false
+      });
+
+      for (let index = 0; index < Math.min(rows.length, 20); index++) {
+        const normalisedCells = (rows[index] || []).map(cell => String(cell || '').trim().toLowerCase());
+        const hasDate = normalisedCells.includes('date');
+        const hasResources = normalisedCells.includes('resources') || normalisedCells.includes('resource');
+        const hasTimeslots = normalisedCells.includes('timeslots') || normalisedCells.includes('time slots');
+        if (hasDate && hasResources && hasTimeslots) return index;
+      }
+
+      return 0;
+    }
+
     async function parseExcelFile(file) {
       if (!window.XLSX) {
         throw new Error('Excel parser could not be loaded. Please check the internet connection or use CSV as a fallback.');
@@ -1499,16 +1546,21 @@
 
       const firstSheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[firstSheetName];
+      const headerRowIndex = findLegacyHeaderRow(sheet);
+
       const rows = XLSX.utils.sheet_to_json(sheet, {
         defval: '',
-        raw: false
-      }).map(normaliseExcelRow);
+        raw: false,
+        range: headerRowIndex
+      }).map(normaliseExcelRow)
+        .filter(row => Object.values(row).some(value => String(value || '').trim()));
 
       return {
         rows,
         workbookName: file.name,
         sheetName: firstSheetName,
-        sheetCount: workbook.SheetNames.length
+        sheetCount: workbook.SheetNames.length,
+        headerRowNumber: headerRowIndex + 1
       };
     }
 
@@ -1533,10 +1585,23 @@
       button.disabled = false;
     }
 
+    function renderSummaryPills(title, summary) {
+      const entries = Object.entries(summary || {});
+      if (!entries.length) return '';
+      return `
+        <div class="summary-section">
+          <h3>${escapeHtml(title)}</h3>
+          <div class="summary-list">
+            ${entries.map(([label, value]) => `<span class="summary-pill">${escapeHtml(label)}: ${escapeHtml(value)}</span>`).join('')}
+          </div>
+        </div>`;
+    }
+
     function renderPreview(data) {
       const validRows = data.validRows || [];
       const invalidRows = data.invalidRows || [];
       const outOfRangeRows = data.outOfRangeRows || [];
+      const skippedRows = data.skippedRows || [];
       const totalRows = data.totalRows || 0;
       const rowsWithinRange = data.rowsWithinRange ?? (validRows.length + invalidRows.length);
       const rowsOutsideRange = data.rowsOutsideRange ?? outOfRangeRows.length;
@@ -1547,9 +1612,13 @@
           <div class="stat-card"><strong>${rowsWithinRange}</strong><span>Within selected range</span></div>
           <div class="stat-card"><strong>${validRows.length}</strong><span>Valid bookings</span></div>
           <div class="stat-card"><strong>${invalidRows.length}</strong><span>Needs review</span></div>
+          <div class="stat-card"><strong>${skippedRows.length}</strong><span>Skipped non-ICT</span></div>
           <div class="stat-card"><strong>${rowsOutsideRange}</strong><span>Outside range</span></div>
         </div>
-        <div class="note-box"><strong>Preview complete:</strong> Only rows within the selected date range will be committed. ${rowsOutsideRange} row(s) outside the selected range will be ignored.</div>
+        ${renderSummaryPills("Resource summary", data.resourceSummary)}
+        ${renderSummaryPills("Accessory summary", data.accessorySummary)}
+        ${renderSummaryPills("Classification summary", data.classificationSummary)}
+        <div class="note-box"><strong>Preview complete:</strong> Only rows marked as valid will be imported. ${skippedRows.length} non-ICT row(s) and ${rowsOutsideRange} row(s) outside the selected range will be ignored.</div>
         <div class="preview-table-wrap">
           <table>
             <thead><tr><th>Row</th><th>Status</th><th>Date / Time</th><th>Requester</th><th>Resource</th><th>Accessories</th><th>Issues</th></tr></thead>
@@ -1565,7 +1634,7 @@
                   <td>${escapeHtml(booking.importedRequesterName || booking.importedRequesterEmail || '-')}</td>
                   <td>${escapeHtml(booking.devicesRequired || '-')} ${escapeHtml(booking.deviceType || '-')}</td>
                   <td>${escapeHtml(accessoryList)}</td>
-                  <td>${escapeHtml((row.errors || []).join(' '))}</td>
+                  <td>${escapeHtml([...(row.errors || []), ...(row.warnings || [])].join(' '))}</td>
                 </tr>`;
               }).join('')}
             </tbody>
@@ -1590,7 +1659,7 @@
           structuredRowsFromFile = parsedWorkbook.rows;
           lastRows = structuredRowsFromFile;
           importText.value = JSON.stringify(structuredRowsFromFile, null, 2);
-          setFileInfo(`✓ <strong>${escapeHtml(parsedWorkbook.workbookName)}</strong><br>Excel workbook loaded · Worksheet: <strong>${escapeHtml(parsedWorkbook.sheetName)}</strong> · Rows detected: <strong>${structuredRowsFromFile.length}</strong> · Worksheets: <strong>${parsedWorkbook.sheetCount}</strong>`);
+          setFileInfo(`✓ <strong>${escapeHtml(parsedWorkbook.workbookName)}</strong><br>Excel workbook loaded · Worksheet: <strong>${escapeHtml(parsedWorkbook.sheetName)}</strong> · Rows detected: <strong>${structuredRowsFromFile.length}</strong> · Header row: <strong>${parsedWorkbook.headerRowNumber}</strong> · Worksheets: <strong>${parsedWorkbook.sheetCount}</strong>`);
           showStatus('success', `${structuredRowsFromFile.length} Excel row(s) loaded. Select an import range, then preview the import.`);
           return;
         }
