@@ -1291,6 +1291,92 @@ function validateAdditionalResourceRequests(bookingRequest) {
 }
 
 
+function normaliseFingerprintText(value) {
+  return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function getCanonicalAdditionalResources(additionalResources) {
+  return normaliseAdditionalResourceRequests(additionalResources)
+    .map(item => ({
+      type: normaliseFingerprintText(item.type),
+      quantity: Number(item.quantity) || 0
+    }))
+    .filter(item => item.type && item.quantity > 0)
+    .sort((a, b) => a.type.localeCompare(b.type))
+    .map(item => `${item.type}:${item.quantity}`)
+    .join("|");
+}
+
+function buildBookingFingerprintPayload(booking) {
+  return {
+    userId: String(booking.userId || ""),
+    bookingDate: String(booking.bookingDate || ""),
+    startTime: String(booking.startTime || ""),
+    endTime: String(booking.endTime || ""),
+    location: normaliseFingerprintText(booking.location),
+    deviceType: normaliseFingerprintText(booking.deviceType),
+    devicesRequired: Number(booking.devicesRequired || 0),
+    softwareRequirement: normaliseFingerprintText(booking.softwareRequirement || "None"),
+    additionalResources: getCanonicalAdditionalResources(booking.additionalResources)
+  };
+}
+
+function generateBookingFingerprint(booking) {
+  return crypto
+    .createHash("sha256")
+    .update(JSON.stringify(buildBookingFingerprintPayload(booking)))
+    .digest("hex");
+}
+
+function getActiveBookingsForDate(bookingDate) {
+  const bookingsFile = ensureMonthlyBookingsFile(bookingDate);
+  return readBookingsFromFile(bookingsFile)
+    .filter(booking => booking.status !== "Deleted" && booking.status !== "Cancelled");
+}
+
+function findDuplicateBooking(bookingRequest, options = {}) {
+  const fingerprint = generateBookingFingerprint(bookingRequest);
+  const bookings = getActiveBookingsForDate(bookingRequest.bookingDate);
+  return bookings.find(booking => {
+    if (options.excludeBookingId && String(booking["@_id"]) === String(options.excludeBookingId)) {
+      return false;
+    }
+
+    if (String(booking.userId || "") !== String(bookingRequest.userId || "")) {
+      return false;
+    }
+
+    const existingFingerprint = booking.bookingFingerprint || generateBookingFingerprint(booking);
+    return existingFingerprint === fingerprint;
+  });
+}
+
+function getBookingsByRequestId(bookingRequestId, userId) {
+  const cleanedRequestId = String(bookingRequestId || "").trim();
+  if (!cleanedRequestId) return [];
+
+  return getAllMonthlyBookingFiles()
+    .flatMap(file => readBookingsFromFile(file))
+    .filter(booking => booking.status !== "Deleted" && booking.status !== "Cancelled")
+    .filter(booking => String(booking.userId || "") === String(userId || ""))
+    .filter(booking => String(booking.bookingRequestId || "") === cleanedRequestId)
+    .sort((a, b) => `${a.bookingDate || ""} ${a.startTime || ""}`.localeCompare(`${b.bookingDate || ""} ${b.startTime || ""}`));
+}
+
+function prepareBookingForSave(bookingRequest) {
+  const prepared = {
+    ...bookingRequest,
+    bookingRequestId: String(bookingRequest.bookingRequestId || "").trim(),
+    additionalResources: {
+      resource: normaliseAdditionalResourceRequests(bookingRequest.additionalResources)
+    }
+  };
+
+  prepared.bookingFingerprint = generateBookingFingerprint(prepared);
+  return prepared;
+}
+
+
 
 /* ---------------- BOOKING IMPORT FOUNDATION ---------------- */
 
@@ -1451,6 +1537,10 @@ function mapLegacyBookingRow(row, index, users) {
   const additionalErrors = validateAdditionalResourceRequests(mappedBooking);
   additionalErrors.forEach(error => errors.push(error));
 
+  if (errors.length === 0 && findDuplicateBooking(prepareBookingForSave(mappedBooking))) {
+    errors.push("Duplicate booking already exists and will not be imported again.");
+  }
+
   return {
     rowNumber: index + 1,
     valid: errors.length === 0,
@@ -1470,14 +1560,24 @@ function previewLegacyBookingRows(rows) {
 }
 
 function saveImportedBooking(mappedBooking, importerUser) {
-  const bookingRequest = removePersonalDataFromBooking({
+  const bookingRequest = prepareBookingForSave(removePersonalDataFromBooking({
     ...mappedBooking,
     userId: mappedBooking.userId || importerUser.userId,
     importedByUserId: importerUser.userId,
     importedByName: importerUser.name,
     importedAt: new Date().toISOString(),
     status: "Pending Allocation"
-  });
+  }));
+
+  const duplicateBooking = findDuplicateBooking(bookingRequest);
+  if (duplicateBooking) {
+    return {
+      skipped: true,
+      reason: "Duplicate booking already exists.",
+      existingBooking: duplicateBooking,
+      importRowNumber: bookingRequest.importRowNumber
+    };
+  }
 
   let allocationResult = allocateResources(bookingRequest);
   let reallocationUpdates = [];
@@ -1556,13 +1656,16 @@ app.post("/api/admin/import/bookings/commit", requireLogin, requireAdmin, (req, 
       });
     }
 
-    const importedBookings = preview.validRows.map(row => saveImportedBooking(row.mappedBooking, req.session.user));
+    const importResults = preview.validRows.map(row => saveImportedBooking(row.mappedBooking, req.session.user));
+    const importedBookings = importResults.filter(result => !result.skipped);
+    const duplicateRows = importResults.filter(result => result.skipped);
 
     res.json({
       success: true,
-      message: `${importedBookings.length} booking record(s) imported.`,
+      message: `${importedBookings.length} booking record(s) imported. ${duplicateRows.length} duplicate row(s) skipped.`,
       importedCount: importedBookings.length,
-      skippedCount: preview.invalidRows.length,
+      skippedCount: preview.invalidRows.length + duplicateRows.length,
+      duplicateRows,
       importedBookings,
       invalidRows: preview.invalidRows
     });
@@ -1608,29 +1711,56 @@ app.post("/api/bookings", requireLogin, (req, res) => {
       });
     }
 
-    bookingRequest.additionalResources = {
-      resource: normaliseAdditionalResourceRequests(bookingRequest.additionalResources)
-    };
-
     const bookingDates = isRecurring
       ? bookingRequest.recurrence.dates.slice(0, 4)
       : [bookingRequest.bookingDate];
 
-    const recurringGroupId = isRecurring ? `REC-${Date.now()}` : "";
-    const savedBookings = [];
+    const existingBookingsForRequestId = getBookingsByRequestId(
+      bookingRequest.bookingRequestId,
+      req.session.user.userId
+    );
 
-    for (const date of bookingDates) {
-      const singleBookingRequest = {
+    if (existingBookingsForRequestId.length > 0) {
+      return res.json({
+        success: true,
+        message: "This booking request was already processed. The existing booking has been returned instead of creating a duplicate.",
+        booking: existingBookingsForRequestId[0],
+        bookings: existingBookingsForRequestId,
+        recurringGroupId: existingBookingsForRequestId[0].recurringGroupId || "",
+        idempotentReplay: true
+      });
+    }
+
+    const recurringGroupId = isRecurring ? `REC-${Date.now()}` : "";
+    const preparedBookingRequests = bookingDates.map((date, index) => {
+      const singleBookingRequest = prepareBookingForSave({
         ...bookingRequest,
         bookingDate: date,
         bookingMode: isRecurring ? "recurring" : "one-time",
         recurringGroupId,
         recurrenceTotal: bookingDates.length,
-        recurrenceSequence: savedBookings.length + 1
-      };
+        recurrenceSequence: index + 1
+      });
 
       delete singleBookingRequest.recurrence;
+      return singleBookingRequest;
+    });
 
+    const duplicateBooking = preparedBookingRequests
+      .map(request => findDuplicateBooking(request))
+      .find(Boolean);
+
+    if (duplicateBooking) {
+      return res.status(409).json({
+        success: false,
+        message: "You already have an identical booking for this date, time, location, resource and accessory request. Please modify the existing booking instead of creating a duplicate.",
+        duplicateBooking
+      });
+    }
+
+    const savedBookings = [];
+
+    for (const singleBookingRequest of preparedBookingRequests) {
       let allocationResult = allocateResources(singleBookingRequest);
       let reallocationUpdates = [];
 
@@ -1888,13 +2018,13 @@ app.put("/api/bookings/:bookingId", requireLogin, (req, res) => {
       });
     }
 
-    const updatedBookingRequest = removePersonalDataFromBooking({
+    const updatedBookingRequest = prepareBookingForSave(removePersonalDataFromBooking({
       ...existingBooking,
       ...req.body,
       userId: req.session.user.userId,
       bookingDate: req.body.bookingDate || existingBooking.bookingDate,
       status: "Pending Allocation"
-    });
+    }));
 
     const additionalResourceErrors = validateAdditionalResourceRequests(updatedBookingRequest);
     if (additionalResourceErrors.length > 0) {
@@ -1904,9 +2034,17 @@ app.put("/api/bookings/:bookingId", requireLogin, (req, res) => {
       });
     }
 
-    updatedBookingRequest.additionalResources = {
-      resource: normaliseAdditionalResourceRequests(updatedBookingRequest.additionalResources)
-    };
+    const duplicateBooking = findDuplicateBooking(updatedBookingRequest, {
+      excludeBookingId: updatedBookingRequest.bookingDate === originalBookingDate ? bookingId : ""
+    });
+
+    if (duplicateBooking) {
+      return res.status(409).json({
+        success: false,
+        message: "This change would create a duplicate of an existing booking. Please modify the existing booking instead.",
+        duplicateBooking
+      });
+    }
 
     const remainingOriginalBookings = originalBookings.filter(
       booking => String(booking["@_id"]) !== String(bookingId)

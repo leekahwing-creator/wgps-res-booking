@@ -1460,6 +1460,26 @@ document.getElementById("requesterName").textContent = user.name;
     let recurringPermissionNote;
     let bookingMode = 'one-time';
     let repeatIntervalWeeks = 1;
+    let currentBookingRequestId = createBookingRequestId();
+
+    function createBookingRequestId() {
+      if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+        return window.crypto.randomUUID();
+      }
+      return `BR-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    }
+
+    function getSubmitButton() {
+      return form?.querySelector('button[type="submit"]');
+    }
+
+    function setSubmittingState(isSubmitting) {
+      const submitButton = getSubmitButton();
+      if (!submitButton) return;
+      submitButton.disabled = isSubmitting;
+      submitButton.textContent = isSubmitting ? 'Submitting...' : 'Submit Booking Request';
+    }
+
     function getRequiredElement(id) {
       const element = document.getElementById(id);
 
@@ -1621,6 +1641,7 @@ document.getElementById("requesterName").textContent = user.name;
         softwareRequirement: softwareProcreate.checked ? 'Procreate' : 'None',
         devicesRequired: Number(devicesRequired.value),
         additionalResources: { resource: getSelectedAdditionalResources() },
+        bookingRequestId: currentBookingRequestId,
         bookingMode,
         recurrence: bookingMode === 'recurring'
           ? {
@@ -1954,6 +1975,7 @@ document.getElementById("requesterName").textContent = user.name;
           devicesRequired.value = 1;
           setBookingMode('one-time');
           statusMessage.className = 'status';
+          currentBookingRequestId = createBookingRequestId();
           toggleCustomLocationField();
           updateSummary();
         }, 0);
@@ -1962,7 +1984,10 @@ document.getElementById("requesterName").textContent = user.name;
       form.addEventListener('submit', async event => {
         event.preventDefault();
 
+        if (getSubmitButton()?.disabled) return;
         if (!validateTimes()) return;
+
+        setSubmittingState(true);
 
         const bookingData = {
           ...getBookingData(),
@@ -2012,9 +2037,12 @@ document.getElementById("requesterName").textContent = user.name;
             : buildAllocationMessage(savedBooking);
 
           showStatus(statusType, recurringMessage);
+          currentBookingRequestId = createBookingRequestId();
           console.log('Booking saved with allocation:', result);
         } catch (error) {
           showStatus('error', `The booking could not be submitted. ${error.message}`);
+        } finally {
+          setSubmittingState(false);
         }
       });
     }

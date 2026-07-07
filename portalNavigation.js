@@ -116,6 +116,7 @@
     setActiveState();
     updateUserDisplay();
     applyNavigationLayout();
+    nav.classList.add('nav-ready');
 
     const mobileButton = nav.querySelector('#mobileMenuButton');
     const mobileCloseButton = nav.querySelector('#mobileCloseButton');

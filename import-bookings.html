@@ -1140,6 +1140,12 @@
     th { background:#f8fafc; color:var(--muted); font-size:.78rem; text-transform:uppercase; letter-spacing:.06em; }
     .note-box { border:1px dashed #cbd5e1; background:#f8fafc; border-radius:16px; padding:14px; color:#334155; line-height:1.5; }
     code { background:#f1f5f9; padding:2px 5px; border-radius:6px; }
+  
+
+    /* Prevent old standalone navigation from flashing/overlapping before the shared navigation controller finishes applying role-aware layout. */
+    .portal-nav-v2:not(.nav-ready) .nav-main > .desktop-extra { display: none !important; }
+    .portal-nav-v2:not(.nav-ready) .more-dropdown { display: inline-flex !important; }
+    .portal-nav-v2 { z-index: 80; }
   </style>
 </head>
 <body>
@@ -1286,8 +1292,7 @@
     }
 
     function parseRows(text) {
-      const lines = String(text || '').split(/?
-/).map(line => line.trim()).filter(Boolean);
+      const lines = String(text || '').split(/\r?\n/).map(line => line.trim()).filter(Boolean);
       if (lines.length < 2) return [];
       const delimiter = lines[0].includes('	') ? '	' : ',';
       const headers = splitLine(lines[0], delimiter);
