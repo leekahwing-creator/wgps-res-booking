@@ -1822,7 +1822,7 @@ function splitLegacyResourceItems(resourceText) {
 
 function inferLegacyAccessoriesFromResourceText(resourceText) {
   const items = splitLegacyResourceItems(resourceText);
-  const accessories = [];
+  const quantitiesByType = new Map();
 
   items.forEach(item => {
     const text = normaliseSearchText(item);
@@ -1838,13 +1838,21 @@ function inferLegacyAccessoriesFromResourceText(resourceText) {
 
     if (!type) return;
 
-    accessories.push({
-      type,
-      quantity: extractQuantityFromLegacyResourceItem(item, 0)
-    });
+    const key = type.toLowerCase();
+    const quantity = extractQuantityFromLegacyResourceItem(item, 0);
+
+    // Multiple legacy resource entries can belong to the same accessory type,
+    // for example "Headphones Set C (20), Headphones Set D (20)". These
+    // are distinct physical accessory resources and should be summed before
+    // later de-duplication against Purpose/Booking Remarks mentions.
+    if (!quantitiesByType.has(key)) {
+      quantitiesByType.set(key, { type, quantity: 0 });
+    }
+
+    quantitiesByType.get(key).quantity += quantity;
   });
 
-  return accessories;
+  return Array.from(quantitiesByType.values());
 }
 
 function getResourceAliasEntries() {
