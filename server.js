@@ -1983,6 +1983,32 @@ function removeLegacyDirectionalContext(text) {
     .trim();
 }
 
+
+function isAmbiguousLegacyLocationDescription(text) {
+  const cleanedText = normaliseImportValue(text);
+  if (!cleanedText) return false;
+
+  // Some legacy remarks describe a room indirectly rather than naming the actual
+  // deployment room, for example:
+  // "p2 tamil venue: 2025 2F classroom (beside 1A 2026 class on level 1)".
+  // In these cases, class labels such as 2F or 1A are contextual/historical
+  // references and must not be treated as the actual deployment location.
+  const hasHistoricalClassReference = /\b20\d{2}\s+[1-6][A-G]\s*(?:class|classroom)\b/i.test(cleanedText);
+  const hasDirectionalOrUncertainContext = /\b(?:beside|near|next\s+to|opposite|formerly|previously|used\s+to\s+be|last\s+year|this\s+year|level)\b/i.test(cleanedText);
+  const hasMultipleYearReferences = (cleanedText.match(/\b20\d{2}\b/g) || []).length >= 2;
+
+  return hasHistoricalClassReference && (hasDirectionalOrUncertainContext || hasMultipleYearReferences);
+}
+
+function getDescriptiveLegacyLocation(sources) {
+  const preferredSource = sources.find(source => isAmbiguousLegacyLocationDescription(source));
+  if (!preferredSource) return "";
+
+  return normaliseImportValue(preferredSource)
+    .replace(/^[-:;\s]+/, "")
+    .trim();
+}
+
 function getLegacyLocationSearchTexts(sources) {
   const searchTexts = [];
 
@@ -2022,6 +2048,16 @@ function extractLegacyLocation(row) {
   ].map(normaliseImportValue).filter(Boolean);
 
   const searchableText = sources.join("\n");
+
+  const descriptiveLocation = getDescriptiveLegacyLocation(sources);
+  if (descriptiveLocation) {
+    return {
+      location: descriptiveLocation,
+      resolution: "Custom descriptive location",
+      sourceText: searchableText
+    };
+  }
+
   const knownLocations = getKnownLocationNames();
   const locationSearchTexts = getLegacyLocationSearchTexts(sources);
 
