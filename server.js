@@ -2206,6 +2206,16 @@ function getKnownLocationNames() {
 }
 
 function extractLegacyLocation(row) {
+  if (row?.__legacyLocationOverride) {
+    const overrideLocation = normaliseImportValue(row.__legacyLocationOverride);
+    const knownLocations = getKnownLocationNames();
+    return {
+      location: overrideLocation,
+      resolution: knownLocations.includes(overrideLocation) ? "Matched existing location" : "Custom resource-specific location",
+      sourceText: overrideLocation
+    };
+  }
+
   const sources = [
     getImportValue(row, ["Deployment Location", "Location", "Venue", "location"]),
     getImportValue(row, ["Booking Remarks", "Booking Remark", "Remarks", "Remark", "bookingRemarks"]),
@@ -2352,6 +2362,141 @@ function mergeAccessoryQuantities(accessories, defaultQuantity) {
   return Array.from(byType.values());
 }
 
+
+function splitLegacyResourceDeploymentLines(text) {
+  return normaliseImportValue(text)
+    .split(/\r?\n+/)
+    .map(line => line.trim())
+    .filter(Boolean);
+}
+
+function cleanLegacyResourceSegmentText(value) {
+  return normaliseImportValue(value)
+    .replace(/\s+/g, " ")
+    .replace(/\s*[-–—]\s*$/g, "")
+    .trim();
+}
+
+function parseLegacyResourceDeploymentSegments(row) {
+  const legacyResourceText = normaliseImportValue(getImportValue(row, [
+    "Resources", "Resource", "Device Type", "Resource Type", "Main Resource", "deviceType"
+  ]));
+
+  const remarksText = normaliseImportValue(getImportValue(row, [
+    "Booking Remarks", "Booking Remark", "Remarks", "Remark", "bookingRemarks"
+  ]));
+
+  if (!legacyResourceText || !remarksText) return [];
+
+  const resourceItems = splitLegacyResourceItems(legacyResourceText);
+  if (resourceItems.length <= 1) return [];
+
+  const resourceItemsWithMatches = resourceItems
+    .map(item => ({
+      item,
+      match: findRegisteredResourceMatch(item)
+    }))
+    .filter(entry => entry.match?.resource && entry.match.resource.category !== "Accessory");
+
+  if (resourceItemsWithMatches.length <= 1) return [];
+
+  const lines = splitLegacyResourceDeploymentLines(remarksText);
+  if (lines.length <= 1) return [];
+
+  const segments = [];
+  const usedResourceKeys = new Set();
+
+  lines.forEach(line => {
+    const parts = line.split(/\s+[-–—]\s+/);
+    if (parts.length < 2) return;
+
+    const locationText = cleanLegacyResourceSegmentText(parts[0]);
+    const resourceHint = cleanLegacyResourceSegmentText(parts.slice(1).join(" - "));
+    if (!locationText || !resourceHint) return;
+
+    let matchedEntry = null;
+    let matchedBy = "";
+
+    for (const entry of resourceItemsWithMatches) {
+      const itemKey = normaliseResourceLookupText(entry.item);
+      const resourceNameKey = normaliseResourceLookupText(entry.match.resource.name);
+      const resourceHintKey = normaliseResourceLookupText(resourceHint);
+      const resourceIdKey = normaliseResourceLookupText(entry.match.resource.id);
+
+      if (
+        resourceHintKey.includes(resourceNameKey) ||
+        resourceNameKey.includes(resourceHintKey) ||
+        resourceHintKey.includes(resourceIdKey) ||
+        itemKey.includes(resourceHintKey) ||
+        resourceHintKey.includes(itemKey)
+      ) {
+        matchedEntry = entry;
+        matchedBy = "remarks resource hint";
+        break;
+      }
+    }
+
+    if (!matchedEntry) {
+      const directMatch = findRegisteredResourceMatch(resourceHint);
+      if (directMatch?.resource && directMatch.resource.category !== "Accessory") {
+        matchedEntry = {
+          item: resourceHint,
+          match: directMatch
+        };
+        matchedBy = "direct remarks resource match";
+      }
+    }
+
+    if (!matchedEntry?.match?.resource) return;
+
+    const resourceKey = String(matchedEntry.match.resource.id || matchedEntry.match.resource.name || resourceHint).toLowerCase();
+    if (usedResourceKeys.has(resourceKey)) return;
+    usedResourceKeys.add(resourceKey);
+
+    segments.push({
+      segmentIndex: segments.length + 1,
+      resourceText: matchedEntry.item,
+      locationText,
+      resourceId: matchedEntry.match.resource.id || "",
+      resourceName: matchedEntry.match.resource.name || "",
+      resolution: `Split from bulk resource booking using ${matchedBy}`
+    });
+  });
+
+  if (segments.length <= 1) return [];
+
+  return segments.map((segment, index) => ({
+    ...segment,
+    segmentIndex: index + 1,
+    segmentTotal: segments.length
+  }));
+}
+
+function buildLegacySegmentRow(sourceRow, resourceSegment, timeSegment) {
+  const segmentRow = { ...sourceRow };
+
+  if (resourceSegment) {
+    segmentRow.Resources = resourceSegment.resourceText;
+    segmentRow.Resource = resourceSegment.resourceText;
+    segmentRow.__legacyResourceSegment = resourceSegment;
+    segmentRow.__legacyLocationOverride = resourceSegment.locationText;
+  }
+
+  if (timeSegment) {
+    segmentRow.__legacyTimeSegment = timeSegment;
+  }
+
+  return segmentRow;
+}
+
+function buildImportSegmentLabel(index, row) {
+  const labels = [];
+  if (row.__legacyResourceSegment) labels.push(`R${row.__legacyResourceSegment.segmentIndex}`);
+  if (row.__legacyTimeSegment) labels.push(`T${row.__legacyTimeSegment.segmentIndex}`);
+  return labels.length ? `${index + 1}.${labels.join(".")}` : String(index + 1);
+}
+
+
 function mapLegacyBookingRow(row, index, users) {
   const errors = [];
   const warnings = [];
@@ -2466,6 +2611,10 @@ function mapLegacyBookingRow(row, index, users) {
     warnings.push(locationResolution.resolution);
   }
 
+  if (row.__legacyResourceSegment?.resolution) {
+    warnings.push(row.__legacyResourceSegment.resolution);
+  }
+
   const mappedBooking = {
     userId: matchedUser?.userId || "",
     importedRequesterName: requesterName || matchedUser?.name || "",
@@ -2483,8 +2632,9 @@ function mapLegacyBookingRow(row, index, users) {
     },
     importSource: "Legacy Platform",
     importRowNumber: index + 1,
-    importSegmentLabel: injectedSegment ? `${index + 1}.${injectedSegment.segmentIndex}` : String(index + 1),
+    importSegmentLabel: buildImportSegmentLabel(index, row),
     legacyPeriodLabel: injectedSegment?.periodLabel || "",
+    legacyResourceSegmentLabel: row.__legacyResourceSegment ? `Resource ${row.__legacyResourceSegment.segmentIndex} of ${row.__legacyResourceSegment.segmentTotal}` : "",
     legacyResourceText,
     matchedResourceId: legacyResourceInference.matchedResourceId || "",
     matchedResourceName: legacyResourceInference.matchedResourceName || "",
@@ -2507,7 +2657,7 @@ function mapLegacyBookingRow(row, index, users) {
   }
 
   return {
-    rowNumber: injectedSegment ? `${index + 1}.${injectedSegment.segmentIndex}` : index + 1,
+    rowNumber: buildImportSegmentLabel(index, row),
     valid: errors.length === 0,
     skipped: legacyResourceInference.isNonICT,
     classification: legacyResourceInference.isNonICT ? "Skipped non-ICT" : (legacyResourceInference.isUnknownICT ? "Unknown ICT resource" : (legacyResourceInference.isICT ? "ICT booking" : "Needs review")),
@@ -2521,18 +2671,19 @@ function previewLegacyBookingRows(rows, dateRange = {}) {
   const users = getUsersFromXML();
   const allRows = toArray(rows).flatMap((row, index) => {
     const sourceRow = row || {};
-    const segments = parseLegacyTimeslotSegments(getImportValue(sourceRow, [
+    const resourceSegments = parseLegacyResourceDeploymentSegments(sourceRow);
+    const timeSegments = parseLegacyTimeslotSegments(getImportValue(sourceRow, [
       "Timeslots", "Timeslot", "Time Slots", "Time", "Start Time", "Start", "startTime", "StartTime"
     ]));
 
-    if (!segments.length) {
-      return [mapLegacyBookingRow(sourceRow, index, users)];
-    }
+    const resourceSegmentList = resourceSegments.length ? resourceSegments : [null];
+    const timeSegmentList = timeSegments.length ? timeSegments : [null];
 
-    return segments.map(segment => mapLegacyBookingRow({
-      ...sourceRow,
-      __legacyTimeSegment: segment
-    }, index, users));
+    return resourceSegmentList.flatMap(resourceSegment =>
+      timeSegmentList.map(timeSegment =>
+        mapLegacyBookingRow(buildLegacySegmentRow(sourceRow, resourceSegment, timeSegment), index, users)
+      )
+    );
   });
 
   const inRangeRows = [];
