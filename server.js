@@ -1781,6 +1781,72 @@ function getResourceCapacityLookup() {
     }, new Map());
 }
 
+
+function legacyResourceItemIsAccessory(text) {
+  const normalised = normaliseSearchText(text);
+  return /apple\s*pencil|stylus|head\s*set|headset|headphones?|earpieces?|\bmouse\b|mice/.test(normalised);
+}
+
+function legacyResourceItemIsDevice(text) {
+  const normalised = normaliseSearchText(text);
+  return /ipad|laptop|notebook|chromebook/.test(normalised) && !legacyResourceItemIsAccessory(text);
+}
+
+function extractQuantityFromLegacyResourceItem(item, fallback = 0) {
+  const text = normaliseImportValue(item);
+  if (!text) return fallback;
+
+  const parentheticalNumbers = Array.from(text.matchAll(/\((?:[^)]*?)(\d+)\s*(?:pcs?|pieces?|devices?|units?|ipads?|notebooks?|laptops?|headsets?|headphones?|mice|mouse|pencils?)?[^)]*\)/gi))
+    .map(match => Number(match[1]))
+    .filter(value => Number.isInteger(value) && value > 0);
+
+  if (parentheticalNumbers.length > 0) {
+    return Math.max(...parentheticalNumbers);
+  }
+
+  const trailingQuantityMatch = text.match(/(?:-|–|—)\s*(\d{1,3})\s*$/);
+  if (trailingQuantityMatch) return Number(trailingQuantityMatch[1]);
+
+  const plainQuantityMatch = text.match(/\b(\d{1,3})\s*(?:pcs?|pieces?|devices?|units?|ipads?|notebooks?|laptops?|headsets?|headphones?|mice|mouse|pencils?)\b/i);
+  if (plainQuantityMatch) return Number(plainQuantityMatch[1]);
+
+  return fallback;
+}
+
+function splitLegacyResourceItems(resourceText) {
+  return normaliseImportValue(resourceText)
+    .split(/\s*,\s*/)
+    .map(item => item.trim())
+    .filter(Boolean);
+}
+
+function inferLegacyAccessoriesFromResourceText(resourceText) {
+  const items = splitLegacyResourceItems(resourceText);
+  const accessories = [];
+
+  items.forEach(item => {
+    const text = normaliseSearchText(item);
+    let type = "";
+
+    if (/apple\s*pencil|stylus/.test(text)) {
+      type = "Apple Pencil";
+    } else if (/head\s*set|headset|headphones?|earpieces?/.test(text)) {
+      type = "Headset";
+    } else if (/\bmouse\b|mice/.test(text)) {
+      type = "Mouse";
+    }
+
+    if (!type) return;
+
+    accessories.push({
+      type,
+      quantity: extractQuantityFromLegacyResourceItem(item, 0)
+    });
+  });
+
+  return accessories;
+}
+
 function getResourceAliasEntries() {
   const colourByLetter = {
     a: "blue",
@@ -1878,19 +1944,22 @@ function extractLegacyDeviceQuantityFromResource(resourceText, fallback = 1) {
   if (!text) return fallback;
 
   const registeredMatch = findRegisteredResourceMatch(text);
-  if (registeredMatch?.resource?.capacity) {
+  if (registeredMatch?.resource?.capacity && registeredMatch.resource.category !== "Accessory") {
     return Number(registeredMatch.resource.capacity) || fallback;
   }
 
-  const items = text
-    .split(/\s*,\s*/)
-    .map(item => item.trim())
-    .filter(Boolean);
-
+  const items = splitLegacyResourceItems(text);
   const resourceCapacityLookup = getResourceCapacityLookup();
   let total = 0;
 
   items.forEach(item => {
+    // Device quantity must come only from device resources. Accessory items in
+    // the same legacy Resources cell, such as headphone sets, must not inflate
+    // the laptop/iPad quantity.
+    if (legacyResourceItemIsAccessory(item)) {
+      return;
+    }
+
     const parentheticalNumbers = Array.from(item.matchAll(/\((?:[^)]*?)(\d+)\s*(?:pcs?|pieces?|devices?|units?|ipads?|notebooks?|laptops?)?[^)]*\)/gi))
       .map(match => Number(match[1]))
       .filter(value => Number.isInteger(value) && value > 0);
@@ -2076,17 +2145,10 @@ function inferLegacyResource(resourceText) {
     result.resourceResolution = "Generic device type detected; no registered resource name matched";
   }
 
-  const accessoryMappings = [
-    { pattern: /apple\s*pencil|stylus/, type: "Apple Pencil" },
-    { pattern: /head\s*set|headphone|earpiece/, type: "Headset" },
-    { pattern: /\bmouse\b|mice/, type: "Mouse" }
-  ];
-
-  accessoryMappings.forEach(mapping => {
-    if (mapping.pattern.test(text)) {
-      result.accessoryResources.push({ type: mapping.type, quantity: 0 });
-      result.isICT = true;
-    }
+  const legacyResourceAccessories = inferLegacyAccessoriesFromResourceText(resourceText);
+  legacyResourceAccessories.forEach(item => {
+    result.accessoryResources.push(item);
+    result.isICT = true;
   });
 
   if (/procreate/.test(text)) {
