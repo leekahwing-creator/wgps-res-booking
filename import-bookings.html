@@ -1621,7 +1621,7 @@
         <div class="note-box"><strong>Preview complete:</strong> Only rows marked as valid will be imported. ${skippedRows.length} non-ICT row(s) and ${rowsOutsideRange} row(s) outside the selected range will be ignored.</div>
         <div class="preview-table-wrap">
           <table>
-            <thead><tr><th>Row</th><th>Status</th><th>Date / Time</th><th>Requester</th><th>Resource</th><th>Accessories</th><th>Issues</th></tr></thead>
+            <thead><tr><th>Row</th><th>Status</th><th>Date / Time</th><th>Requester</th><th>Location</th><th>Resource</th><th>Accessories</th><th>Issues</th></tr></thead>
             <tbody>
               ${[...validRows, ...invalidRows].map(row => {
                 const booking = row.mappedBooking || {};
@@ -1632,6 +1632,7 @@
                   <td>${row.valid ? 'Valid' : 'Invalid'}</td>
                   <td>${escapeHtml(booking.bookingDate || '-')}<br>${escapeHtml(booking.startTime || '-')}–${escapeHtml(booking.endTime || '-')}</td>
                   <td>${escapeHtml(booking.importedRequesterName || booking.importedRequesterEmail || '-')}</td>
+                  <td>${escapeHtml(booking.location || '-')}<br><span class="helper">${escapeHtml(booking.legacyLocationResolution || '')}</span></td>
                   <td>${escapeHtml(booking.devicesRequired || '-')} ${escapeHtml(booking.deviceType || '-')}</td>
                   <td>${escapeHtml(accessoryList)}</td>
                   <td>${escapeHtml([...(row.errors || []), ...(row.warnings || [])].join(' '))}</td>

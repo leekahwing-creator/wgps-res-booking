@@ -1945,7 +1945,7 @@ function getKnownLocationNames() {
 function extractLegacyLocation(row) {
   const sources = [
     getImportValue(row, ["Deployment Location", "Location", "Venue", "location"]),
-    getImportValue(row, ["Booking Remarks", "Remarks", "Remark"]),
+    getImportValue(row, ["Booking Remarks", "Booking Remark", "Remarks", "Remark", "bookingRemarks"]),
     getImportValue(row, ["Purpose"]),
     getImportValue(row, ["Booked For"])
   ].map(normaliseImportValue).filter(Boolean);
@@ -1965,19 +1965,31 @@ function extractLegacyLocation(row) {
     }
   }
 
-  const classMatch = searchableText.match(/\b(?:class\s*)?([1-6][A-G])(?:\s*class(?:room)?)?\b/i);
+  const classMatch = searchableText.match(/\b(?:class(?:room)?\s*)?([1-6][A-G])(?:\s*class(?:room)?)?\b/i);
   if (classMatch) {
     return {
       location: classMatch[1].toUpperCase(),
-      resolution: "Custom class-like location",
+      resolution: knownLocations.includes(classMatch[1].toUpperCase()) ? "Matched existing location" : "Custom class-like location",
       sourceText: searchableText
     };
   }
 
-  const roomMatch = searchableText.match(/\b(?:room|rm)\s*[A-Z0-9.-]+\b/i);
-  if (roomMatch) {
+  // Free-text legacy remarks often contain room locations without the word "Room",
+  // for example "venue at 4.38", "3.03 LSM", or "Classroom 3.03".
+  const labelledRoomMatch = searchableText.match(/\b(?:classroom|room|rm|venue\s+at|venue)\s*([A-Z]?\d(?:\.\d{1,3})?[A-Z]?|[A-Z]?\d{2,4}[A-Z]?)\b/i);
+  if (labelledRoomMatch) {
+    const rawRoom = labelledRoomMatch[1].trim();
     return {
-      location: roomMatch[0].trim(),
+      location: `Room ${rawRoom}`,
+      resolution: "Custom room location",
+      sourceText: searchableText
+    };
+  }
+
+  const decimalRoomMatch = searchableText.match(/\b\d\.\d{1,3}\b/);
+  if (decimalRoomMatch) {
+    return {
+      location: `Room ${decimalRoomMatch[0].trim()}`,
       resolution: "Custom room location",
       sourceText: searchableText
     };
