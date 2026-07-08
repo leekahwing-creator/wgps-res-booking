@@ -1834,16 +1834,49 @@ function parseLegacyPerson(value) {
 function parseLegacyTimeslots(value) {
   const text = normaliseImportValue(value);
   const matches = Array.from(text.matchAll(/\((\d{1,2}:\d{2})-(\d{1,2}:\d{2})\)/g));
+
   if (matches.length === 0) {
+    const startTime = normaliseImportTime(text);
     return {
-      startTime: normaliseImportTime(text),
-      endTime: ""
+      startTime,
+      endTime: "",
+      ranges: startTime ? [{ startTime, endTime: "" }] : []
     };
   }
 
+  const slotRanges = matches
+    .map(match => ({
+      startTime: normaliseImportTime(match[1]),
+      endTime: normaliseImportTime(match[2])
+    }))
+    .filter(range => range.startTime && range.endTime)
+    .sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+  const groupedRanges = [];
+
+  slotRanges.forEach(range => {
+    const current = groupedRanges[groupedRanges.length - 1];
+
+    // Consecutive school periods should form one portal booking.
+    // A gap between the end of one period and the start of the next creates
+    // a separate imported booking record.
+    if (current && current.endTime === range.startTime) {
+      current.endTime = range.endTime;
+      current.periodCount += 1;
+      return;
+    }
+
+    groupedRanges.push({
+      startTime: range.startTime,
+      endTime: range.endTime,
+      periodCount: 1
+    });
+  });
+
   return {
-    startTime: normaliseImportTime(matches[0][1]),
-    endTime: normaliseImportTime(matches[matches.length - 1][2])
+    startTime: groupedRanges[0]?.startTime || "",
+    endTime: groupedRanges[groupedRanges.length - 1]?.endTime || "",
+    ranges: groupedRanges
   };
 }
 
@@ -2049,12 +2082,17 @@ function mapLegacyBookingRow(row, index, users) {
   const timeslotParse = parseLegacyTimeslots(getImportValue(row, [
     "Timeslots", "Timeslot", "Time Slots", "Time", "Start Time", "Start", "startTime", "StartTime"
   ]));
-  const startTime = normaliseImportTime(getImportValue(row, [
+  const explicitStartTime = normaliseImportTime(getImportValue(row, [
     "Start Time", "Start", "startTime", "StartTime"
-  ])) || timeslotParse.startTime;
-  const endTime = normaliseImportTime(getImportValue(row, [
+  ]));
+  const explicitEndTime = normaliseImportTime(getImportValue(row, [
     "End Time", "End", "endTime", "EndTime"
-  ])) || timeslotParse.endTime;
+  ]));
+  const timeRanges = explicitStartTime || explicitEndTime
+    ? [{ startTime: explicitStartTime || timeslotParse.startTime, endTime: explicitEndTime || timeslotParse.endTime, periodCount: 0 }]
+    : (timeslotParse.ranges && timeslotParse.ranges.length ? timeslotParse.ranges : [{ startTime: timeslotParse.startTime, endTime: timeslotParse.endTime, periodCount: 0 }]);
+  const startTime = timeRanges[0]?.startTime || "";
+  const endTime = timeRanges[0]?.endTime || "";
 
   const locationResolution = extractLegacyLocation(row);
   const location = locationResolution.location;
@@ -2117,13 +2155,11 @@ function mapLegacyBookingRow(row, index, users) {
     warnings.push(locationResolution.resolution);
   }
 
-  const mappedBooking = {
+  const baseMappedBooking = {
     userId: matchedUser?.userId || "",
     importedRequesterName: requesterName || matchedUser?.name || "",
     importedRequesterEmail: requesterEmail || matchedUser?.email || "",
     bookingDate,
-    startTime,
-    endTime,
     location,
     deviceType,
     devicesRequired,
@@ -2137,33 +2173,66 @@ function mapLegacyBookingRow(row, index, users) {
     legacyResourceText,
     legacyPurpose: normaliseImportValue(getImportValue(row, ["Purpose"])),
     legacyBookingRemarks: normaliseImportValue(getImportValue(row, ["Booking Remarks", "Remarks", "Remark"])),
-    legacyLocationResolution: locationResolution.resolution,
-    importWarnings: {
-      warning: warnings
+    legacyLocationResolution: locationResolution.resolution
+  };
+
+  const normalisedRanges = timeRanges
+    .map(range => ({
+      startTime: normaliseImportTime(range.startTime),
+      endTime: normaliseImportTime(range.endTime),
+      periodCount: Number(range.periodCount || 0)
+    }))
+    .filter(range => range.startTime || range.endTime);
+
+  const importSegments = normalisedRanges.length ? normalisedRanges : [{ startTime, endTime, periodCount: 0 }];
+  const splitWarning = importSegments.length > 1
+    ? `Legacy row split into ${importSegments.length} imported booking records because the selected periods are not continuous.`
+    : "";
+
+  return importSegments.map((range, segmentIndex) => {
+    const segmentWarnings = [...warnings];
+    if (splitWarning) segmentWarnings.push(splitWarning);
+
+    const segmentErrors = [...errors];
+    if (!range.startTime) segmentErrors.push("Start time is required.");
+    if (!range.endTime) segmentErrors.push("End time is required.");
+
+    const mappedBooking = {
+      ...baseMappedBooking,
+      startTime: range.startTime,
+      endTime: range.endTime,
+      importRowSegment: importSegments.length > 1 ? segmentIndex + 1 : "",
+      importSegmentTotal: importSegments.length,
+      importWarnings: {
+        warning: segmentWarnings
+      }
+    };
+
+    const additionalErrors = validateAdditionalResourceRequests(mappedBooking);
+    additionalErrors.forEach(error => segmentErrors.push(error));
+
+    if (segmentErrors.length === 0 && findDuplicateBooking(prepareBookingForSave(mappedBooking))) {
+      segmentErrors.push("Duplicate booking already exists and will not be imported again.");
     }
-  };
 
-  const additionalErrors = validateAdditionalResourceRequests(mappedBooking);
-  additionalErrors.forEach(error => errors.push(error));
-
-  if (errors.length === 0 && findDuplicateBooking(prepareBookingForSave(mappedBooking))) {
-    errors.push("Duplicate booking already exists and will not be imported again.");
-  }
-
-  return {
-    rowNumber: index + 1,
-    valid: errors.length === 0,
-    skipped: legacyResourceInference.isNonICT,
-    classification: legacyResourceInference.isNonICT ? "Skipped non-ICT" : (legacyResourceInference.isICT ? "ICT booking" : "Needs review"),
-    errors,
-    warnings,
-    mappedBooking
-  };
+    return {
+      rowNumber: importSegments.length > 1 ? `${index + 1}.${segmentIndex + 1}` : index + 1,
+      sourceRowNumber: index + 1,
+      segmentNumber: importSegments.length > 1 ? segmentIndex + 1 : "",
+      segmentTotal: importSegments.length,
+      valid: segmentErrors.length === 0,
+      skipped: legacyResourceInference.isNonICT,
+      classification: legacyResourceInference.isNonICT ? "Skipped non-ICT" : (legacyResourceInference.isICT ? "ICT booking" : "Needs review"),
+      errors: segmentErrors,
+      warnings: segmentWarnings,
+      mappedBooking
+    };
+  });
 }
 
 function previewLegacyBookingRows(rows, dateRange = {}) {
   const users = getUsersFromXML();
-  const allRows = toArray(rows).map((row, index) => mapLegacyBookingRow(row || {}, index, users));
+  const allRows = toArray(rows).flatMap((row, index) => mapLegacyBookingRow(row || {}, index, users));
 
   const inRangeRows = [];
   const outOfRangeRows = [];

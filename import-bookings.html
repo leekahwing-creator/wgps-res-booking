@@ -1624,7 +1624,7 @@
       commitBtn.disabled = validRows.length === 0;
       previewResults.innerHTML = `
         <div class="stats-grid" aria-label="Import preview summary">
-          <div class="stat-card"><strong>${totalRows}</strong><span>Total rows in file</span></div>
+          <div class="stat-card"><strong>${totalRows}</strong><span>Import records after split</span></div>
           <div class="stat-card"><strong>${rowsWithinRange}</strong><span>Within selected range</span></div>
           <div class="stat-card"><strong>${validRows.length}</strong><span>Valid bookings</span></div>
           <div class="stat-card"><strong>${invalidRows.length}</strong><span>Needs review</span></div>
@@ -1637,7 +1637,7 @@
         <div class="note-box"><strong>Preview complete:</strong> Only rows marked as valid will be imported. ${skippedRows.length} non-ICT row(s) and ${rowsOutsideRange} row(s) outside the selected range will be ignored.</div>
         <div class="preview-table-wrap">
           <table class="preview-table">
-            <thead><tr><th class="col-row">Row</th><th class="col-status">Status</th><th class="col-datetime">Date / Time</th><th class="col-requester">Requester</th><th class="col-location">Location</th><th class="col-resource">Resource</th><th class="col-accessories">Accessories</th><th class="col-issues">Issues</th></tr></thead>
+            <thead><tr><th class="col-row">Row / Segment</th><th class="col-status">Status</th><th class="col-datetime">Date / Time</th><th class="col-requester">Requester</th><th class="col-location">Location</th><th class="col-resource">Resource</th><th class="col-accessories">Accessories</th><th class="col-issues">Issues</th></tr></thead>
             <tbody>
               ${[...validRows, ...invalidRows].map(row => {
                 const booking = row.mappedBooking || {};
