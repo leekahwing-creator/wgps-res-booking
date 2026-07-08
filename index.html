@@ -520,6 +520,84 @@
       text-align: center;
     }
 
+    .additional-resource-row {
+      position: relative;
+      cursor: pointer;
+      transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+    }
+
+    .additional-resource-row:hover {
+      border-color: rgba(15, 118, 110, 0.35);
+      background: #f0fdfa;
+    }
+
+    .additional-resource-row.selected {
+      border-color: var(--primary);
+      background: #ecfeff;
+      box-shadow: 0 12px 24px rgba(15, 118, 110, 0.11);
+    }
+
+    .additional-resource-row.selected::after {
+      content: "Selected";
+      position: absolute;
+      top: 12px;
+      right: 176px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      background: var(--primary);
+      color: #ffffff;
+      font-size: 0.72rem;
+      font-weight: 900;
+    }
+
+    .additional-resource-row input[type="checkbox"] {
+      position: relative;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: #ffffff;
+      display: inline-grid;
+      place-content: center;
+    }
+
+    .additional-resource-row input[type="checkbox"]:checked {
+      background: var(--primary);
+      border-color: var(--primary);
+    }
+
+    .additional-resource-row input[type="checkbox"]:checked::before {
+      content: "✓";
+      color: #ffffff;
+      font-size: 0.78rem;
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    .additional-resource-row.selected input[data-accessory-quantity] {
+      border-color: rgba(15, 118, 110, 0.35);
+      box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.08);
+    }
+
+    .guided-section.just-unlocked {
+      animation: guidedPulse 0.9s ease;
+    }
+
+    @keyframes guidedPulse {
+      0% { box-shadow: 0 0 0 0 rgba(15, 118, 110, 0.22); }
+      100% { box-shadow: 0 10px 24px rgba(15, 23, 42, 0.035); }
+    }
+
+    @media (max-width: 760px) {
+      .additional-resource-row {
+        grid-template-columns: 1fr;
+      }
+
+      .additional-resource-row.selected::after {
+        position: static;
+        width: fit-content;
+        margin-left: 28px;
+      }
+    }
+
     .summary {
       margin-top: 22px;
       border-radius: 18px;
@@ -1874,6 +1952,7 @@ document.getElementById("requesterName").textContent = user.name;
       }
 
       renderAccessoryOptions();
+      updateAccessorySelectionStyles();
     }
 
     function renderAccessoryOptions() {
@@ -1887,7 +1966,7 @@ document.getElementById("requesterName").textContent = user.name;
 
       additionalResourcesSection.style.display = 'grid';
       additionalResourcesList.innerHTML = accessoryTypes.map(type => `
-        <div class="additional-resource-row" data-accessory-type="${type}">
+        <div class="additional-resource-row" data-accessory-type="${type}" role="checkbox" aria-checked="false" tabindex="0">
           <label>
             <input type="checkbox" data-accessory-check value="${type}" />
             <span>${type}</span>
@@ -2134,6 +2213,61 @@ document.getElementById("requesterName").textContent = user.name;
       });
     }
 
+    function updateAccessorySelectionStyles() {
+      if (!additionalResourcesList) return;
+      additionalResourcesList.querySelectorAll('.additional-resource-row').forEach(row => {
+        const checkbox = row.querySelector('[data-accessory-check]');
+        const quantityInput = row.querySelector('[data-accessory-quantity]');
+        const selected = Boolean(checkbox?.checked);
+        row.classList.toggle('selected', selected);
+        row.setAttribute('aria-checked', String(selected));
+        if (quantityInput) quantityInput.disabled = !selected;
+      });
+    }
+
+    function getNextIncompleteSection() {
+      const hasDevice = Boolean(deviceTypeSelect?.value);
+      const hasDateTime = Boolean(bookingDate?.value && startTime?.value && endTime?.value && endTime.value > startTime.value);
+      const data = getBookingData();
+      const hasLocation = Boolean(data.location);
+
+      if (!hasDevice) return document.getElementById('resourceSection');
+      if (!hasDateTime) return document.getElementById('timingSection');
+      if (!hasLocation) return document.getElementById('locationSection');
+      return document.getElementById('reviewSection');
+    }
+
+    function focusFirstControlInSection(section) {
+      if (!section) return;
+      const control = section.querySelector('button:not([disabled]), select:not([disabled]), input:not([disabled]), textarea:not([disabled])');
+      if (control) {
+        window.setTimeout(() => {
+          try { control.focus({ preventScroll: true }); } catch (error) { control.focus(); }
+        }, 420);
+      }
+    }
+
+    let guidedScrollTimer = null;
+    let lastGuidedTargetId = '';
+
+    function scheduleGuidedScroll() {
+      window.clearTimeout(guidedScrollTimer);
+      guidedScrollTimer = window.setTimeout(() => {
+        const section = getNextIncompleteSection();
+        if (!section || section.classList.contains('locked')) return;
+
+        const targetId = section.id || '';
+        if (targetId === lastGuidedTargetId) return;
+        lastGuidedTargetId = targetId;
+
+        section.classList.add('just-unlocked');
+        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        focusFirstControlInSection(section);
+
+        window.setTimeout(() => section.classList.remove('just-unlocked'), 950);
+      }, 180);
+    }
+
     function updateSummary() {
       const data = getBookingData();
       const name = data.name || 'Requester';
@@ -2167,6 +2301,7 @@ document.getElementById("requesterName").textContent = user.name;
       `;
 
       updateDeviceChoiceCards();
+      updateAccessorySelectionStyles();
       updateGuidedVisibility();
     }
 
@@ -2300,6 +2435,7 @@ document.getElementById("requesterName").textContent = user.name;
         button.addEventListener('click', () => {
           deviceTypeSelect.value = button.dataset.deviceChoice || '';
           updateSummary();
+          scheduleGuidedScroll();
         });
       });
 
@@ -2311,9 +2447,43 @@ document.getElementById("requesterName").textContent = user.name;
         });
       });
 
-      deviceTypeSelect.addEventListener('change', updateSummary);
-      startTime.addEventListener('change', updateSummary);
-      endTime.addEventListener('change', updateSummary);
+      deviceTypeSelect.addEventListener('change', () => {
+        updateSummary();
+        scheduleGuidedScroll();
+      });
+      startTime.addEventListener('change', () => {
+        updateSummary();
+        scheduleGuidedScroll();
+      });
+      endTime.addEventListener('change', () => {
+        updateSummary();
+        scheduleGuidedScroll();
+      });
+
+      additionalResourcesList.addEventListener('click', event => {
+        const row = event.target.closest('.additional-resource-row');
+        if (!row || event.target.matches('[data-accessory-quantity]')) return;
+
+        const checkbox = row.querySelector('[data-accessory-check]');
+        if (!checkbox) return;
+
+        if (!event.target.matches('[data-accessory-check]')) {
+          checkbox.checked = !checkbox.checked;
+          checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      });
+
+      additionalResourcesList.addEventListener('keydown', event => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        const row = event.target.closest('.additional-resource-row');
+        if (!row) return;
+
+        event.preventDefault();
+        const checkbox = row.querySelector('[data-accessory-check]');
+        if (!checkbox) return;
+        checkbox.checked = !checkbox.checked;
+        checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+      });
 
       additionalResourcesList.addEventListener('change', event => {
         const row = event.target.closest('.additional-resource-row');
@@ -2327,14 +2497,20 @@ document.getElementById("requesterName").textContent = user.name;
         if (event.target.matches('[data-accessory-quantity]')) {
           quantityInput.dataset.manuallyChanged = 'true';
         }
+        updateAccessorySelectionStyles();
         updateSummary();
+        scheduleGuidedScroll();
       });
 
-      additionalResourcesList.addEventListener('input', updateSummary);
+      additionalResourcesList.addEventListener('input', () => {
+        updateAccessorySelectionStyles();
+        updateSummary();
+      });
 
       locationSelect.addEventListener('change', () => {
         toggleCustomLocationField();
         updateSummary();
+        scheduleGuidedScroll();
       });
 
       bookingDate.addEventListener('change', () => {
@@ -2343,11 +2519,15 @@ document.getElementById("requesterName").textContent = user.name;
         }
         updateRecurrencePreview();
         updateSummary();
+        scheduleGuidedScroll();
       });
 
-      form.addEventListener('input', () => {
+      form.addEventListener('input', event => {
         statusMessage.className = 'status';
         updateSummary();
+        if (event.target === customLocationInput || event.target === bookingDate) {
+          scheduleGuidedScroll();
+        }
       });
 
       form.addEventListener('reset', () => {
@@ -2358,6 +2538,7 @@ document.getElementById("requesterName").textContent = user.name;
           setBookingMode('one-time');
           statusMessage.className = 'status';
           currentBookingRequestId = createBookingRequestId();
+          lastGuidedTargetId = '';
           toggleCustomLocationField();
           updateSummary();
         }, 0);
