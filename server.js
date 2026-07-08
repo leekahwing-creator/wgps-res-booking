@@ -1975,6 +1975,44 @@ function getKnownLocationNames() {
     .sort((a, b) => b.length - a.length);
 }
 
+function removeLegacyDirectionalContext(text) {
+  return String(text || "")
+    .replace(/\((?=[^)]*\b(?:beside|next\s+to|near|nearby|opposite|besides|adjacent|around)\b)[^)]*\)/gi, " ")
+    .replace(/\b(?:beside|next\s+to|near|nearby|opposite|besides|adjacent\s+to)\b[^.,;\n]*/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getLegacyLocationSearchTexts(sources) {
+  const searchTexts = [];
+
+  sources.forEach(source => {
+    const text = normaliseImportValue(source);
+    if (!text) return;
+
+    // Prioritise explicitly labelled venue/location text before contextual clues.
+    // Example: "venue: 2025 2F classroom (beside 1A 2026 class)" should resolve to 2F, not 1A.
+    const labelledMatch = text.match(/\b(?:venue|location|loc|classroom|room|rm)\s*(?:at|is|:|-)?\s*([^\n]+)/i);
+    if (labelledMatch) {
+      searchTexts.push(removeLegacyDirectionalContext(labelledMatch[1]));
+    }
+
+    searchTexts.push(removeLegacyDirectionalContext(text));
+    searchTexts.push(text);
+  });
+
+  return searchTexts.filter(Boolean);
+}
+
+function matchKnownLegacyLocation(text, knownLocations) {
+  for (const locationName of knownLocations) {
+    const escaped = locationName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pattern = new RegExp(`(?:^|[^A-Za-z0-9])(?:class\\s*)?${escaped}(?:\\s*class(?:room)?)?(?=$|[^A-Za-z0-9])`, "i");
+    if (pattern.test(text)) return locationName;
+  }
+  return "";
+}
+
 function extractLegacyLocation(row) {
   const sources = [
     getImportValue(row, ["Deployment Location", "Location", "Venue", "location"]),
@@ -1985,47 +2023,53 @@ function extractLegacyLocation(row) {
 
   const searchableText = sources.join("\n");
   const knownLocations = getKnownLocationNames();
+  const locationSearchTexts = getLegacyLocationSearchTexts(sources);
 
-  for (const locationName of knownLocations) {
-    const escaped = locationName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const pattern = new RegExp(`(?:^|[^A-Za-z0-9])(?:class\\s*)?${escaped}(?:\\s*class(?:room)?)?(?=$|[^A-Za-z0-9])`, "i");
-    if (pattern.test(searchableText)) {
+  for (const candidateText of locationSearchTexts) {
+    const matchedLocation = matchKnownLegacyLocation(candidateText, knownLocations);
+    if (matchedLocation) {
       return {
-        location: locationName,
+        location: matchedLocation,
         resolution: "Matched existing location",
         sourceText: searchableText
       };
     }
   }
 
-  const classMatch = searchableText.match(/\b(?:class(?:room)?\s*)?([1-6][A-G])(?:\s*class(?:room)?)?\b/i);
-  if (classMatch) {
-    return {
-      location: classMatch[1].toUpperCase(),
-      resolution: knownLocations.includes(classMatch[1].toUpperCase()) ? "Matched existing location" : "Custom class-like location",
-      sourceText: searchableText
-    };
+  for (const candidateText of locationSearchTexts) {
+    const classMatch = candidateText.match(/\b(?:class(?:room)?\s*)?([1-6][A-G])(?:\s*class(?:room)?)?\b/i);
+    if (classMatch) {
+      return {
+        location: classMatch[1].toUpperCase(),
+        resolution: knownLocations.includes(classMatch[1].toUpperCase()) ? "Matched existing location" : "Custom class-like location",
+        sourceText: searchableText
+      };
+    }
   }
 
   // Free-text legacy remarks often contain room locations without the word "Room",
   // for example "venue at 4.38", "3.03 LSM", or "Classroom 3.03".
-  const labelledRoomMatch = searchableText.match(/\b(?:classroom|room|rm|venue\s+at|venue)\s*([A-Z]?\d(?:\.\d{1,3})?[A-Z]?|[A-Z]?\d{2,4}[A-Z]?)\b/i);
-  if (labelledRoomMatch) {
-    const rawRoom = labelledRoomMatch[1].trim();
-    return {
-      location: `Room ${rawRoom}`,
-      resolution: "Custom room location",
-      sourceText: searchableText
-    };
+  for (const candidateText of locationSearchTexts) {
+    const labelledRoomMatch = candidateText.match(/\b(?:classroom|room|rm|venue\s+at|venue)\s*([A-Z]?\d(?:\.\d{1,3})?[A-Z]?|[A-Z]?\d{2,4}[A-Z]?)\b/i);
+    if (labelledRoomMatch) {
+      const rawRoom = labelledRoomMatch[1].trim();
+      return {
+        location: `Room ${rawRoom}`,
+        resolution: "Custom room location",
+        sourceText: searchableText
+      };
+    }
   }
 
-  const decimalRoomMatch = searchableText.match(/\b\d\.\d{1,3}\b/);
-  if (decimalRoomMatch) {
-    return {
-      location: `Room ${decimalRoomMatch[0].trim()}`,
-      resolution: "Custom room location",
-      sourceText: searchableText
-    };
+  for (const candidateText of locationSearchTexts) {
+    const decimalRoomMatch = candidateText.match(/\b\d\.\d{1,3}\b/);
+    if (decimalRoomMatch) {
+      return {
+        location: `Room ${decimalRoomMatch[0].trim()}`,
+        resolution: "Custom room location",
+        sourceText: searchableText
+      };
+    }
   }
 
   return {
