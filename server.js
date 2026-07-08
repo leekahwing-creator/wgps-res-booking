@@ -1760,19 +1760,127 @@ function findLegacyRequesterUser(users, requesterEmail, requesterName) {
   };
 }
 
+function normaliseResourceLookupText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/ipad/g, "ipad")
+    .replace(/\bipads\b/g, "ipad")
+    .replace(/\bnotebooks?\b/g, "laptop")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function getResourceCapacityLookup() {
   return readResourcesFromXML()
     .map(formatResourceForResponse)
     .reduce((lookup, resource) => {
-      const key = normaliseSearchText(resource.name);
+      const key = normaliseResourceLookupText(resource.name);
       if (key) lookup.set(key, Number(resource.capacity) || 0);
       return lookup;
     }, new Map());
 }
 
+function getResourceAliasEntries() {
+  const colourByLetter = {
+    a: "blue",
+    b: "green",
+    c: "yellow",
+    d: "red"
+  };
+
+  return readResourcesFromXML()
+    .map(formatResourceForResponse)
+    .filter(resource => resource.status === "Available")
+    .flatMap(resource => {
+      const aliases = new Set();
+      const name = String(resource.name || "").trim();
+      const id = String(resource.id || "").trim();
+      const deviceType = String(resource.deviceType || "").trim();
+      const resourceType = String(resource.resourceType || "").trim();
+
+      aliases.add(name);
+      aliases.add(id.replace(/[-_]+/g, " "));
+
+      const bagLetterMatch = name.match(/\b(?:bag|set)\s*([a-z])\b/i) || id.match(/\bbag[-_ ]*([a-z])\b/i);
+      if (bagLetterMatch) {
+        const letter = bagLetterMatch[1].toLowerCase();
+        const colour = colourByLetter[letter] || "";
+        aliases.add(`${deviceType} bag ${letter}`);
+        aliases.add(`${deviceType} set ${letter}`);
+        aliases.add(`${deviceType} ${letter}`);
+        aliases.add(`bag ${letter}`);
+        aliases.add(`set ${letter}`);
+        if (colour) {
+          aliases.add(`${deviceType} set ${letter} ${colour}`);
+          aliases.add(`${deviceType} bag ${letter} ${colour}`);
+          aliases.add(`${deviceType} ${colour}`);
+          aliases.add(`set ${letter} ${colour}`);
+          aliases.add(`bag ${letter} ${colour}`);
+        }
+      }
+
+      const cartNumberMatch = name.match(/\bcart\s*(\d+)\b/i) || id.match(/\bcart[-_ ]*(\d+)\b/i);
+      if (cartNumberMatch) {
+        const number = cartNumberMatch[1];
+        aliases.add(`${deviceType} cart ${number}`);
+        aliases.add(`${deviceType} set ${number}`);
+        aliases.add(`cart ${number}`);
+      }
+
+      return Array.from(aliases)
+        .map(alias => normaliseResourceLookupText(alias))
+        .filter(alias => alias && alias.length >= 5)
+        .map(alias => ({ alias, resource }));
+    })
+    .sort((a, b) => b.alias.length - a.alias.length);
+}
+
+function findRegisteredResourceMatch(resourceText) {
+  const text = normaliseResourceLookupText(resourceText);
+  if (!text) return null;
+
+  const entries = getResourceAliasEntries();
+  let bestMatch = null;
+  let bestScore = 0;
+
+  entries.forEach(entry => {
+    if (!entry.alias) return;
+
+    let score = 0;
+    if (text === entry.alias) {
+      score = 1;
+    } else if (text.includes(entry.alias)) {
+      score = Math.min(0.95, entry.alias.length / Math.max(text.length, 1));
+    } else if (entry.alias.includes(text) && text.length >= 7) {
+      score = Math.min(0.9, text.length / Math.max(entry.alias.length, 1));
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestMatch = entry.resource;
+    }
+  });
+
+  if (bestMatch && bestScore >= 0.45) {
+    return {
+      resource: bestMatch,
+      score: bestScore,
+      resolution: bestScore >= 0.95 ? "Matched registered resource" : "Matched registered resource by alias"
+    };
+  }
+
+  return null;
+}
+
 function extractLegacyDeviceQuantityFromResource(resourceText, fallback = 1) {
   const text = normaliseImportValue(resourceText);
   if (!text) return fallback;
+
+  const registeredMatch = findRegisteredResourceMatch(text);
+  if (registeredMatch?.resource?.capacity) {
+    return Number(registeredMatch.resource.capacity) || fallback;
+  }
 
   const items = text
     .split(/\s*,\s*/)
@@ -1798,7 +1906,7 @@ function extractLegacyDeviceQuantityFromResource(resourceText, fallback = 1) {
       return;
     }
 
-    const itemKey = normaliseSearchText(item.replace(/\([^)]*\)/g, ""));
+    const itemKey = normaliseResourceLookupText(item.replace(/\([^)]*\)/g, ""));
     const exactCapacity = resourceCapacityLookup.get(itemKey);
     if (exactCapacity) {
       total += exactCapacity;
@@ -1834,50 +1942,61 @@ function parseLegacyPerson(value) {
 function parseLegacyTimeslots(value) {
   const text = normaliseImportValue(value);
   const matches = Array.from(text.matchAll(/\((\d{1,2}:\d{2})-(\d{1,2}:\d{2})\)/g));
-
   if (matches.length === 0) {
-    const startTime = normaliseImportTime(text);
     return {
-      startTime,
-      endTime: "",
-      ranges: startTime ? [{ startTime, endTime: "" }] : []
+      startTime: normaliseImportTime(text),
+      endTime: ""
     };
   }
 
-  const slotRanges = matches
-    .map(match => ({
-      startTime: normaliseImportTime(match[1]),
-      endTime: normaliseImportTime(match[2])
-    }))
-    .filter(range => range.startTime && range.endTime)
-    .sort((a, b) => a.startTime.localeCompare(b.startTime));
-
-  const groupedRanges = [];
-
-  slotRanges.forEach(range => {
-    const current = groupedRanges[groupedRanges.length - 1];
-
-    // Consecutive school periods should form one portal booking.
-    // A gap between the end of one period and the start of the next creates
-    // a separate imported booking record.
-    if (current && current.endTime === range.startTime) {
-      current.endTime = range.endTime;
-      current.periodCount += 1;
-      return;
-    }
-
-    groupedRanges.push({
-      startTime: range.startTime,
-      endTime: range.endTime,
-      periodCount: 1
-    });
-  });
-
   return {
-    startTime: groupedRanges[0]?.startTime || "",
-    endTime: groupedRanges[groupedRanges.length - 1]?.endTime || "",
-    ranges: groupedRanges
+    startTime: normaliseImportTime(matches[0][1]),
+    endTime: normaliseImportTime(matches[matches.length - 1][2])
   };
+}
+
+
+function parseLegacyTimeslotSegments(value) {
+  const text = normaliseImportValue(value);
+  const matches = Array.from(text.matchAll(/\bP(\d+)\s*\((\d{1,2}:\d{2})-(\d{1,2}:\d{2})\)/gi))
+    .map(match => ({
+      period: Number(match[1]),
+      startTime: normaliseImportTime(match[2]),
+      endTime: normaliseImportTime(match[3])
+    }))
+    .filter(segment => segment.period && segment.startTime && segment.endTime)
+    .sort((a, b) => a.period - b.period);
+
+  if (matches.length <= 1) return [];
+
+  const groups = [];
+  let currentGroup = [matches[0]];
+
+  for (let i = 1; i < matches.length; i++) {
+    const previous = currentGroup[currentGroup.length - 1];
+    const current = matches[i];
+    const periodIsConsecutive = current.period === previous.period + 1;
+    const timeIsContinuous = current.startTime === previous.endTime;
+
+    if (periodIsConsecutive && timeIsContinuous) {
+      currentGroup.push(current);
+    } else {
+      groups.push(currentGroup);
+      currentGroup = [current];
+    }
+  }
+
+  groups.push(currentGroup);
+
+  if (groups.length <= 1) return [];
+
+  return groups.map((group, index) => ({
+    segmentIndex: index + 1,
+    segmentTotal: groups.length,
+    periodLabel: `P${group[0].period}${group.length > 1 ? `–P${group[group.length - 1].period}` : ""}`,
+    startTime: group[0].startTime,
+    endTime: group[group.length - 1].endTime
+  }));
 }
 
 function normaliseSearchText(value) {
@@ -1892,7 +2011,13 @@ function inferLegacyResource(resourceText) {
   const result = {
     isICT: false,
     isNonICT: false,
+    isUnknownICT: false,
     deviceType: "",
+    devicesRequired: 0,
+    matchedResourceId: "",
+    matchedResourceName: "",
+    matchedResourceCategory: "",
+    resourceResolution: "",
     accessoryResources: [],
     softwareRequirement: "None",
     reason: ""
@@ -1904,29 +2029,51 @@ function inferLegacyResource(resourceText) {
   }
 
   const nonIctPatterns = [
+    /library\s*visits?/,
+    /\blibrary\b/,
+    /\bmrl\b/,
     /meeting\s*room/,
     /conference\s*room/,
     /seminar\s*room/,
     /staff\s*room/,
     /training\s*room/,
     /computer\s*lab/,
+    /science\s*lab/,
     /\blab\s*[0-9a-z]?\b/,
     /\bhall\b/,
-    /auditorium/
+    /auditorium/,
+    /classroom\s*visit/
   ];
 
   if (nonIctPatterns.some(pattern => pattern.test(text))) {
     result.isNonICT = true;
     result.reason = "Legacy resource is not managed by the ICT Resource Booking Portal.";
+    result.resourceResolution = "Skipped non-ICT resource";
     return result;
   }
 
-  if (/ipad/.test(text)) {
+  const registeredMatch = findRegisteredResourceMatch(resourceText);
+  if (registeredMatch?.resource) {
+    const resource = registeredMatch.resource;
+    result.isICT = true;
+    result.deviceType = resource.category === "Accessory" ? "" : resource.deviceType;
+    result.devicesRequired = Number(resource.capacity) || 1;
+    result.matchedResourceId = resource.id || "";
+    result.matchedResourceName = resource.name || "";
+    result.matchedResourceCategory = resource.category || "";
+    result.resourceResolution = registeredMatch.resolution;
+
+    if (resource.category === "Accessory") {
+      result.accessoryResources.push({ type: resource.deviceType, quantity: Number(resource.capacity) || 1 });
+    }
+  } else if (/ipad/.test(text)) {
     result.isICT = true;
     result.deviceType = /keyboard/.test(text) ? "iPad with Keyboard" : "iPad";
+    result.resourceResolution = "Generic device type detected; no registered resource name matched";
   } else if (/laptop|notebook|chromebook/.test(text)) {
     result.isICT = true;
     result.deviceType = "Laptop";
+    result.resourceResolution = "Generic device type detected; no registered resource name matched";
   }
 
   const accessoryMappings = [
@@ -1946,8 +2093,29 @@ function inferLegacyResource(resourceText) {
     result.softwareRequirement = "Procreate";
   }
 
+  const unknownIctPatterns = [
+    /\bswivl\b/,
+    /visuali[sz]er/,
+    /camera/,
+    /tripod/,
+    /microphone/,
+    /projector/,
+    /speaker/,
+    /robot/,
+    /bee\s*bot/,
+    /sphero/
+  ];
+
+  if (!result.isICT && unknownIctPatterns.some(pattern => pattern.test(text))) {
+    result.isUnknownICT = true;
+    result.reason = "Legacy resource appears to be an ICT item but is not registered in Resources Admin.";
+    result.resourceResolution = "Unknown ICT resource";
+    return result;
+  }
+
   if (!result.isICT) {
-    result.reason = "No supported ICT device or accessory was detected in the resource field.";
+    result.reason = "Legacy resource did not match any registered portal resource or supported generic ICT device type.";
+    result.resourceResolution = "No registered resource match";
   }
 
   return result;
@@ -1975,70 +2143,6 @@ function getKnownLocationNames() {
     .sort((a, b) => b.length - a.length);
 }
 
-function removeLegacyDirectionalContext(text) {
-  return String(text || "")
-    .replace(/\((?=[^)]*\b(?:beside|next\s+to|near|nearby|opposite|besides|adjacent|around)\b)[^)]*\)/gi, " ")
-    .replace(/\b(?:beside|next\s+to|near|nearby|opposite|besides|adjacent\s+to)\b[^.,;\n]*/gi, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-
-function isAmbiguousLegacyLocationDescription(text) {
-  const cleanedText = normaliseImportValue(text);
-  if (!cleanedText) return false;
-
-  // Some legacy remarks describe a room indirectly rather than naming the actual
-  // deployment room, for example:
-  // "p2 tamil venue: 2025 2F classroom (beside 1A 2026 class on level 1)".
-  // In these cases, class labels such as 2F or 1A are contextual/historical
-  // references and must not be treated as the actual deployment location.
-  const hasHistoricalClassReference = /\b20\d{2}\s+[1-6][A-G]\s*(?:class|classroom)\b/i.test(cleanedText);
-  const hasDirectionalOrUncertainContext = /\b(?:beside|near|next\s+to|opposite|formerly|previously|used\s+to\s+be|last\s+year|this\s+year|level)\b/i.test(cleanedText);
-  const hasMultipleYearReferences = (cleanedText.match(/\b20\d{2}\b/g) || []).length >= 2;
-
-  return hasHistoricalClassReference && (hasDirectionalOrUncertainContext || hasMultipleYearReferences);
-}
-
-function getDescriptiveLegacyLocation(sources) {
-  const preferredSource = sources.find(source => isAmbiguousLegacyLocationDescription(source));
-  if (!preferredSource) return "";
-
-  return normaliseImportValue(preferredSource)
-    .replace(/^[-:;\s]+/, "")
-    .trim();
-}
-
-function getLegacyLocationSearchTexts(sources) {
-  const searchTexts = [];
-
-  sources.forEach(source => {
-    const text = normaliseImportValue(source);
-    if (!text) return;
-
-    // Prioritise explicitly labelled venue/location text before contextual clues.
-    // Example: "venue: 2025 2F classroom (beside 1A 2026 class)" should resolve to 2F, not 1A.
-    const labelledMatch = text.match(/\b(?:venue|location|loc|classroom|room|rm)\s*(?:at|is|:|-)?\s*([^\n]+)/i);
-    if (labelledMatch) {
-      searchTexts.push(removeLegacyDirectionalContext(labelledMatch[1]));
-    }
-
-    searchTexts.push(removeLegacyDirectionalContext(text));
-    searchTexts.push(text);
-  });
-
-  return searchTexts.filter(Boolean);
-}
-
-function matchKnownLegacyLocation(text, knownLocations) {
-  for (const locationName of knownLocations) {
-    const escaped = locationName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const pattern = new RegExp(`(?:^|[^A-Za-z0-9])(?:class\\s*)?${escaped}(?:\\s*class(?:room)?)?(?=$|[^A-Za-z0-9])`, "i");
-    if (pattern.test(text)) return locationName;
-  }
-  return "";
-}
-
 function extractLegacyLocation(row) {
   const sources = [
     getImportValue(row, ["Deployment Location", "Location", "Venue", "location"]),
@@ -2048,64 +2152,48 @@ function extractLegacyLocation(row) {
   ].map(normaliseImportValue).filter(Boolean);
 
   const searchableText = sources.join("\n");
-
-  const descriptiveLocation = getDescriptiveLegacyLocation(sources);
-  if (descriptiveLocation) {
-    return {
-      location: descriptiveLocation,
-      resolution: "Custom descriptive location",
-      sourceText: searchableText
-    };
-  }
-
   const knownLocations = getKnownLocationNames();
-  const locationSearchTexts = getLegacyLocationSearchTexts(sources);
 
-  for (const candidateText of locationSearchTexts) {
-    const matchedLocation = matchKnownLegacyLocation(candidateText, knownLocations);
-    if (matchedLocation) {
+  for (const locationName of knownLocations) {
+    const escaped = locationName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pattern = new RegExp(`(?:^|[^A-Za-z0-9])(?:class\\s*)?${escaped}(?:\\s*class(?:room)?)?(?=$|[^A-Za-z0-9])`, "i");
+    if (pattern.test(searchableText)) {
       return {
-        location: matchedLocation,
+        location: locationName,
         resolution: "Matched existing location",
         sourceText: searchableText
       };
     }
   }
 
-  for (const candidateText of locationSearchTexts) {
-    const classMatch = candidateText.match(/\b(?:class(?:room)?\s*)?([1-6][A-G])(?:\s*class(?:room)?)?\b/i);
-    if (classMatch) {
-      return {
-        location: classMatch[1].toUpperCase(),
-        resolution: knownLocations.includes(classMatch[1].toUpperCase()) ? "Matched existing location" : "Custom class-like location",
-        sourceText: searchableText
-      };
-    }
+  const classMatch = searchableText.match(/\b(?:class(?:room)?\s*)?([1-6][A-G])(?:\s*class(?:room)?)?\b/i);
+  if (classMatch) {
+    return {
+      location: classMatch[1].toUpperCase(),
+      resolution: knownLocations.includes(classMatch[1].toUpperCase()) ? "Matched existing location" : "Custom class-like location",
+      sourceText: searchableText
+    };
   }
 
   // Free-text legacy remarks often contain room locations without the word "Room",
   // for example "venue at 4.38", "3.03 LSM", or "Classroom 3.03".
-  for (const candidateText of locationSearchTexts) {
-    const labelledRoomMatch = candidateText.match(/\b(?:classroom|room|rm|venue\s+at|venue)\s*([A-Z]?\d(?:\.\d{1,3})?[A-Z]?|[A-Z]?\d{2,4}[A-Z]?)\b/i);
-    if (labelledRoomMatch) {
-      const rawRoom = labelledRoomMatch[1].trim();
-      return {
-        location: `Room ${rawRoom}`,
-        resolution: "Custom room location",
-        sourceText: searchableText
-      };
-    }
+  const labelledRoomMatch = searchableText.match(/\b(?:classroom|room|rm|venue\s+at|venue)\s*([A-Z]?\d(?:\.\d{1,3})?[A-Z]?|[A-Z]?\d{2,4}[A-Z]?)\b/i);
+  if (labelledRoomMatch) {
+    const rawRoom = labelledRoomMatch[1].trim();
+    return {
+      location: `Room ${rawRoom}`,
+      resolution: "Custom room location",
+      sourceText: searchableText
+    };
   }
 
-  for (const candidateText of locationSearchTexts) {
-    const decimalRoomMatch = candidateText.match(/\b\d\.\d{1,3}\b/);
-    if (decimalRoomMatch) {
-      return {
-        location: `Room ${decimalRoomMatch[0].trim()}`,
-        resolution: "Custom room location",
-        sourceText: searchableText
-      };
-    }
+  const decimalRoomMatch = searchableText.match(/\b\d\.\d{1,3}\b/);
+  if (decimalRoomMatch) {
+    return {
+      location: `Room ${decimalRoomMatch[0].trim()}`,
+      resolution: "Custom room location",
+      sourceText: searchableText
+    };
   }
 
   return {
@@ -2162,17 +2250,13 @@ function mapLegacyBookingRow(row, index, users) {
   const timeslotParse = parseLegacyTimeslots(getImportValue(row, [
     "Timeslots", "Timeslot", "Time Slots", "Time", "Start Time", "Start", "startTime", "StartTime"
   ]));
-  const explicitStartTime = normaliseImportTime(getImportValue(row, [
+  const injectedSegment = row.__legacyTimeSegment || null;
+  const startTime = normaliseImportTime(getImportValue(row, [
     "Start Time", "Start", "startTime", "StartTime"
-  ]));
-  const explicitEndTime = normaliseImportTime(getImportValue(row, [
+  ])) || injectedSegment?.startTime || timeslotParse.startTime;
+  const endTime = normaliseImportTime(getImportValue(row, [
     "End Time", "End", "endTime", "EndTime"
-  ]));
-  const timeRanges = explicitStartTime || explicitEndTime
-    ? [{ startTime: explicitStartTime || timeslotParse.startTime, endTime: explicitEndTime || timeslotParse.endTime, periodCount: 0 }]
-    : (timeslotParse.ranges && timeslotParse.ranges.length ? timeslotParse.ranges : [{ startTime: timeslotParse.startTime, endTime: timeslotParse.endTime, periodCount: 0 }]);
-  const startTime = timeRanges[0]?.startTime || "";
-  const endTime = timeRanges[0]?.endTime || "";
+  ])) || injectedSegment?.endTime || timeslotParse.endTime;
 
   const locationResolution = extractLegacyLocation(row);
   const location = locationResolution.location;
@@ -2181,7 +2265,7 @@ function mapLegacyBookingRow(row, index, users) {
     "Device Type", "deviceType"
   ])) || legacyResourceInference.deviceType;
 
-  const devicesRequired = extractLegacyDeviceQuantityFromResource(
+  const devicesRequired = legacyResourceInference.devicesRequired || extractLegacyDeviceQuantityFromResource(
     legacyResourceText,
     extractLegacyQuantity(getImportValue(row, [
       "Number of Devices", "Devices Required", "Quantity", "Qty", "devicesRequired"
@@ -2220,6 +2304,10 @@ function mapLegacyBookingRow(row, index, users) {
     errors.push(legacyResourceInference.reason);
   }
 
+  if (legacyResourceInference.isUnknownICT) {
+    errors.push(legacyResourceInference.reason);
+  }
+
   if (!bookingDate) errors.push("Booking date is required.");
   if (!startTime) errors.push("Start time is required.");
   if (!endTime) errors.push("End time is required.");
@@ -2235,11 +2323,13 @@ function mapLegacyBookingRow(row, index, users) {
     warnings.push(locationResolution.resolution);
   }
 
-  const baseMappedBooking = {
+  const mappedBooking = {
     userId: matchedUser?.userId || "",
     importedRequesterName: requesterName || matchedUser?.name || "",
     importedRequesterEmail: requesterEmail || matchedUser?.email || "",
     bookingDate,
+    startTime,
+    endTime,
     location,
     deviceType,
     devicesRequired,
@@ -2250,69 +2340,56 @@ function mapLegacyBookingRow(row, index, users) {
     },
     importSource: "Legacy Platform",
     importRowNumber: index + 1,
+    importSegmentLabel: injectedSegment ? `${index + 1}.${injectedSegment.segmentIndex}` : String(index + 1),
+    legacyPeriodLabel: injectedSegment?.periodLabel || "",
     legacyResourceText,
+    matchedResourceId: legacyResourceInference.matchedResourceId || "",
+    matchedResourceName: legacyResourceInference.matchedResourceName || "",
+    matchedResourceCategory: legacyResourceInference.matchedResourceCategory || "",
+    legacyResourceResolution: legacyResourceInference.resourceResolution || "",
     legacyPurpose: normaliseImportValue(getImportValue(row, ["Purpose"])),
     legacyBookingRemarks: normaliseImportValue(getImportValue(row, ["Booking Remarks", "Remarks", "Remark"])),
-    legacyLocationResolution: locationResolution.resolution
+    legacyLocationResolution: locationResolution.resolution,
+    importWarnings: {
+      warning: warnings
+    }
   };
 
-  const normalisedRanges = timeRanges
-    .map(range => ({
-      startTime: normaliseImportTime(range.startTime),
-      endTime: normaliseImportTime(range.endTime),
-      periodCount: Number(range.periodCount || 0)
-    }))
-    .filter(range => range.startTime || range.endTime);
+  const additionalErrors = validateAdditionalResourceRequests(mappedBooking);
+  additionalErrors.forEach(error => errors.push(error));
 
-  const importSegments = normalisedRanges.length ? normalisedRanges : [{ startTime, endTime, periodCount: 0 }];
-  const splitWarning = importSegments.length > 1
-    ? `Legacy row split into ${importSegments.length} imported booking records because the selected periods are not continuous.`
-    : "";
+  if (errors.length === 0 && findDuplicateBooking(prepareBookingForSave(mappedBooking))) {
+    errors.push("Duplicate booking already exists and will not be imported again.");
+  }
 
-  return importSegments.map((range, segmentIndex) => {
-    const segmentWarnings = [...warnings];
-    if (splitWarning) segmentWarnings.push(splitWarning);
-
-    const segmentErrors = [...errors];
-    if (!range.startTime) segmentErrors.push("Start time is required.");
-    if (!range.endTime) segmentErrors.push("End time is required.");
-
-    const mappedBooking = {
-      ...baseMappedBooking,
-      startTime: range.startTime,
-      endTime: range.endTime,
-      importRowSegment: importSegments.length > 1 ? segmentIndex + 1 : "",
-      importSegmentTotal: importSegments.length,
-      importWarnings: {
-        warning: segmentWarnings
-      }
-    };
-
-    const additionalErrors = validateAdditionalResourceRequests(mappedBooking);
-    additionalErrors.forEach(error => segmentErrors.push(error));
-
-    if (segmentErrors.length === 0 && findDuplicateBooking(prepareBookingForSave(mappedBooking))) {
-      segmentErrors.push("Duplicate booking already exists and will not be imported again.");
-    }
-
-    return {
-      rowNumber: importSegments.length > 1 ? `${index + 1}.${segmentIndex + 1}` : index + 1,
-      sourceRowNumber: index + 1,
-      segmentNumber: importSegments.length > 1 ? segmentIndex + 1 : "",
-      segmentTotal: importSegments.length,
-      valid: segmentErrors.length === 0,
-      skipped: legacyResourceInference.isNonICT,
-      classification: legacyResourceInference.isNonICT ? "Skipped non-ICT" : (legacyResourceInference.isICT ? "ICT booking" : "Needs review"),
-      errors: segmentErrors,
-      warnings: segmentWarnings,
-      mappedBooking
-    };
-  });
+  return {
+    rowNumber: injectedSegment ? `${index + 1}.${injectedSegment.segmentIndex}` : index + 1,
+    valid: errors.length === 0,
+    skipped: legacyResourceInference.isNonICT,
+    classification: legacyResourceInference.isNonICT ? "Skipped non-ICT" : (legacyResourceInference.isUnknownICT ? "Unknown ICT resource" : (legacyResourceInference.isICT ? "ICT booking" : "Needs review")),
+    errors,
+    warnings,
+    mappedBooking
+  };
 }
 
 function previewLegacyBookingRows(rows, dateRange = {}) {
   const users = getUsersFromXML();
-  const allRows = toArray(rows).flatMap((row, index) => mapLegacyBookingRow(row || {}, index, users));
+  const allRows = toArray(rows).flatMap((row, index) => {
+    const sourceRow = row || {};
+    const segments = parseLegacyTimeslotSegments(getImportValue(sourceRow, [
+      "Timeslots", "Timeslot", "Time Slots", "Time", "Start Time", "Start", "startTime", "StartTime"
+    ]));
+
+    if (!segments.length) {
+      return [mapLegacyBookingRow(sourceRow, index, users)];
+    }
+
+    return segments.map(segment => mapLegacyBookingRow({
+      ...sourceRow,
+      __legacyTimeSegment: segment
+    }, index, users));
+  });
 
   const inRangeRows = [];
   const outOfRangeRows = [];

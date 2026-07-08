@@ -1662,13 +1662,15 @@
                 const legacyRemarks = booking.legacyBookingRemarks || '-';
                 const legacyPurpose = booking.legacyPurpose || '-';
                 const legacyResource = booking.legacyResourceText || '-';
+                const portalResource = booking.matchedResourceName || (booking.deviceType && booking.deviceType !== '-' ? `${booking.devicesRequired || '-'} ${booking.deviceType}` : '-');
+                const resourceResolution = booking.legacyResourceResolution || '';
                 return `<tr class="preview-summary-row">
                   <td class="col-row">${escapeHtml(row.rowNumber)}</td>
                   <td class="col-status"><span class="status-pill ${row.valid ? 'valid' : 'invalid'}">${rowStatus}</span></td>
                   <td class="col-datetime"><span class="datetime-cell"><span class="datetime-date">${escapeHtml(booking.bookingDate || '-')}</span><span class="datetime-time">${escapeHtml(booking.startTime || '-')}–${escapeHtml(booking.endTime || '-')}</span></span></td>
                   <td class="col-requester">${escapeHtml(booking.importedRequesterName || booking.importedRequesterEmail || '-')}</td>
                   <td class="col-location">${escapeHtml(booking.location || '-')}<span class="location-resolution">${escapeHtml(booking.legacyLocationResolution || '')}</span></td>
-                  <td class="col-resource">${escapeHtml(booking.devicesRequired || '-')} ${escapeHtml(booking.deviceType || '-')}</td>
+                  <td class="col-resource">${escapeHtml(portalResource)}<span class="location-resolution">${escapeHtml(resourceResolution)}</span></td>
                   <td class="col-detail"><button class="detail-toggle" type="button" data-detail-target="${detailId}" aria-expanded="false">View details</button></td>
                 </tr>
                 <tr id="${detailId}" class="preview-detail-row" hidden>
@@ -1677,7 +1679,8 @@
                       <div class="detail-grid">
                         <div class="detail-card"><span class="detail-label">Accessories</span><div class="detail-value">${escapeHtml(accessoryList)}</div></div>
                         <div class="detail-card"><span class="detail-label">Issues / warnings</span><div class="detail-value">${escapeHtml(issues)}</div></div>
-                        <div class="detail-card"><span class="detail-label">Original resource text</span><div class="detail-value">${escapeHtml(legacyResource)}</div></div>
+                        <div class="detail-card"><span class="detail-label">Legacy resource text</span><div class="detail-value">${escapeHtml(legacyResource)}</div></div>
+                        <div class="detail-card"><span class="detail-label">Portal resource mapping</span><div class="detail-value">${escapeHtml(portalResource)}${booking.matchedResourceId ? ` (${escapeHtml(booking.matchedResourceId)})` : ''}<br>${escapeHtml(resourceResolution || '-')}</div></div>
                         <div class="detail-card"><span class="detail-label">Location resolution</span><div class="detail-value">${escapeHtml(booking.legacyLocationResolution || '-')}</div></div>
                         <div class="detail-card full"><span class="detail-label">Booking remarks</span><div class="detail-value">${escapeHtml(legacyRemarks)}</div></div>
                         <div class="detail-card full"><span class="detail-label">Purpose</span><div class="detail-value">${escapeHtml(legacyPurpose)}</div></div>
