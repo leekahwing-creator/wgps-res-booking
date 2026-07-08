@@ -1,0 +1,1891 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Booking Import | ICT Resource Booking Portal</title>
+  <style>
+
+    :root {
+      --primary: #0f766e;
+      --primary-dark: #115e59;
+      --primary-light: #ccfbf1;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: #dbe4ee;
+      --danger: #dc2626;
+      --shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+      --radius: 22px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: linear-gradient(135deg, #ecfeff 0%, #f8fafc 48%, #eef2ff 100%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .portal-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 22px;
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid rgba(226, 232, 240, 0.95);
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+    }
+
+    .portal-brand {
+      font-weight: 900;
+      color: var(--primary-dark);
+    }
+
+    .portal-links {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .portal-links a {
+      text-decoration: none;
+      color: #334155;
+      font-weight: 800;
+      padding: 9px 12px;
+      border-radius: 999px;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .portal-links a.active,
+    .portal-links a:hover {
+      background: var(--primary);
+      color: #ffffff;
+    }
+
+    @media (max-width: 560px) {
+      .portal-nav {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .portal-links {
+        width: 100%;
+      }
+
+      .portal-links a {
+        flex: 1;
+        text-align: center;
+      }
+    }
+    
+    .page {
+      width: min(1120px, 100%);
+      margin: 0 auto;
+      padding: 32px 18px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: 28px;
+      align-items: stretch;
+    }
+
+    .intro {
+      padding: 28px;
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.72);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.9);
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .badge {
+      width: fit-content;
+      padding: 8px 12px;
+      background: var(--primary-light);
+      color: var(--primary-dark);
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 0.86rem;
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2rem, 4vw, 3.35rem);
+      line-height: 1.05;
+      letter-spacing: -0.04em;
+    }
+
+    .subtitle {
+      margin: 18px 0 0;
+      color: var(--muted);
+      font-size: 1.05rem;
+      line-height: 1.65;
+      max-width: 58ch;
+    }
+
+    .quick-info {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 28px;
+    }
+
+    .info-card {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px;
+    }
+
+    .info-card strong {
+      display: block;
+      font-size: 1.2rem;
+      color: var(--primary-dark);
+      margin-bottom: 4px;
+    }
+
+    .info-card span {
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+
+    .booking-card {
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      border: 1px solid rgba(226, 232, 240, 0.95);
+      overflow: hidden;
+    }
+
+    .booking-header {
+      padding: 22px 24px;
+      background: linear-gradient(135deg, var(--primary), #164e63);
+      color: #ffffff;
+    }
+
+    .booking-header h2 {
+      margin: 0 0 6px;
+      font-size: 1.35rem;
+    }
+
+    .booking-header p {
+      margin: 0;
+      opacity: 0.88;
+      font-size: 0.94rem;
+    }
+
+    form {
+      padding: 24px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .field.full {
+      grid-column: 1 / -1;
+    }
+
+    label {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #1e293b;
+    }
+
+    input,
+    select {
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: textfield;
+      width: 100%;
+      min-height: 48px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 11px 13px;
+      font-size: 1rem;
+      background: #ffffff;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    input[type="number"]::-webkit-outer-spin-button,
+    input[type="number"]::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    input:focus,
+    select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.14);
+    }
+
+    .helper {
+      color: var(--muted);
+      font-size: 0.82rem;
+      line-height: 1.35;
+    }
+
+    .requester-card {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px 16px;
+      background: #f8fafc;
+    }
+
+    .requester-label {
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-weight: 800;
+    }
+
+    #requesterName {
+      color: var(--primary-dark);
+      font-size: 1.05rem;
+      line-height: 1.3;
+    }
+
+    #requesterEmail {
+      display: block;
+      margin-top: 2px;
+    }
+
+
+    .device-control {
+      display: grid;
+      grid-template-columns: 48px 1fr 48px;
+      gap: 10px;
+      align-items: center;
+    }
+
+    #logoutBtn {
+      border: none;
+      background: #dc2626;
+      color: white;
+      font-weight: 700;
+      padding: 9px 14px;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+
+    #logoutBtn:hover {
+      background: #b91c1c;
+    }
+
+    #currentUserDisplay {
+      font-weight: 700;
+      color: #334155;
+      padding: 9px 12px;
+    }
+    
+    #devicesRequired,
+    #recurrenceCount {
+      text-align: center;
+    }
+
+    .segmented-control {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: #f8fafc;
+      padding: 4px;
+      min-height: 48px;
+      gap: 4px;
+    }
+
+    .segment {
+      border: 0;
+      border-radius: 11px;
+      background: transparent;
+      color: #475569;
+      font-weight: 800;
+      font-size: 0.94rem;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+    }
+
+    .segment.active {
+      background: var(--primary);
+      color: #ffffff;
+      box-shadow: 0 8px 18px rgba(15, 118, 110, 0.22);
+    }
+
+    .permission-note {
+      color: var(--muted);
+      font-size: 0.82rem;
+      line-height: 1.35;
+      margin-top: 6px;
+    }
+
+    .segmented-control.one-option {
+      grid-template-columns: 1fr;
+    }
+
+    .recurrence-section {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 16px;
+      background: #f8fafc;
+    }
+
+    .recurrence-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .location-time-row {
+      display: grid;
+      grid-template-columns: 1.3fr 0.85fr 0.85fr;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .time-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .device-config-row {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr 1.25fr;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .toggle-switch {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      user-select: none;
+      min-height: 48px;
+    }
+
+    .toggle-switch input {
+      display: none;
+    }
+
+    .toggle-slider {
+      position: relative;
+      width: 52px;
+      height: 28px;
+      background: #cbd5e1;
+      border-radius: 999px;
+      transition: background 0.25s ease;
+      flex: 0 0 auto;
+    }
+
+    .toggle-slider::before {
+      content: "";
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 22px;
+      height: 22px;
+      background: #ffffff;
+      border-radius: 50%;
+      transition: transform 0.25s ease;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+    }
+
+    .toggle-switch input:checked + .toggle-slider {
+      background: var(--primary);
+    }
+
+    .toggle-switch input:checked + .toggle-slider::before {
+      transform: translateX(24px);
+    }
+
+    .toggle-label {
+      font-weight: 700;
+      color: #1e293b;
+    }
+
+    .field.compact {
+      gap: 8px;
+    }
+
+    .recurrence-preview {
+      margin-top: 16px;
+      border-radius: 14px;
+      padding: 14px;
+      background: #ffffff;
+      border: 1px dashed #cbd5e1;
+      color: #334155;
+      font-size: 0.92rem;
+      line-height: 1.55;
+    }
+
+    .recurrence-preview strong {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--primary-dark);
+    }
+
+    .recurrence-preview ul {
+      margin: 8px 0 0;
+      padding-left: 20px;
+    }
+
+    @media (max-width: 860px) {
+      .location-time-row,
+      .device-config-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .recurrence-grid,
+      .time-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .device-control button {
+      border: 0;
+      border-radius: 14px;
+      background: var(--primary-light);
+      color: var(--primary-dark);
+      font-size: 1.3rem;
+      font-weight: 800;
+      min-height: 48px;
+      cursor: pointer;
+    }
+
+    .device-control button:hover {
+      background: #99f6e4;
+    }
+
+
+    .additional-resources-section {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 16px;
+      background: #f8fafc;
+      display: grid;
+      gap: 12px;
+    }
+
+    .additional-resource-row {
+      display: grid;
+      grid-template-columns: 1fr 160px;
+      gap: 12px;
+      align-items: center;
+      padding: 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      background: #ffffff;
+    }
+
+    .additional-resource-row label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .additional-resource-row input[type="checkbox"] {
+      width: 18px;
+      min-height: 18px;
+      height: 18px;
+      accent-color: var(--primary);
+    }
+
+    .additional-resource-row input[type="number"] {
+      text-align: center;
+    }
+
+    .summary {
+      margin-top: 22px;
+      border-radius: 18px;
+      padding: 16px;
+      background: #f8fafc;
+      border: 1px dashed #cbd5e1;
+      color: #334155;
+      font-size: 0.94rem;
+      line-height: 1.5;
+    }
+
+    .actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    .btn {
+      border: 0;
+      min-height: 50px;
+      padding: 0 18px;
+      border-radius: 16px;
+      font-weight: 800;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+    }
+
+    .btn-primary {
+      flex: 1;
+      background: var(--primary);
+      color: #ffffff;
+      box-shadow: 0 12px 26px rgba(15, 118, 110, 0.22);
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-dark);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: #e2e8f0;
+      color: #334155;
+    }
+
+    .status {
+      display: none;
+      margin-top: 16px;
+      padding: 13px 14px;
+      border-radius: 14px;
+      font-weight: 700;
+      font-size: 0.92rem;
+    }
+
+    .status.success {
+      display: block;
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .status.warning {
+      display: block;
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .status.error {
+      display: block;
+      background: #fee2e2;
+      color: var(--danger);
+    }
+
+    .admin-note {
+      margin-top: 20px;
+      color: var(--muted);
+      font-size: 0.85rem;
+      line-height: 1.45;
+    }
+
+    @media (max-width: 860px) {
+      .hero {
+        grid-template-columns: 1fr;
+      }
+
+      .quick-info {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .page {
+        padding: 18px 12px;
+      }
+
+      .intro,
+      form {
+        padding: 20px;
+      }
+
+      .booking-header {
+        padding: 20px;
+      }
+
+      .form-grid {
+        grid-template-columns: 1fr;
+        gap: 15px;
+      }
+
+      .actions {
+        flex-direction: column-reverse;
+      }
+
+      .btn {
+        width: 100%;
+      }
+    }
+  
+
+    /* Responsive Portal Navigation v3 */
+    .portal-nav-v2 {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 18px;
+      padding: 14px 18px;
+      overflow: visible;
+      position: relative;
+    }
+
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 260px;
+      color: var(--primary-dark);
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .brand-icon, .user-avatar {
+      width: 42px;
+      height: 42px;
+      border-radius: 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--primary-light);
+      color: var(--primary-dark);
+      font-weight: 900;
+      flex: 0 0 auto;
+    }
+
+    .brand-text {
+      display: grid;
+      gap: 2px;
+    }
+
+    .brand-title {
+      font-size: 1rem;
+      font-weight: 900;
+      line-height: 1.15;
+    }
+
+    .brand-subtitle {
+      color: var(--muted);
+      font-size: 0.76rem;
+      font-weight: 700;
+    }
+
+    .nav-main {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-width: 0;
+      white-space: nowrap;
+    }
+
+    .nav-link,
+    .more-button,
+    .mobile-menu-button,
+    .mobile-close-button {
+      border: 0;
+      text-decoration: none;
+      color: #334155;
+      font-weight: 900;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: transparent;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      line-height: 1;
+      white-space: nowrap;
+      font-size: 0.92rem;
+    }
+
+    .nav-link.active,
+    .nav-link:hover,
+    .more-button:hover {
+      background: var(--primary);
+      color: #ffffff;
+    }
+
+    .nav-icon {
+      font-size: 0.95rem;
+      line-height: 1;
+    }
+
+    .nav-user-zone {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding-left: 16px;
+      border-left: 1px solid var(--border);
+      min-width: 0;
+    }
+
+    .user-avatar {
+      width: 38px;
+      height: 38px;
+      border-radius: 999px;
+      background: var(--primary);
+      color: #ffffff;
+    }
+
+    .user-meta {
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+      max-width: 170px;
+    }
+
+    .user-name {
+      font-weight: 900;
+      color: #0f172a;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .user-email {
+      color: var(--muted);
+      font-size: 0.75rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .logout-button {
+      border: 1px solid #fecaca !important;
+      background: #ffffff !important;
+      color: var(--danger) !important;
+      font-weight: 900 !important;
+      padding: 10px 14px !important;
+      border-radius: 14px !important;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .logout-button:hover {
+      background: #fee2e2 !important;
+    }
+
+    .more-dropdown {
+      display: none;
+      position: relative;
+    }
+
+    .more-menu {
+      display: none;
+      position: absolute;
+      top: calc(100% + 10px);
+      right: 0;
+      min-width: 230px;
+      padding: 8px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: #ffffff;
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.14);
+      z-index: 50;
+    }
+
+    .more-dropdown.open .more-menu {
+      display: grid;
+      gap: 4px;
+    }
+
+    .more-menu .nav-link {
+      width: 100%;
+      justify-content: flex-start;
+    }
+
+    .mobile-menu-button,
+    .mobile-close-button,
+    .mobile-drawer {
+      display: none;
+    }
+
+    .nav-hidden-legacy { display: none !important; }
+
+    @media (max-width: 1280px) {
+      .portal-nav-v2 {
+        grid-template-columns: auto minmax(0, 1fr) auto;
+      }
+
+      .nav-brand {
+        min-width: 230px;
+      }
+
+      .desktop-extra {
+        display: none !important;
+      }
+
+      .more-dropdown.has-items {
+        display: inline-flex;
+      }
+
+      .user-meta {
+        max-width: 120px;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .portal-nav-v2 {
+        grid-template-columns: auto 1fr auto;
+      }
+
+      .nav-main {
+        display: none;
+      }
+
+      .nav-brand {
+        justify-self: center;
+        min-width: 0;
+      }
+
+      .brand-subtitle {
+        display: none;
+      }
+
+      .nav-user-zone {
+        border-left: 0;
+        padding-left: 0;
+      }
+
+      .user-meta {
+        display: none;
+      }
+
+      .logout-button {
+        padding: 9px 10px !important;
+      }
+
+      .logout-button span {
+        display: none;
+      }
+
+      .mobile-menu-button {
+        display: inline-flex;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+      }
+
+      .mobile-drawer {
+        display: none;
+        position: absolute;
+        top: calc(100% + 10px);
+        left: 0;
+        right: 0;
+        padding: 16px;
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        background: #ffffff;
+        box-shadow: 0 22px 45px rgba(15, 23, 42, 0.14);
+        z-index: 60;
+      }
+
+      .portal-nav-v2.mobile-open .mobile-drawer {
+        display: grid;
+        gap: 12px;
+      }
+
+      .mobile-drawer-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .mobile-user-summary {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+      }
+
+      .mobile-drawer-links {
+        display: grid;
+        gap: 4px;
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        overflow: hidden;
+      }
+
+      .mobile-drawer-links .nav-link {
+        border-radius: 0;
+        padding: 16px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .mobile-drawer-links .nav-link:last-child {
+        border-bottom: 0;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .portal-nav-v2 {
+        gap: 10px;
+        padding: 12px;
+      }
+
+      .brand-title {
+        font-size: 0.92rem;
+      }
+
+      .brand-icon {
+        width: 38px;
+        height: 38px;
+      }
+    }
+
+
+    /* Adaptive overflow fix for responsive Portal Navigation */
+    .portal-nav-v2 {
+      width: 100%;
+      max-width: 100%;
+    }
+
+    .portal-nav-v2 .nav-main {
+      overflow: visible;
+    }
+
+    .portal-nav-v2.nav-compact .desktop-extra {
+      display: none !important;
+    }
+
+    .portal-nav-v2.nav-compact .more-dropdown.has-items {
+      display: inline-flex !important;
+    }
+
+    .portal-nav-v2:not(.nav-compact) .more-dropdown {
+      display: none !important;
+    }
+
+    .portal-nav-v2 .nav-link,
+    .portal-nav-v2 .more-button {
+      font-size: clamp(0.82rem, 0.72vw, 0.92rem);
+      padding-left: clamp(8px, 0.7vw, 12px);
+      padding-right: clamp(8px, 0.7vw, 12px);
+    }
+
+    .portal-nav-v2 .nav-brand {
+      min-width: clamp(190px, 21vw, 260px);
+    }
+
+    .portal-nav-v2 .brand-title {
+      max-width: 230px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .portal-nav-v2 .user-meta {
+      max-width: clamp(86px, 10vw, 150px);
+    }
+
+    @media (max-width: 1100px) {
+      .portal-nav-v2 .brand-subtitle {
+        display: none;
+      }
+
+      .portal-nav-v2 .nav-brand {
+        min-width: 0;
+      }
+    }
+
+  
+    /* Stable role-aware navigation fix */
+    .portal-nav-v2 {
+      width: 100%;
+      max-width: 100%;
+      display: grid !important;
+      grid-template-columns: auto minmax(0, 1fr) auto !important;
+      align-items: center !important;
+      flex-direction: initial !important;
+      overflow: visible !important;
+    }
+
+    .portal-nav-v2 .nav-main {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-width: 0;
+      overflow: visible;
+      flex-wrap: nowrap;
+    }
+
+    .portal-nav-v2 .nav-link,
+    .portal-nav-v2 .more-button {
+      white-space: nowrap;
+      font-size: clamp(0.82rem, 0.72vw, 0.92rem);
+      padding-left: clamp(8px, 0.7vw, 12px);
+      padding-right: clamp(8px, 0.7vw, 12px);
+    }
+
+    .portal-nav-v2 .nav-brand {
+      min-width: 0 !important;
+      max-width: clamp(190px, 23vw, 280px);
+    }
+
+    .portal-nav-v2 .brand-title {
+      max-width: 230px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .portal-nav-v2 .user-meta {
+      max-width: clamp(86px, 10vw, 150px);
+    }
+
+    .portal-nav-v2 .more-dropdown {
+      display: none !important;
+    }
+
+    .portal-nav-v2.nav-compact .more-dropdown.has-items {
+      display: inline-flex !important;
+    }
+
+    .portal-nav-v2.nav-compact .nav-main > .desktop-extra {
+      display: none !important;
+    }
+
+    @media (min-width: 901px) {
+      .portal-nav-v2 .mobile-menu-button,
+      .portal-nav-v2 .mobile-drawer {
+        display: none !important;
+      }
+    }
+
+    @media (max-width: 1100px) {
+      .portal-nav-v2 .brand-subtitle {
+        display: none;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .portal-nav-v2 {
+        grid-template-columns: auto 1fr auto !important;
+      }
+
+      .portal-nav-v2 .nav-main {
+        display: none !important;
+      }
+
+      .portal-nav-v2 .nav-brand {
+        justify-self: center;
+      }
+
+      .portal-nav-v2 .nav-user-zone {
+        border-left: 0;
+        padding-left: 0;
+      }
+
+      .portal-nav-v2 .nav-user-zone .user-meta {
+        display: none;
+      }
+
+      .portal-nav-v2 .logout-button {
+        padding: 9px 10px !important;
+      }
+
+      .portal-nav-v2 .logout-button span {
+        display: none;
+      }
+
+      .portal-nav-v2 .mobile-menu-button {
+        display: inline-flex !important;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+      }
+    }
+
+  
+    .import-shell { display: grid; gap: 18px; }
+    .import-card { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+    .import-header { padding: 22px 24px; background: linear-gradient(135deg, var(--primary), #164e63); color: #fff; }
+    .import-header h1 { margin: 0 0 6px; font-size: clamp(1.7rem, 3vw, 2.4rem); }
+    .import-header p { margin: 0; opacity: .9; line-height: 1.45; }
+    .import-body { padding: 24px; display: grid; gap: 18px; }
+    textarea { width: 100%; min-height: 220px; border: 1px solid var(--border); border-radius: 14px; padding: 13px; font: 0.95rem/1.45 Arial, Helvetica, sans-serif; resize: vertical; }
+    textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.14); outline: none; }
+    .import-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .import-actions-primary { display: flex; gap: 10px; flex-wrap: wrap; flex: 1 1 auto; }
+    .import-actions-secondary { display: flex; gap: 10px; flex-wrap: wrap; margin-left: auto; }
+    .btn-danger-soft { background: #fee2e2; color: #991b1b; }
+    .btn-danger-soft:hover { background: #fecaca; }
+    .btn[disabled] { opacity: .55; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+    .action-helper { color: var(--muted); font-size: .82rem; line-height: 1.35; width: 100%; }
+    @media (max-width: 640px) {
+      .import-actions, .import-actions-primary, .import-actions-secondary { display: grid; grid-template-columns: 1fr; width: 100%; margin-left: 0; }
+    }
+    .status-panel { display:none; padding: 13px 14px; border-radius: 14px; font-weight: 700; }
+    .status-panel.success { display:block; background:#dcfce7; color:#166534; }
+    .status-panel.warning { display:block; background:#fef3c7; color:#92400e; }
+    .status-panel.error { display:block; background:#fee2e2; color:#dc2626; }
+    .preview-grid { display:grid; gap:14px; }
+    .preview-table-wrap { overflow-x:auto; border:1px solid var(--border); border-radius:16px; }
+    .preview-table { width:100%; border-collapse: collapse; min-width: 1040px; table-layout: fixed; }
+    .preview-table th, .preview-table td { padding: 12px 14px; border-bottom: 1px solid #e2e8f0; text-align:left; vertical-align:top; }
+    .preview-table th { background:#f8fafc; color:var(--muted); font-size:.72rem; text-transform:uppercase; letter-spacing:.035em; line-height:1.25; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .preview-table th.col-row, .preview-table td.col-row { width: 72px; white-space: nowrap; }
+    .preview-table th.col-status, .preview-table td.col-status { width: 92px; white-space: nowrap; }
+    .preview-table th.col-datetime, .preview-table td.col-datetime { width: 150px; white-space: nowrap; }
+    .preview-table th.col-requester, .preview-table td.col-requester { width: 170px; }
+    .preview-table th.col-location, .preview-table td.col-location { width: 190px; }
+    .preview-table th.col-resource, .preview-table td.col-resource { width: 170px; }
+    .preview-table th.col-accessory, .preview-table td.col-accessory { width: 110px; }
+    .preview-table th.col-detail, .preview-table td.col-detail { width: 86px; white-space: nowrap; text-align:right; }
+    .preview-table .preview-summary-row:hover { background:#f8fafc; }
+    .status-pill { display:inline-flex; align-items:center; justify-content:center; border-radius:999px; padding:5px 9px; font-size:.78rem; font-weight:900; }
+    .status-pill.valid { background:#dcfce7; color:#166534; }
+    .status-pill.invalid { background:#fee2e2; color:#991b1b; }
+    .accessory-pill { display:inline-flex; align-items:center; justify-content:center; border-radius:999px; padding:5px 9px; font-size:.76rem; font-weight:900; background:#e0f2fe; color:#075985; white-space:nowrap; }
+    .accessory-pill.none { background:#f1f5f9; color:#64748b; }
+    .detail-toggle { border:1px solid var(--border); background:#fff; color:var(--primary-dark); border-radius:999px; padding:7px 9px; font-size:.82rem; font-weight:900; cursor:pointer; white-space:nowrap; max-width:78px; overflow:hidden; text-overflow:ellipsis; }
+    .detail-toggle:hover { background:var(--primary-light); border-color:#99f6e4; }
+    .datetime-cell { display: grid; gap: 4px; line-height: 1.25; white-space: nowrap; }
+    .datetime-date { font-weight: 800; color: #0f172a; white-space: nowrap; }
+    .datetime-time { color: #334155; white-space: nowrap; }
+    .location-resolution { display:block; margin-top:4px; color: var(--muted); font-size: .8rem; line-height: 1.3; }
+    .preview-detail-row td { background:#f8fafc; padding:0; }
+    .preview-detail-panel { padding:16px; display:grid; gap:14px; border-top:1px solid #e2e8f0; }
+    .detail-grid { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:12px; }
+    .detail-card { border:1px solid var(--border); border-radius:14px; background:#fff; padding:12px; min-width:0; }
+    .detail-card.full { grid-column:1 / -1; }
+    .detail-label { display:block; color:var(--muted); font-size:.74rem; font-weight:900; text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px; }
+    .detail-value { color:#0f172a; line-height:1.45; overflow-wrap:anywhere; white-space:pre-wrap; }
+    @media (max-width: 860px) {
+      .preview-table { min-width: 980px; }
+      .detail-grid { grid-template-columns:1fr; }
+      .detail-card.full { grid-column:auto; }
+    }
+    .note-box { border:1px dashed #cbd5e1; background:#f8fafc; border-radius:16px; padding:14px; color:#334155; line-height:1.5; }
+    code { background:#f1f5f9; padding:2px 5px; border-radius:6px; }
+  
+    .file-info-panel {
+      display: none;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px;
+      background: #f8fafc;
+      color: #334155;
+      line-height: 1.5;
+    }
+    .file-info-panel.active { display: block; }
+    .file-info-panel strong { color: var(--primary-dark); }
+
+
+    .range-card {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 16px;
+      background: #f8fafc;
+      display: grid;
+      gap: 14px;
+    }
+    .range-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .quick-preset-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .quick-preset-row .btn {
+      min-height: 42px;
+      font-size: .9rem;
+      border-radius: 14px;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .stat-card {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px;
+      background: #ffffff;
+    }
+    .stat-card strong {
+      display: block;
+      font-size: 1.45rem;
+      color: var(--primary-dark);
+      line-height: 1.1;
+    }
+    .stat-card span {
+      display: block;
+      margin-top: 6px;
+      font-size: .78rem;
+      color: var(--muted);
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    .summary-section {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px;
+      background: #ffffff;
+      display: grid;
+      gap: 10px;
+    }
+    .summary-section h3 {
+      margin: 0;
+      font-size: 1rem;
+      color: #0f172a;
+    }
+    .summary-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .summary-pill {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 8px 10px;
+      background: #f8fafc;
+      font-weight: 800;
+      color: #334155;
+      font-size: .85rem;
+    }
+
+    @media (max-width: 860px) {
+      .range-grid, .stats-grid { grid-template-columns: 1fr; }
+    }
+
+    /* Prevent old standalone navigation from flashing/overlapping before the shared navigation controller finishes applying role-aware layout. */
+    .portal-nav-v2:not(.nav-ready) .nav-main > .desktop-extra { display: none !important; }
+    .portal-nav-v2:not(.nav-ready) .more-dropdown { display: inline-flex !important; }
+    .portal-nav-v2 { z-index: 80; }
+  </style>
+</head>
+<body>
+  <main class="page">
+<nav class="portal-nav portal-nav-v2" aria-label="Portal navigation">
+      <button id="mobileMenuButton" class="mobile-menu-button" type="button" aria-label="Open navigation menu">☰</button>
+
+      <a class="nav-brand" href="index.html" aria-label="ICT Resource Booking Portal home">
+        <span class="brand-icon">✓</span>
+        <span class="brand-text">
+          <span class="brand-title">ICT Resource Booking Portal</span>
+          <span class="brand-subtitle">Smart booking. Better learning.</span>
+        </span>
+      </a>
+
+      <div class="nav-main" aria-label="Main navigation links">
+        <a href="index.html" class="nav-link" data-page="create" data-role-link="teacher"><span class="nav-icon">⊞</span>Create Booking</a>
+        <a href="manage-bookings.html" class="nav-link" data-page="bookings" data-role-link="teacher"><span class="nav-icon">▣</span>My Bookings</a>
+        <a href="de-dashboard.html" id="deDashboardLink" class="nav-link desktop-extra" data-page="deployment" data-role-link="de"><span class="nav-icon">▰</span>Deployment Dashboard</a>
+        <a href="resources-admin.html" id="resourcesAdminLink" class="nav-link desktop-extra" data-page="resources" data-role-link="admin"><span class="nav-icon">▤</span>Resources Admin</a>
+        <a href="admin-users.html" id="adminUsersLink" class="nav-link desktop-extra" data-page="users" data-role-link="admin"><span class="nav-icon">♟</span>Users Admin</a>
+
+        <div id="moreDropdown" class="more-dropdown">
+          <button id="moreButton" class="more-button" type="button">More ▾</button>
+          <div class="more-menu" role="menu">
+            <a href="de-dashboard.html" class="nav-link" data-page="deployment" data-role-link="de"><span class="nav-icon">▰</span>Deployment Dashboard</a>
+            <a href="resources-admin.html" class="nav-link" data-page="resources" data-role-link="admin"><span class="nav-icon">▤</span>Resources Admin</a>
+            <a href="admin-users.html" class="nav-link" data-page="users" data-role-link="admin"><span class="nav-icon">♟</span>Users Admin</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="nav-user-zone">
+        <span class="user-avatar" data-nav-initial>A</span>
+        <span class="user-meta">
+          <span class="user-name" data-nav-name>User</span>
+          <span class="user-email" data-nav-email></span>
+        </span>
+        <span id="currentUserDisplay" class="nav-hidden-legacy"></span>
+        <button id="logoutBtn" class="logout-button" type="button">⇥ <span>Logout</span></button>
+      </div>
+
+      <div class="mobile-drawer" aria-label="Mobile navigation menu">
+        <div class="mobile-drawer-header">
+          <div class="mobile-user-summary">
+            <span class="user-avatar" data-nav-initial>A</span>
+            <span class="user-meta" style="display:grid;max-width:220px;">
+              <span class="user-name" data-nav-name>User</span>
+              <span class="user-email" data-nav-email></span>
+            </span>
+          </div>
+          <button id="mobileCloseButton" class="mobile-close-button" type="button" aria-label="Close navigation menu">✕</button>
+        </div>
+
+        <div class="mobile-drawer-links">
+          <a href="index.html" class="nav-link" data-page="create" data-mobile-role-link="teacher"><span class="nav-icon">⊞</span>Create Booking</a>
+          <a href="manage-bookings.html" class="nav-link" data-page="bookings" data-mobile-role-link="teacher"><span class="nav-icon">▣</span>My Bookings</a>
+          <a href="de-dashboard.html" class="nav-link" data-page="deployment" data-mobile-role-link="de"><span class="nav-icon">▰</span>Deployment Dashboard</a>
+          <a href="resources-admin.html" class="nav-link" data-page="resources" data-mobile-role-link="admin"><span class="nav-icon">▤</span>Resources Admin</a>
+          <a href="admin-users.html" class="nav-link" data-page="users" data-mobile-role-link="admin"><span class="nav-icon">♟</span>Users Admin</a>
+        </div>
+      </div>
+    </nav>
+    <section class="import-shell" aria-label="Booking import workspace">
+      <div class="import-card">
+        <div class="import-header">
+          <h1>Booking Import</h1>
+          <p>Preview and import legacy booking records so they can appear in My Bookings and the Deployment Dashboard.</p>
+        </div>
+        <div class="import-body">
+          <div class="note-box">
+            Upload an Excel (.xlsx) or CSV file, or paste rows copied from Excel. The importer will detect the legacy report header row automatically. Supported headers include
+            <code>Booking Date</code>, <code>Start Time</code>, <code>End Time</code>, <code>Requester Email</code>,
+            <code>Location</code>, <code>Device Type</code>, <code>Number of Devices</code>, and optional accessory quantity columns such as
+            <code>Mouse Qty</code>, <code>Headset Qty</code>, or <code>Apple Pencil Qty</code>.
+          </div>
+
+          <div class="field">
+            <label for="csvFile">Booking report file</label>
+            <input id="csvFile" type="file" accept=".xlsx,.csv,.txt" />
+            <span class="helper">Supports Excel workbook (.xlsx), CSV (.csv), text (.txt), or pasted rows copied from Excel.</span>
+            <div id="fileInfoPanel" class="file-info-panel" aria-live="polite"></div>
+          </div>
+
+
+          <div class="range-card" aria-label="Import date range filter">
+            <div>
+              <label>Import range</label>
+              <div class="helper">Only rows with booking dates within this range will be previewed and committed. Leave both dates blank to process the full file.</div>
+            </div>
+            <div class="range-grid">
+              <div class="field">
+                <label for="importFrom">Import From</label>
+                <input id="importFrom" type="date" />
+              </div>
+              <div class="field">
+                <label for="importTo">Import To</label>
+                <input id="importTo" type="date" />
+              </div>
+            </div>
+            <div class="quick-preset-row" aria-label="Import range presets">
+              <button id="fullFilePresetBtn" class="btn btn-secondary" type="button">Full File</button>
+              <button id="thisMonthPresetBtn" class="btn btn-secondary" type="button">This Month</button>
+              <button id="nextMonthPresetBtn" class="btn btn-secondary" type="button">Next Month</button>
+              <button id="clearDatesBtn" class="btn btn-secondary" type="button">Clear Dates</button>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="importText">Import data</label>
+            <textarea id="importText" placeholder="Paste tab-separated rows copied from Excel, or Excel/CSV data with headers..."></textarea>
+          </div>
+
+          <div class="import-actions">
+            <div class="import-actions-primary">
+              <button id="previewBtn" class="btn btn-primary" type="button">Preview Selected Range</button>
+              <button id="commitBtn" class="btn btn-secondary" type="button" disabled>Import Valid Previewed Bookings</button>
+            </div>
+            <div class="import-actions-secondary">
+              <button id="clearBtn" class="btn btn-danger-soft" type="button">Reset Import</button>
+            </div>
+            <div class="action-helper">Step 1: preview the selected date range. Step 2: import only the rows marked as valid.</div>
+          </div>
+
+          <div id="statusMessage" class="status-panel" role="status" aria-live="polite"></div>
+          <div id="previewResults" class="preview-grid"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="portalNavigation.js"></script>
+  <script>
+    const importText = document.getElementById('importText');
+    const csvFile = document.getElementById('csvFile');
+    const previewBtn = document.getElementById('previewBtn');
+    const commitBtn = document.getElementById('commitBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const statusMessage = document.getElementById('statusMessage');
+    const previewResults = document.getElementById('previewResults');
+    const importFrom = document.getElementById('importFrom');
+    const importTo = document.getElementById('importTo');
+    const fullFilePresetBtn = document.getElementById('fullFilePresetBtn');
+    const thisMonthPresetBtn = document.getElementById('thisMonthPresetBtn');
+    const nextMonthPresetBtn = document.getElementById('nextMonthPresetBtn');
+    const clearDatesBtn = document.getElementById('clearDatesBtn');
+    const fileInfoPanel = document.getElementById('fileInfoPanel');
+    let lastRows = [];
+    let structuredRowsFromFile = null;
+
+    function showStatus(type, message) {
+      statusMessage.className = 'status-panel ' + type;
+      statusMessage.textContent = message;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>'"]/g, char => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+      }[char]));
+    }
+
+    function formatDateForInput(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    function getImportRangePayload() {
+      const from = importFrom.value || '';
+      const to = importTo.value || '';
+
+      if (from && to && from > to) {
+        throw new Error('Import From date cannot be later than Import To date.');
+      }
+
+      return {
+        importFrom: from,
+        importTo: to
+      };
+    }
+
+    function clearImportRange() {
+      importFrom.value = '';
+      importTo.value = '';
+    }
+
+    function setMonthRange(monthOffset) {
+      const today = new Date();
+      const firstDay = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
+      const lastDay = new Date(today.getFullYear(), today.getMonth() + monthOffset + 1, 0);
+      importFrom.value = formatDateForInput(firstDay);
+      importTo.value = formatDateForInput(lastDay);
+    }
+
+
+    async function requireAdminUser() {
+      const response = await fetch('/api/me', { cache: 'no-store' });
+      const result = await response.json();
+      if (!result.user) { window.location.href = 'login.html'; return null; }
+      if (result.user.role !== 'Admin') { window.location.href = 'index.html'; return null; }
+      configurePortalNavigation(result.user, 'import');
+      return result.user;
+    }
+
+    function splitLine(line, delimiter) {
+      const output = [];
+      let current = '';
+      let quoted = false;
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"') { quoted = !quoted; continue; }
+        if (char === delimiter && !quoted) { output.push(current.trim()); current = ''; continue; }
+        current += char;
+      }
+      output.push(current.trim());
+      return output;
+    }
+
+    function parseRows(text) {
+      const rawText = String(text || '').trim();
+      if (!rawText) return [];
+
+      // Excel uploads are converted into JSON for display in the textarea.
+      // If the admin clicks Preview after loading an Excel file, reuse that JSON directly.
+      if (rawText.startsWith('[')) {
+        try {
+          const parsed = JSON.parse(rawText);
+          if (Array.isArray(parsed)) return parsed;
+        } catch (error) {
+          // Fall through to CSV/TSV parsing so pasted text still works.
+        }
+      }
+
+      const lines = rawText.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+      if (lines.length < 2) return [];
+      const delimiter = lines[0].includes('	') ? '	' : ',';
+      const headers = splitLine(lines[0], delimiter);
+      return lines.slice(1).map(line => {
+        const values = splitLine(line, delimiter);
+        const row = {};
+        headers.forEach((header, index) => { row[header] = values[index] || ''; });
+        return row;
+      });
+    }
+
+    function normaliseExcelCellValue(value) {
+      if (value instanceof Date && !Number.isNaN(value.getTime())) {
+        return value.toISOString().slice(0, 10);
+      }
+      return value ?? '';
+    }
+
+    function normaliseExcelRow(row) {
+      const normalised = {};
+      Object.entries(row || {}).forEach(([key, value]) => {
+        normalised[String(key).trim()] = normaliseExcelCellValue(value);
+      });
+      return normalised;
+    }
+
+    function findLegacyHeaderRow(sheet) {
+      const rows = XLSX.utils.sheet_to_json(sheet, {
+        header: 1,
+        defval: '',
+        raw: false
+      });
+
+      for (let index = 0; index < Math.min(rows.length, 20); index++) {
+        const normalisedCells = (rows[index] || []).map(cell => String(cell || '').trim().toLowerCase());
+        const hasDate = normalisedCells.includes('date');
+        const hasResources = normalisedCells.includes('resources') || normalisedCells.includes('resource');
+        const hasTimeslots = normalisedCells.includes('timeslots') || normalisedCells.includes('time slots');
+        if (hasDate && hasResources && hasTimeslots) return index;
+      }
+
+      return 0;
+    }
+
+    async function parseExcelFile(file) {
+      if (!window.XLSX) {
+        throw new Error('Excel parser could not be loaded. Please check the internet connection or use CSV as a fallback.');
+      }
+
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, {
+        type: 'array',
+        cellDates: true
+      });
+
+      if (!workbook.SheetNames.length) {
+        throw new Error('The Excel workbook does not contain any worksheet.');
+      }
+
+      const firstSheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[firstSheetName];
+      const headerRowIndex = findLegacyHeaderRow(sheet);
+
+      const rows = XLSX.utils.sheet_to_json(sheet, {
+        defval: '',
+        raw: false,
+        range: headerRowIndex
+      }).map(normaliseExcelRow)
+        .filter(row => Object.values(row).some(value => String(value || '').trim()));
+
+      return {
+        rows,
+        workbookName: file.name,
+        sheetName: firstSheetName,
+        sheetCount: workbook.SheetNames.length,
+        headerRowNumber: headerRowIndex + 1
+      };
+    }
+
+    function setFileInfo(html) {
+      if (!fileInfoPanel) return;
+      fileInfoPanel.innerHTML = html;
+      fileInfoPanel.classList.toggle('active', Boolean(html));
+    }
+
+    function setButtonBusy(button, isBusy, busyLabel) {
+      if (!button) return;
+      if (isBusy) {
+        button.dataset.originalLabel = button.textContent;
+        button.textContent = busyLabel;
+        button.disabled = true;
+        return;
+      }
+      if (button.dataset.originalLabel) {
+        button.textContent = button.dataset.originalLabel;
+        delete button.dataset.originalLabel;
+      }
+      button.disabled = false;
+    }
+
+    function renderSummaryPills(title, summary) {
+      const entries = Object.entries(summary || {});
+      if (!entries.length) return '';
+      return `
+        <div class="summary-section">
+          <h3>${escapeHtml(title)}</h3>
+          <div class="summary-list">
+            ${entries.map(([label, value]) => `<span class="summary-pill">${escapeHtml(label)}: ${escapeHtml(value)}</span>`).join('')}
+          </div>
+        </div>`;
+    }
+
+    function renderPreview(data) {
+      const validRows = data.validRows || [];
+      const invalidRows = data.invalidRows || [];
+      const outOfRangeRows = data.outOfRangeRows || [];
+      const skippedRows = data.skippedRows || [];
+      const totalRows = data.totalRows || 0;
+      const rowsWithinRange = data.rowsWithinRange ?? (validRows.length + invalidRows.length);
+      const rowsOutsideRange = data.rowsOutsideRange ?? outOfRangeRows.length;
+      commitBtn.disabled = validRows.length === 0;
+      previewResults.innerHTML = `
+        <div class="stats-grid" aria-label="Import preview summary">
+          <div class="stat-card"><strong>${totalRows}</strong><span>Import records after split</span></div>
+          <div class="stat-card"><strong>${rowsWithinRange}</strong><span>Within selected range</span></div>
+          <div class="stat-card"><strong>${validRows.length}</strong><span>Valid bookings</span></div>
+          <div class="stat-card"><strong>${invalidRows.length}</strong><span>Needs review</span></div>
+          <div class="stat-card"><strong>${skippedRows.length}</strong><span>Skipped non-ICT</span></div>
+          <div class="stat-card"><strong>${rowsOutsideRange}</strong><span>Outside range</span></div>
+        </div>
+        ${renderSummaryPills("Resource summary", data.resourceSummary)}
+        ${renderSummaryPills("Accessory summary", data.accessorySummary)}
+        ${renderSummaryPills("Classification summary", data.classificationSummary)}
+        <div class="note-box"><strong>Preview complete:</strong> Only rows marked as valid will be imported. ${skippedRows.length} non-ICT row(s) and ${rowsOutsideRange} row(s) outside the selected range will be ignored.</div>
+        <div class="preview-table-wrap">
+          <table class="preview-table">
+            <thead><tr><th class="col-row">Row</th><th class="col-status">Status</th><th class="col-datetime">Date & Time</th><th class="col-requester">Requester</th><th class="col-location">Location</th><th class="col-resource">Resource</th><th class="col-accessory">Accessories</th><th class="col-detail">Details</th></tr></thead>
+            <tbody>
+              ${[...validRows, ...invalidRows].map((row, index) => {
+                const booking = row.mappedBooking || {};
+                const accessories = booking.additionalResources?.resource || [];
+                const accessoryArray = Array.isArray(accessories) ? accessories : [accessories];
+                const accessoryList = accessoryArray.map(item => `${item.quantity} ${item.type}`).join(', ') || 'None';
+                const accessoryCount = accessoryArray.filter(item => item && item.type).length;
+                const accessoryTotal = accessoryArray.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+                const accessorySummaryText = accessoryCount ? `${accessoryCount} type${accessoryCount === 1 ? '' : 's'} · ${accessoryTotal}` : 'None';
+                const issues = [...(row.errors || []), ...(row.warnings || [])].join(' ') || 'None';
+                const detailId = `preview-detail-${index}`;
+                const rowStatus = row.valid ? 'Valid' : 'Invalid';
+                const legacyRemarks = booking.legacyBookingRemarks || '-';
+                const legacyPurpose = booking.legacyPurpose || '-';
+                const legacyResource = booking.legacyResourceText || '-';
+                const portalResource = booking.matchedResourceName || (booking.deviceType && booking.deviceType !== '-' ? `${booking.devicesRequired || '-'} ${booking.deviceType}` : '-');
+                const resourceResolution = booking.legacyResourceResolution || '';
+                const accessoryResolution = booking.legacyAccessoryResolution || '-';
+                return `<tr class="preview-summary-row">
+                  <td class="col-row">${escapeHtml(row.rowNumber)}</td>
+                  <td class="col-status"><span class="status-pill ${row.valid ? 'valid' : 'invalid'}">${rowStatus}</span></td>
+                  <td class="col-datetime"><span class="datetime-cell"><span class="datetime-date">${escapeHtml(booking.bookingDate || '-')}</span><span class="datetime-time">${escapeHtml(booking.startTime || '-')}–${escapeHtml(booking.endTime || '-')}</span></span></td>
+                  <td class="col-requester">${escapeHtml(booking.importedRequesterName || booking.importedRequesterEmail || '-')}</td>
+                  <td class="col-location">${escapeHtml(booking.location || '-')}<span class="location-resolution">${escapeHtml(booking.legacyLocationResolution || '')}</span></td>
+                  <td class="col-resource">${escapeHtml(portalResource)}<span class="location-resolution">${escapeHtml(resourceResolution)}</span></td>
+                  <td class="col-accessory"><span class="accessory-pill ${accessoryCount ? '' : 'none'}">${escapeHtml(accessorySummaryText)}</span></td>
+                  <td class="col-detail"><button class="detail-toggle" type="button" data-detail-target="${detailId}" aria-expanded="false" title="View details">Details</button></td>
+                </tr>
+                <tr id="${detailId}" class="preview-detail-row" hidden>
+                  <td colspan="8">
+                    <div class="preview-detail-panel">
+                      <div class="detail-grid">
+                        <div class="detail-card"><span class="detail-label">Accessories</span><div class="detail-value">${escapeHtml(accessoryList)}<br><span class="location-resolution">${escapeHtml(accessoryResolution)}</span></div></div>
+                        <div class="detail-card"><span class="detail-label">Issues / warnings</span><div class="detail-value">${escapeHtml(issues)}</div></div>
+                        <div class="detail-card"><span class="detail-label">Legacy resource text</span><div class="detail-value">${escapeHtml(legacyResource)}</div></div>
+                        <div class="detail-card"><span class="detail-label">Portal resource mapping</span><div class="detail-value">${escapeHtml(portalResource)}${booking.matchedResourceId ? ` (${escapeHtml(booking.matchedResourceId)})` : ''}<br>${escapeHtml(resourceResolution || '-')}</div></div>
+                        <div class="detail-card"><span class="detail-label">Location resolution</span><div class="detail-value">${escapeHtml(booking.legacyLocationResolution || '-')}</div></div>
+                        <div class="detail-card full"><span class="detail-label">Booking remarks</span><div class="detail-value">${escapeHtml(legacyRemarks)}</div></div>
+                        <div class="detail-card full"><span class="detail-label">Purpose</span><div class="detail-value">${escapeHtml(legacyPurpose)}</div></div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    }
+
+
+    previewResults.addEventListener('click', event => {
+      const button = event.target.closest('.detail-toggle');
+      if (!button) return;
+
+      const targetId = button.dataset.detailTarget;
+      const detailRow = document.getElementById(targetId);
+      if (!detailRow) return;
+
+      const isOpening = detailRow.hidden;
+      detailRow.hidden = !isOpening;
+      button.setAttribute('aria-expanded', String(isOpening));
+      button.textContent = isOpening ? 'Hide' : 'Details';
+      button.title = isOpening ? 'Hide details' : 'View details';
+    });
+
+    csvFile.addEventListener('change', async () => {
+      const file = csvFile.files?.[0];
+      if (!file) return;
+
+      structuredRowsFromFile = null;
+      lastRows = [];
+      previewResults.innerHTML = '';
+      commitBtn.disabled = true;
+
+      try {
+        const lowerName = file.name.toLowerCase();
+
+        if (lowerName.endsWith('.xlsx')) {
+          const parsedWorkbook = await parseExcelFile(file);
+          structuredRowsFromFile = parsedWorkbook.rows;
+          lastRows = structuredRowsFromFile;
+          importText.value = JSON.stringify(structuredRowsFromFile, null, 2);
+          setFileInfo(`✓ <strong>${escapeHtml(parsedWorkbook.workbookName)}</strong><br>Excel workbook loaded · Worksheet: <strong>${escapeHtml(parsedWorkbook.sheetName)}</strong> · Rows detected: <strong>${structuredRowsFromFile.length}</strong> · Header row: <strong>${parsedWorkbook.headerRowNumber}</strong> · Worksheets: <strong>${parsedWorkbook.sheetCount}</strong>`);
+          showStatus('success', `${structuredRowsFromFile.length} Excel row(s) loaded. Select an import range, then preview the import.`);
+          return;
+        }
+
+        importText.value = await file.text();
+        structuredRowsFromFile = null;
+        setFileInfo(`✓ <strong>${escapeHtml(file.name)}</strong><br>Text/CSV file loaded. Rows will be parsed from the header row during preview.`);
+        showStatus('success', 'File loaded. Select an import range, then preview the import.');
+      } catch (error) {
+        structuredRowsFromFile = null;
+        lastRows = [];
+        importText.value = '';
+        setFileInfo('');
+        showStatus('error', `Unable to read the selected file. ${error.message}`);
+      }
+    });
+
+    previewBtn.addEventListener('click', async () => {
+      setButtonBusy(previewBtn, true, 'Previewing selected range...');
+      commitBtn.disabled = true;
+
+      try {
+        lastRows = structuredRowsFromFile && importText.value.trim().startsWith('[') ? structuredRowsFromFile : parseRows(importText.value);
+        if (lastRows.length === 0) {
+          showStatus('error', 'No import rows found. Check that the first row contains headers, or re-select the Excel/CSV file.');
+          return;
+        }
+
+        const importRange = getImportRangePayload();
+        const response = await fetch('/api/admin/import/bookings/preview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows: lastRows, ...importRange })
+        });
+
+        let result;
+        try {
+          result = await response.json();
+        } catch (jsonError) {
+          throw new Error('The server did not return a valid preview response. Please check the Render logs.');
+        }
+
+        if (!response.ok || !result.success) {
+          showStatus('error', result.message || 'Unable to preview import.');
+          return;
+        }
+
+        showStatus(result.invalidRows?.length ? 'warning' : 'success', 'Preview generated. Review the rows before importing valid bookings.');
+        renderPreview(result);
+      } catch (error) {
+        showStatus('error', error.message || 'Unable to preview import.');
+      } finally {
+        setButtonBusy(previewBtn, false);
+      }
+    });
+
+    commitBtn.addEventListener('click', async () => {
+      if (!lastRows.length) {
+        showStatus('error', 'Please preview the import before importing bookings.');
+        return;
+      }
+      if (!confirm('Import all rows marked as valid in the current preview? Rows outside the selected range and rows needing review will not be imported.')) return;
+
+      setButtonBusy(commitBtn, true, 'Importing valid bookings...');
+      previewBtn.disabled = true;
+
+      try {
+        const importRange = getImportRangePayload();
+        const response = await fetch('/api/admin/import/bookings/commit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows: lastRows, allowPartialImport: true, ...importRange })
+        });
+
+        let result;
+        try {
+          result = await response.json();
+        } catch (jsonError) {
+          throw new Error('The server did not return a valid import response. Please check the Render logs.');
+        }
+
+        if (!response.ok || !result.success) {
+          showStatus('error', result.message || 'Unable to commit import.');
+          return;
+        }
+
+        showStatus('success', result.message || 'Import completed.');
+        commitBtn.disabled = true;
+      } catch (error) {
+        showStatus('error', error.message || 'Unable to commit import.');
+        commitBtn.disabled = false;
+      } finally {
+        const shouldRemainDisabled = commitBtn.disabled;
+        setButtonBusy(commitBtn, false);
+        commitBtn.disabled = shouldRemainDisabled;
+        previewBtn.disabled = false;
+      }
+    });
+
+    clearBtn.addEventListener('click', () => {
+      importText.value = '';
+      csvFile.value = '';
+      structuredRowsFromFile = null;
+      setFileInfo('');
+      clearImportRange();
+      lastRows = [];
+      previewResults.innerHTML = '';
+      commitBtn.disabled = true;
+      statusMessage.className = 'status-panel';
+      statusMessage.textContent = '';
+    });
+
+
+
+    fullFilePresetBtn.addEventListener('click', () => {
+      clearImportRange();
+      showStatus('success', 'Full File selected. All dated rows in the uploaded data will be considered.');
+    });
+
+    thisMonthPresetBtn.addEventListener('click', () => {
+      setMonthRange(0);
+      showStatus('success', 'This Month range selected.');
+    });
+
+    nextMonthPresetBtn.addEventListener('click', () => {
+      setMonthRange(1);
+      showStatus('success', 'Next Month range selected.');
+    });
+
+    clearDatesBtn.addEventListener('click', () => {
+      clearImportRange();
+      showStatus('success', 'Import date range cleared.');
+    });
+
+    [importFrom, importTo].forEach(input => {
+      input.addEventListener('change', () => {
+        commitBtn.disabled = true;
+        previewResults.innerHTML = '';
+        statusMessage.className = 'status-panel';
+        statusMessage.textContent = '';
+      });
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      await fetch('/api/logout', { method: 'POST' });
+      window.location.href = 'login.html';
+    });
+
+    requireAdminUser();
+  </script>
+</body>
+</html>
