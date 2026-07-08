@@ -1644,6 +1644,178 @@ function getAvailableAccessoryTypes() {
 }
 
 
+
+function buildLegacyEmailCandidates(email) {
+  const cleanedEmail = normaliseEmail(email);
+  if (!cleanedEmail) return [];
+
+  const candidates = new Set([cleanedEmail]);
+
+  if (cleanedEmail.endsWith("@schools.gov.sg")) {
+    candidates.add(cleanedEmail.replace(/@schools\.gov\.sg$/i, "@moe.edu.sg"));
+  }
+
+  if (cleanedEmail.endsWith("@moe.edu.sg")) {
+    candidates.add(cleanedEmail.replace(/@moe\.edu\.sg$/i, "@schools.gov.sg"));
+  }
+
+  return Array.from(candidates);
+}
+
+function normaliseLegacyNameForMatching(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/@/g, " ")
+    .replace(/\bbinte\b/g, " ")
+    .replace(/\bbte\b/g, " ")
+    .replace(/\bbin\b/g, " ")
+    .replace(/\bs\/o\b/g, " ")
+    .replace(/\bd\/o\b/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getNameTokens(value) {
+  return normaliseLegacyNameForMatching(value)
+    .split(" ")
+    .filter(token => token.length > 1);
+}
+
+function calculateNameSimilarity(a, b) {
+  const aTokens = getNameTokens(a);
+  const bTokens = getNameTokens(b);
+  if (!aTokens.length || !bTokens.length) return 0;
+
+  const aSet = new Set(aTokens);
+  const bSet = new Set(bTokens);
+  const intersection = Array.from(aSet).filter(token => bSet.has(token)).length;
+  const denominator = Math.max(aSet.size, bSet.size);
+
+  return denominator ? intersection / denominator : 0;
+}
+
+function findLegacyRequesterUser(users, requesterEmail, requesterName) {
+  const emailCandidates = buildLegacyEmailCandidates(requesterEmail);
+
+  for (const candidate of emailCandidates) {
+    const user = users.find(existingUser => normaliseEmail(existingUser.email) === candidate);
+    if (user) {
+      return {
+        user,
+        matchMethod: candidate === normaliseEmail(requesterEmail)
+          ? "Exact email match"
+          : "Email domain-normalised match"
+      };
+    }
+  }
+
+  const legacyLocalPart = normaliseEmail(requesterEmail).split("@")[0];
+  if (legacyLocalPart) {
+    const user = users.find(existingUser => normaliseEmail(existingUser.email).split("@")[0] === legacyLocalPart);
+    if (user) {
+      return {
+        user,
+        matchMethod: "Email username match"
+      };
+    }
+  }
+
+  const normalisedRequesterName = normaliseLegacyNameForMatching(requesterName);
+  if (normalisedRequesterName) {
+    const exactNameUser = users.find(existingUser =>
+      normaliseLegacyNameForMatching(existingUser.name) === normalisedRequesterName
+    );
+
+    if (exactNameUser) {
+      return {
+        user: exactNameUser,
+        matchMethod: "Exact name match"
+      };
+    }
+
+    let bestMatch = null;
+    let bestScore = 0;
+
+    users.forEach(existingUser => {
+      const score = calculateNameSimilarity(requesterName, existingUser.name);
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = existingUser;
+      }
+    });
+
+    if (bestMatch && bestScore >= 0.72) {
+      return {
+        user: bestMatch,
+        matchMethod: `Intelligent name match (${Math.round(bestScore * 100)}%)`
+      };
+    }
+  }
+
+  return {
+    user: null,
+    matchMethod: "No match"
+  };
+}
+
+function getResourceCapacityLookup() {
+  return readResourcesFromXML()
+    .map(formatResourceForResponse)
+    .reduce((lookup, resource) => {
+      const key = normaliseSearchText(resource.name);
+      if (key) lookup.set(key, Number(resource.capacity) || 0);
+      return lookup;
+    }, new Map());
+}
+
+function extractLegacyDeviceQuantityFromResource(resourceText, fallback = 1) {
+  const text = normaliseImportValue(resourceText);
+  if (!text) return fallback;
+
+  const items = text
+    .split(/\s*,\s*/)
+    .map(item => item.trim())
+    .filter(Boolean);
+
+  const resourceCapacityLookup = getResourceCapacityLookup();
+  let total = 0;
+
+  items.forEach(item => {
+    const parentheticalNumbers = Array.from(item.matchAll(/\((?:[^)]*?)(\d+)\s*(?:pcs?|pieces?|devices?|units?|ipads?|notebooks?|laptops?)?[^)]*\)/gi))
+      .map(match => Number(match[1]))
+      .filter(value => Number.isInteger(value) && value > 0);
+
+    if (parentheticalNumbers.length > 0) {
+      total += Math.max(...parentheticalNumbers);
+      return;
+    }
+
+    const plainCapacityMatch = item.match(/\b(\d+)\s*(?:pcs?|pieces?|devices?|units?|ipads?|notebooks?|laptops?)\b/i);
+    if (plainCapacityMatch) {
+      total += Number(plainCapacityMatch[1]);
+      return;
+    }
+
+    const itemKey = normaliseSearchText(item.replace(/\([^)]*\)/g, ""));
+    const exactCapacity = resourceCapacityLookup.get(itemKey);
+    if (exactCapacity) {
+      total += exactCapacity;
+      return;
+    }
+
+    for (const [resourceName, capacity] of resourceCapacityLookup.entries()) {
+      if (capacity > 0 && (itemKey.includes(resourceName) || resourceName.includes(itemKey))) {
+        total += capacity;
+        return;
+      }
+    }
+  });
+
+  return total > 0 ? total : fallback;
+}
+
 function parseLegacyPerson(value) {
   const text = normaliseImportValue(value);
   const match = text.match(/^(.*?)\s*\(([^()@\s]+@[^()\s]+)\)\s*$/);
@@ -1855,10 +2027,8 @@ function mapLegacyBookingRow(row, index, users) {
 
   const requesterEmail = bookedFor.email || bookedBy.email;
   const requesterName = bookedFor.name || bookedBy.name;
-
-  const matchedUser = requesterEmail
-    ? users.find(user => normaliseEmail(user.email) === requesterEmail)
-    : users.find(user => String(user.name || "").toLowerCase() === requesterName.toLowerCase());
+  const requesterMatch = findLegacyRequesterUser(users, requesterEmail, requesterName);
+  const matchedUser = requesterMatch.user;
 
   const bookingDate = normaliseImportDate(getImportValue(row, [
     "Booking Date", "Date", "bookingDate", "BookingDate"
@@ -1881,9 +2051,12 @@ function mapLegacyBookingRow(row, index, users) {
     "Device Type", "deviceType"
   ])) || legacyResourceInference.deviceType;
 
-  const devicesRequired = extractLegacyQuantity(getImportValue(row, [
-    "Number of Devices", "Devices Required", "Quantity", "Qty", "Participants", "devicesRequired"
-  ]), 1);
+  const devicesRequired = extractLegacyDeviceQuantityFromResource(
+    legacyResourceText,
+    extractLegacyQuantity(getImportValue(row, [
+      "Number of Devices", "Devices Required", "Quantity", "Qty", "devicesRequired"
+    ]), 1)
+  );
 
   const softwareRequirement = normaliseImportValue(getImportValue(row, [
     "Software Requirement", "Software", "softwareRequirement"
@@ -1925,7 +2098,7 @@ function mapLegacyBookingRow(row, index, users) {
   if (!Number.isInteger(devicesRequired) || devicesRequired <= 0) errors.push("Number of devices must be a positive whole number.");
 
   if (!matchedUser && requesterEmail) {
-    warnings.push("Requester was not found in Users Admin; importer account will own the booking while preserving legacy requester details.");
+    warnings.push("Requester was not found in Users Admin after email domain-normalisation and intelligent name matching; importer account will own the booking while preserving legacy requester details.");
   }
 
   if (locationResolution.resolution && locationResolution.resolution !== "Matched existing location") {
