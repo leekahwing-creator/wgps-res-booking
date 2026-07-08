@@ -1193,7 +1193,10 @@
       align-items:center;
       gap:10px;
     }
-    .processing-panel.active { display:flex; }
+    .processing-panel.active { display:grid; grid-template-columns:auto 1fr auto; }
+    .processing-progress-wrap { grid-column:1 / -1; width:100%; height:8px; border-radius:999px; background:#ccfbf1; overflow:hidden; }
+    .processing-progress-bar { height:100%; width:0%; border-radius:999px; background:#0f766e; transition:width .28s ease; }
+    .processing-percent { font-weight:900; color:#0f766e; min-width:46px; text-align:right; }
     .processing-spinner,
     .btn-busy::before {
       content:"";
@@ -1441,7 +1444,12 @@
             <div class="action-helper">Step 1: preview the selected date range. Step 2: import only the rows marked as valid.</div>
           </div>
 
-          <div id="processingPanel" class="processing-panel" role="status" aria-live="polite"><span class="processing-spinner" aria-hidden="true"></span><span id="processingText">Processing import preview...</span></div>
+          <div id="processingPanel" class="processing-panel" role="status" aria-live="polite">
+            <span class="processing-spinner" aria-hidden="true"></span>
+            <span id="processingText">Processing import preview...</span>
+            <span id="processingPercent" class="processing-percent">0%</span>
+            <div class="processing-progress-wrap" aria-hidden="true"><div id="processingProgressBar" class="processing-progress-bar"></div></div>
+          </div>
           <div id="statusMessage" class="status-panel" role="status" aria-live="polite"></div>
           <div id="previewResults" class="preview-grid"></div>
         </div>
@@ -1468,6 +1476,9 @@
     const fileInfoPanel = document.getElementById('fileInfoPanel');
     const processingPanel = document.getElementById('processingPanel');
     const processingText = document.getElementById('processingText');
+    const processingPercent = document.getElementById('processingPercent');
+    const processingProgressBar = document.getElementById('processingProgressBar');
+    let activeProgressTimer = null;
     let lastRows = [];
     let structuredRowsFromFile = null;
 
@@ -1641,11 +1652,12 @@
       fileInfoPanel.classList.toggle('active', Boolean(html));
     }
 
-    function setButtonBusy(button, isBusy, busyLabel) {
+    function setButtonBusy(button, isBusy, busyLabel, percent = 0) {
       if (!button) return;
       if (isBusy) {
         button.dataset.originalLabel = button.textContent;
-        button.textContent = busyLabel;
+        button.dataset.busyLabel = busyLabel || button.textContent;
+        button.textContent = `${button.dataset.busyLabel} ${Math.max(0, Math.min(100, Math.round(percent)))}%`;
         button.classList.add('btn-busy');
         button.setAttribute('aria-busy', 'true');
         button.disabled = true;
@@ -1655,20 +1667,72 @@
         button.textContent = button.dataset.originalLabel;
         delete button.dataset.originalLabel;
       }
+      delete button.dataset.busyLabel;
       button.classList.remove('btn-busy');
       button.removeAttribute('aria-busy');
       button.disabled = false;
     }
 
-    function showProcessing(message) {
+    function updateButtonProgress(button, percent, label) {
+      if (!button || !button.classList.contains('btn-busy')) return;
+      const safePercent = Math.max(0, Math.min(100, Math.round(percent)));
+      if (label) button.dataset.busyLabel = label;
+      button.textContent = `${button.dataset.busyLabel || 'Processing'} ${safePercent}%`;
+    }
+
+    function updateProcessingProgress(percent, message) {
+      const safePercent = Math.max(0, Math.min(100, Math.round(percent)));
+      if (processingText && message) processingText.textContent = message;
+      if (processingPercent) processingPercent.textContent = `${safePercent}%`;
+      if (processingProgressBar) processingProgressBar.style.width = `${safePercent}%`;
+    }
+
+    function showProcessing(message, percent = 0) {
       if (!processingPanel) return;
-      if (processingText) processingText.textContent = message || 'Processing import preview...';
+      updateProcessingProgress(percent, message || 'Processing import preview...');
       processingPanel.classList.add('active');
     }
 
     function hideProcessing() {
       if (!processingPanel) return;
       processingPanel.classList.remove('active');
+      updateProcessingProgress(0, 'Processing import preview...');
+    }
+
+    function startProgressTicker(button, baseLabel, panelMessage, start = 8, cap = 92) {
+      clearProgressTicker();
+      let current = start;
+      showProcessing(panelMessage, current);
+      updateButtonProgress(button, current, baseLabel);
+      activeProgressTimer = window.setInterval(() => {
+        if (current >= cap) return;
+        const step = current < 55 ? 7 : current < 78 ? 4 : 2;
+        current = Math.min(cap, current + step);
+        updateProcessingProgress(current, panelMessage);
+        updateButtonProgress(button, current, baseLabel);
+      }, 450);
+      return activeProgressTimer;
+    }
+
+    function clearProgressTicker() {
+      if (activeProgressTimer) {
+        window.clearInterval(activeProgressTimer);
+        activeProgressTimer = null;
+      }
+    }
+
+    function uniqueMessages(messages) {
+      const seen = new Set();
+      const output = [];
+      (messages || []).forEach(message => {
+        const cleaned = String(message || '').trim();
+        if (!cleaned) return;
+        const key = cleaned.toLowerCase();
+        if (seen.has(key)) return;
+        seen.add(key);
+        output.push(cleaned);
+      });
+      return output;
     }
 
     function renderSummaryPills(title, summary) {
@@ -1717,7 +1781,7 @@
                 const accessoryCount = accessoryArray.filter(item => item && item.type).length;
                 const accessoryTotal = accessoryArray.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
                 const accessorySummaryText = accessoryCount ? `${accessoryCount} type${accessoryCount === 1 ? '' : 's'} · ${accessoryTotal}` : 'None';
-                const issues = [...(row.errors || []), ...(row.warnings || [])].join(' ') || 'None';
+                const issues = uniqueMessages([...(row.errors || []), ...(row.warnings || [])]).join(' ') || 'None';
                 const detailId = `preview-detail-${index}`;
                 const rowStatus = row.valid ? 'Valid' : 'Invalid';
                 const legacyRemarks = booking.legacyBookingRemarks || '-';
@@ -1809,18 +1873,23 @@
     });
 
     previewBtn.addEventListener('click', async () => {
-      setButtonBusy(previewBtn, true, 'Previewing selected range...');
-      showProcessing('Reading uploaded records and mapping resources, accessories and locations...');
+      setButtonBusy(previewBtn, true, 'Previewing selected range', 0);
+      showProcessing('Preparing booking records for preview...', 0);
       commitBtn.disabled = true;
 
       try {
+        updateProcessingProgress(8, 'Reading uploaded data...');
+        updateButtonProgress(previewBtn, 8, 'Previewing selected range');
         lastRows = structuredRowsFromFile && importText.value.trim().startsWith('[') ? structuredRowsFromFile : parseRows(importText.value);
         if (lastRows.length === 0) {
           showStatus('error', 'No import rows found. Check that the first row contains headers, or re-select the Excel/CSV file.');
           return;
         }
 
+        updateProcessingProgress(22, `Preparing ${lastRows.length} row(s) for server validation...`);
+        updateButtonProgress(previewBtn, 22, 'Previewing selected range');
         const importRange = getImportRangePayload();
+        startProgressTicker(previewBtn, 'Previewing selected range', 'Server is analysing dates, users, resources, accessories and locations...', 30, 92);
         const response = await fetch('/api/admin/import/bookings/preview', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1839,12 +1908,16 @@
           return;
         }
 
+        clearProgressTicker();
+        updateProcessingProgress(100, 'Preview generated. Rendering results...');
+        updateButtonProgress(previewBtn, 100, 'Preview complete');
         showStatus(result.invalidRows?.length ? 'warning' : 'success', 'Preview generated. Review the rows before importing valid bookings.');
         renderPreview(result);
       } catch (error) {
         showStatus('error', error.message || 'Unable to preview import.');
       } finally {
-        hideProcessing();
+        clearProgressTicker();
+        setTimeout(() => hideProcessing(), 350);
         setButtonBusy(previewBtn, false);
       }
     });
@@ -1856,12 +1929,13 @@
       }
       if (!confirm('Import all rows marked as valid in the current preview? Rows outside the selected range and rows needing review will not be imported.')) return;
 
-      setButtonBusy(commitBtn, true, 'Importing valid bookings...');
-      showProcessing('Writing valid bookings into the portal. Please keep this page open...');
+      setButtonBusy(commitBtn, true, 'Importing valid bookings', 0);
+      showProcessing('Preparing valid bookings for import...', 0);
       previewBtn.disabled = true;
 
       try {
         const importRange = getImportRangePayload();
+        startProgressTicker(commitBtn, 'Importing valid bookings', 'Server is writing valid bookings and allocating resources...', 12, 92);
         const response = await fetch('/api/admin/import/bookings/commit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1880,14 +1954,18 @@
           return;
         }
 
+        clearProgressTicker();
+        updateProcessingProgress(100, 'Import completed.');
+        updateButtonProgress(commitBtn, 100, 'Import complete');
         showStatus('success', result.message || 'Import completed.');
         commitBtn.disabled = true;
       } catch (error) {
         showStatus('error', error.message || 'Unable to commit import.');
         commitBtn.disabled = false;
       } finally {
+        clearProgressTicker();
         const shouldRemainDisabled = commitBtn.disabled;
-        hideProcessing();
+        setTimeout(() => hideProcessing(), 350);
         setButtonBusy(commitBtn, false);
         commitBtn.disabled = shouldRemainDisabled;
         previewBtn.disabled = false;
