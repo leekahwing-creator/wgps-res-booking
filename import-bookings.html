@@ -1144,21 +1144,24 @@
     .status-panel.error { display:block; background:#fee2e2; color:#dc2626; }
     .preview-grid { display:grid; gap:14px; }
     .preview-table-wrap { overflow-x:auto; border:1px solid var(--border); border-radius:16px; }
-    .preview-table { width:100%; border-collapse: collapse; min-width: 860px; table-layout: fixed; }
+    .preview-table { width:100%; border-collapse: collapse; min-width: 1040px; table-layout: fixed; }
     .preview-table th, .preview-table td { padding: 12px 14px; border-bottom: 1px solid #e2e8f0; text-align:left; vertical-align:top; }
-    .preview-table th { background:#f8fafc; color:var(--muted); font-size:.74rem; text-transform:uppercase; letter-spacing:.045em; line-height:1.25; white-space:normal; }
-    .preview-table th.col-row, .preview-table td.col-row { width: 92px; white-space: nowrap; }
-    .preview-table th.col-status, .preview-table td.col-status { width: 88px; white-space: nowrap; }
-    .preview-table th.col-datetime, .preview-table td.col-datetime { width: 156px; white-space: nowrap; }
-    .preview-table th.col-requester, .preview-table td.col-requester { width: 190px; }
-    .preview-table th.col-location, .preview-table td.col-location { width: 210px; }
-    .preview-table th.col-resource, .preview-table td.col-resource { width: 150px; }
-    .preview-table th.col-detail, .preview-table td.col-detail { width: 116px; white-space: nowrap; }
+    .preview-table th { background:#f8fafc; color:var(--muted); font-size:.72rem; text-transform:uppercase; letter-spacing:.035em; line-height:1.25; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .preview-table th.col-row, .preview-table td.col-row { width: 72px; white-space: nowrap; }
+    .preview-table th.col-status, .preview-table td.col-status { width: 92px; white-space: nowrap; }
+    .preview-table th.col-datetime, .preview-table td.col-datetime { width: 150px; white-space: nowrap; }
+    .preview-table th.col-requester, .preview-table td.col-requester { width: 170px; }
+    .preview-table th.col-location, .preview-table td.col-location { width: 190px; }
+    .preview-table th.col-resource, .preview-table td.col-resource { width: 170px; }
+    .preview-table th.col-accessory, .preview-table td.col-accessory { width: 110px; }
+    .preview-table th.col-detail, .preview-table td.col-detail { width: 86px; white-space: nowrap; text-align:right; }
     .preview-table .preview-summary-row:hover { background:#f8fafc; }
     .status-pill { display:inline-flex; align-items:center; justify-content:center; border-radius:999px; padding:5px 9px; font-size:.78rem; font-weight:900; }
     .status-pill.valid { background:#dcfce7; color:#166534; }
     .status-pill.invalid { background:#fee2e2; color:#991b1b; }
-    .detail-toggle { border:1px solid var(--border); background:#fff; color:var(--primary-dark); border-radius:999px; padding:8px 10px; font-weight:900; cursor:pointer; white-space:nowrap; }
+    .accessory-pill { display:inline-flex; align-items:center; justify-content:center; border-radius:999px; padding:5px 9px; font-size:.76rem; font-weight:900; background:#e0f2fe; color:#075985; white-space:nowrap; }
+    .accessory-pill.none { background:#f1f5f9; color:#64748b; }
+    .detail-toggle { border:1px solid var(--border); background:#fff; color:var(--primary-dark); border-radius:999px; padding:7px 9px; font-size:.82rem; font-weight:900; cursor:pointer; white-space:nowrap; max-width:78px; overflow:hidden; text-overflow:ellipsis; }
     .detail-toggle:hover { background:var(--primary-light); border-color:#99f6e4; }
     .datetime-cell { display: grid; gap: 4px; line-height: 1.25; white-space: nowrap; }
     .datetime-date { font-weight: 800; color: #0f172a; white-space: nowrap; }
@@ -1172,7 +1175,7 @@
     .detail-label { display:block; color:var(--muted); font-size:.74rem; font-weight:900; text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px; }
     .detail-value { color:#0f172a; line-height:1.45; overflow-wrap:anywhere; white-space:pre-wrap; }
     @media (max-width: 860px) {
-      .preview-table { min-width: 820px; }
+      .preview-table { min-width: 980px; }
       .detail-grid { grid-template-columns:1fr; }
       .detail-card.full { grid-column:auto; }
     }
@@ -1650,12 +1653,16 @@
         <div class="note-box"><strong>Preview complete:</strong> Only rows marked as valid will be imported. ${skippedRows.length} non-ICT row(s) and ${rowsOutsideRange} row(s) outside the selected range will be ignored.</div>
         <div class="preview-table-wrap">
           <table class="preview-table">
-            <thead><tr><th class="col-row">Row / Segment</th><th class="col-status">Status</th><th class="col-datetime">Date & Time</th><th class="col-requester">Requester</th><th class="col-location">Location</th><th class="col-resource">Resource</th><th class="col-detail">Details</th></tr></thead>
+            <thead><tr><th class="col-row">Row</th><th class="col-status">Status</th><th class="col-datetime">Date & Time</th><th class="col-requester">Requester</th><th class="col-location">Location</th><th class="col-resource">Resource</th><th class="col-accessory">Accessories</th><th class="col-detail">Details</th></tr></thead>
             <tbody>
               ${[...validRows, ...invalidRows].map((row, index) => {
                 const booking = row.mappedBooking || {};
                 const accessories = booking.additionalResources?.resource || [];
-                const accessoryList = (Array.isArray(accessories) ? accessories : [accessories]).map(item => `${item.quantity} ${item.type}`).join(', ') || 'None';
+                const accessoryArray = Array.isArray(accessories) ? accessories : [accessories];
+                const accessoryList = accessoryArray.map(item => `${item.quantity} ${item.type}`).join(', ') || 'None';
+                const accessoryCount = accessoryArray.filter(item => item && item.type).length;
+                const accessoryTotal = accessoryArray.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+                const accessorySummaryText = accessoryCount ? `${accessoryCount} type${accessoryCount === 1 ? '' : 's'} · ${accessoryTotal}` : 'None';
                 const issues = [...(row.errors || []), ...(row.warnings || [])].join(' ') || 'None';
                 const detailId = `preview-detail-${index}`;
                 const rowStatus = row.valid ? 'Valid' : 'Invalid';
@@ -1672,10 +1679,11 @@
                   <td class="col-requester">${escapeHtml(booking.importedRequesterName || booking.importedRequesterEmail || '-')}</td>
                   <td class="col-location">${escapeHtml(booking.location || '-')}<span class="location-resolution">${escapeHtml(booking.legacyLocationResolution || '')}</span></td>
                   <td class="col-resource">${escapeHtml(portalResource)}<span class="location-resolution">${escapeHtml(resourceResolution)}</span></td>
-                  <td class="col-detail"><button class="detail-toggle" type="button" data-detail-target="${detailId}" aria-expanded="false">View details</button></td>
+                  <td class="col-accessory"><span class="accessory-pill ${accessoryCount ? '' : 'none'}">${escapeHtml(accessorySummaryText)}</span></td>
+                  <td class="col-detail"><button class="detail-toggle" type="button" data-detail-target="${detailId}" aria-expanded="false" title="View details">Details</button></td>
                 </tr>
                 <tr id="${detailId}" class="preview-detail-row" hidden>
-                  <td colspan="7">
+                  <td colspan="8">
                     <div class="preview-detail-panel">
                       <div class="detail-grid">
                         <div class="detail-card"><span class="detail-label">Accessories</span><div class="detail-value">${escapeHtml(accessoryList)}<br><span class="location-resolution">${escapeHtml(accessoryResolution)}</span></div></div>
@@ -1707,7 +1715,8 @@
       const isOpening = detailRow.hidden;
       detailRow.hidden = !isOpening;
       button.setAttribute('aria-expanded', String(isOpening));
-      button.textContent = isOpening ? 'Hide details' : 'View details';
+      button.textContent = isOpening ? 'Hide' : 'Details';
+      button.title = isOpening ? 'Hide details' : 'View details';
     });
 
     csvFile.addEventListener('change', async () => {
