@@ -1118,6 +1118,289 @@
       }
     }
 
+
+
+    /* Guided Booking UX Phase 1 */
+    .hero.guided-hero {
+      grid-template-columns: 0.72fr 1.28fr;
+      align-items: start;
+    }
+
+    .intro.guided-intro {
+      position: sticky;
+      top: 22px;
+      justify-content: flex-start;
+      gap: 18px;
+    }
+
+    .guided-stepper {
+      display: grid;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .step-chip {
+      display: grid;
+      grid-template-columns: 34px 1fr;
+      gap: 12px;
+      align-items: center;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: #ffffff;
+      color: #475569;
+    }
+
+    .step-chip .step-number {
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: #e2e8f0;
+      color: #334155;
+      font-weight: 900;
+    }
+
+    .step-chip.active {
+      border-color: rgba(15, 118, 110, 0.35);
+      background: #ecfeff;
+      color: var(--primary-dark);
+      box-shadow: 0 12px 24px rgba(15, 118, 110, 0.08);
+    }
+
+    .step-chip.active .step-number {
+      background: var(--primary);
+      color: #ffffff;
+    }
+
+    .step-chip.complete .step-number {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .guided-form {
+      display: grid;
+      gap: 18px;
+    }
+
+    .guided-section {
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 18px;
+      background: #ffffff;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.035);
+    }
+
+    .guided-section.locked {
+      opacity: 0.55;
+    }
+
+    .guided-section.locked .guided-section-body {
+      display: none;
+    }
+
+    .section-heading {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: flex-start;
+      margin-bottom: 16px;
+    }
+
+    .section-heading h3 {
+      margin: 0;
+      color: #0f172a;
+      font-size: 1.05rem;
+      letter-spacing: -0.01em;
+    }
+
+    .section-heading p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+
+    .section-tag {
+      white-space: nowrap;
+      padding: 7px 10px;
+      border-radius: 999px;
+      background: #f1f5f9;
+      color: #475569;
+      font-size: 0.76rem;
+      font-weight: 900;
+    }
+
+    .device-choice-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .device-choice {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 16px 14px;
+      background: #f8fafc;
+      color: #0f172a;
+      text-align: left;
+      cursor: pointer;
+      min-height: 118px;
+      display: grid;
+      align-content: start;
+      gap: 8px;
+      transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s, background 0.15s;
+    }
+
+    .device-choice:hover,
+    .device-choice.active {
+      transform: translateY(-1px);
+      border-color: var(--primary);
+      background: #ecfeff;
+      box-shadow: 0 12px 24px rgba(15, 118, 110, 0.11);
+    }
+
+    .device-choice strong {
+      font-size: 1rem;
+      color: #0f172a;
+    }
+
+    .device-choice span {
+      color: var(--muted);
+      font-size: 0.85rem;
+      line-height: 1.35;
+    }
+
+    .device-icon {
+      font-size: 1.4rem;
+    }
+
+    .guided-grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .guided-grid-3 {
+      display: grid;
+      grid-template-columns: 1.25fr 1fr 1fr;
+      gap: 16px;
+    }
+
+    .quantity-card {
+      display: grid;
+      gap: 12px;
+      margin-top: 16px;
+      padding: 14px;
+      border-radius: 18px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+    }
+
+    .quick-qty-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .quick-qty {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: #ffffff;
+      color: #334155;
+      min-height: 34px;
+      padding: 0 12px;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .quick-qty:hover {
+      border-color: var(--primary);
+      color: var(--primary-dark);
+      background: #ecfeff;
+    }
+
+    .apps-card, .accessory-card {
+      margin-top: 16px;
+      padding: 14px;
+      border: 1px solid #e2e8f0;
+      border-radius: 18px;
+      background: #f8fafc;
+    }
+
+    .summary.review-card {
+      margin-top: 0;
+      border-style: solid;
+      border-color: rgba(15, 118, 110, 0.2);
+      background: linear-gradient(135deg, #f0fdfa, #ffffff);
+    }
+
+    .review-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .review-item {
+      border: 1px solid #dbe4ee;
+      border-radius: 14px;
+      padding: 12px;
+      background: #ffffff;
+    }
+
+    .review-item span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.76rem;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 4px;
+    }
+
+    .review-item strong {
+      font-size: 0.95rem;
+      color: #0f172a;
+      overflow-wrap: anywhere;
+    }
+
+    .fulfilment-hint {
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 14px;
+      background: #eff6ff;
+      color: #1e3a8a;
+      font-size: 0.9rem;
+      line-height: 1.45;
+      border: 1px solid #bfdbfe;
+    }
+
+    .admin-note {
+      margin-top: 0;
+    }
+
+    @media (max-width: 980px) {
+      .hero.guided-hero {
+        grid-template-columns: 1fr;
+      }
+
+      .intro.guided-intro {
+        position: static;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .device-choice-grid,
+      .guided-grid-2,
+      .guided-grid-3,
+      .review-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
   </style>
 </head>
 <body>
@@ -1182,121 +1465,53 @@
       </div>
     </nav>
     
-    <section class="hero" aria-label="ICT resource booking page">
-      <div class="intro">
-        <div class="badge">ICT Resource Booking Portal</div>
-        <h1>Book ICT resources quickly and easily.</h1>
-        <p class="subtitle">
-          Submit your ICT resource request in one simple form. Your booking will be linked securely to your signed-in account and checked for suitable resource allocation.
-        </p>
+    <section class="hero guided-hero" aria-label="ICT resource booking page">
+      <div class="intro guided-intro">
+        <div>
+          <div class="badge">ICT Resource Booking Portal</div>
+          <h1>Book ICT resources with a guided flow.</h1>
+          <p class="subtitle">
+            Choose what you need, confirm when and where it is needed, then review everything before submitting.
+          </p>
+        </div>
 
-        <div class="quick-info" aria-label="Booking process highlights">
-          <div class="info-card">
-            <strong>1</strong>
-            <span>Enter booking details</span>
-          </div>
-          <div class="info-card">
-            <strong>2</strong>
-            <span>Submit request</span>
-          </div>
-          <div class="info-card">
-            <strong>3</strong>
-            <span>Resources allocated automatically</span>
-          </div>
+        <div class="guided-stepper" aria-label="Booking steps">
+          <div class="step-chip active" id="stepChoose"><span class="step-number">1</span><span><strong>Choose resources</strong><br><small>Device, quantity and add-ons</small></span></div>
+          <div class="step-chip" id="stepWhen"><span class="step-number">2</span><span><strong>Select timing</strong><br><small>Date, booking type and time</small></span></div>
+          <div class="step-chip" id="stepWhere"><span class="step-number">3</span><span><strong>Confirm location</strong><br><small>Deployment or custom location</small></span></div>
+          <div class="step-chip" id="stepReview"><span class="step-number">4</span><span><strong>Review & submit</strong><br><small>Check before submission</small></span></div>
         </div>
       </div>
 
       <div class="booking-card">
         <div class="booking-header">
           <h2>New Booking Request</h2>
-          <p>Complete all fields to help us allocate suitable ICT resources.</p>
+          <p>Complete each section in order. Later sections appear as the booking takes shape.</p>
         </div>
 
-        <form id="bookingForm">
-          <div class="form-grid">
-            <div class="field full requester-card">
-              <span class="requester-label">Booking requester</span>
-              <strong id="requesterName">Signed-in user</strong>
-              <span id="requesterEmail" class="helper"></span>
-            </div>
+        <form id="bookingForm" class="guided-form">
+          <div class="requester-card">
+            <span class="requester-label">Booking requester</span>
+            <strong id="requesterName">Signed-in user</strong>
+            <span id="requesterEmail" class="helper"></span>
+          </div>
 
-            <div class="field">
-              <label for="bookingDate">Date of booking</label>
-              <input id="bookingDate" name="bookingDate" type="date" required />
-              <span class="helper">Bookings can only be made from Monday to Friday, starting from the next available school day.</span>
-            </div>
-
-            <div class="field">
-              <label>Booking type</label>
-              <div class="segmented-control" role="radiogroup" aria-label="Booking type">
-                <button type="button" class="segment active" id="oneTimeBookingBtn" data-booking-type="one-time" aria-pressed="true">One-Time</button>
-                <button type="button" class="segment" id="recurringBookingBtn" data-booking-type="recurring" aria-pressed="false">Recurring</button>
+          <section class="guided-section" id="resourceSection">
+            <div class="section-heading">
+              <div>
+                <h3>1. What would you like to book?</h3>
+                <p>Select the device category and quantity. The portal will allocate the most suitable available resource.</p>
               </div>
-              <span id="recurringPermissionNote" class="permission-note" style="display:none;">Recurring booking is available only to authorised users.</span>
+              <span class="section-tag">Required</span>
             </div>
-
-            <div class="field full recurrence-section" id="recurrenceSection" style="display: none;">
-              <div class="recurrence-grid">
-                <div class="field compact">
-                  <label>Repeat every</label>
-                  <div class="segmented-control" role="radiogroup" aria-label="Repeat every">
-                    <button type="button" class="segment active" id="repeatWeeklyBtn" data-repeat-interval="1" aria-pressed="true">Week</button>
-                    <button type="button" class="segment" id="repeatFortnightlyBtn" data-repeat-interval="2" aria-pressed="false">2 Weeks</button>
-                  </div>
-                </div>
-
-                <div class="field compact">
-                  <label for="recurrenceCount">Occurrences</label>
-                  <div class="device-control recurrence-count-control">
-                    <button type="button" id="decreaseRecurrence" aria-label="Decrease number of occurrences">−</button>
-                    <input id="recurrenceCount" name="recurrenceCount" type="number" min="2" max="4" value="2" inputmode="numeric" readonly />
-                    <button type="button" id="increaseRecurrence" aria-label="Increase number of occurrences">+</button>
-                  </div>
-                  <span class="helper">Maximum 4 occurrences, including the first selected date.</span>
-                </div>
+            <div class="guided-section-body">
+              <div class="device-choice-grid" role="radiogroup" aria-label="Device type">
+                <button type="button" class="device-choice" data-device-choice="Laptop"><span class="device-icon">💻</span><strong>Laptop</strong><span>For laptop carts and class sets.</span></button>
+                <button type="button" class="device-choice" data-device-choice="iPad"><span class="device-icon">📱</span><strong>iPad</strong><span>For iPad carts or smaller iPad bags.</span></button>
+                <button type="button" class="device-choice" data-device-choice="iPad with Keyboard"><span class="device-icon">⌨️</span><strong>iPad + Keyboard</strong><span>For keyboard-enabled iPad carts.</span></button>
               </div>
 
-              <div class="recurrence-preview" id="recurrencePreview">
-                Recurring dates will appear here.
-              </div>
-            </div>
-
-            <div class="field full location-time-row">
-              <div class="field">
-                <label for="location">Deployment location</label>
-                <select id="location" name="location" required>
-                  <option value="">Loading locations...</option>
-                </select>
-              </div>
-
-              <div class="field">
-                <label for="startTime">Start time</label>
-                <select id="startTime" name="startTime" required>
-                  <option value="">Select start time</option>
-                </select>
-              </div>
-
-              <div class="field">
-                <label for="endTime">End time</label>
-                <select id="endTime" name="endTime" required>
-                  <option value="">Select end time</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="field full" id="customLocationField" style="display: none;">
-              <label for="customLocation">Custom location description</label>
-              <input
-                id="customLocation"
-                name="customLocation"
-                type="text"
-                placeholder="Enter custom deployment location"
-              />
-              <span class="helper">Provide additional details for locations not listed above.</span>
-            </div>
-
-            <div class="field full device-config-row">
-              <div class="field">
+              <div class="field" style="margin-top:14px;">
                 <label for="deviceType">Device type</label>
                 <select id="deviceType" name="deviceType" required>
                   <option value="">Select device type</option>
@@ -1306,55 +1521,147 @@
                 </select>
               </div>
 
-              <div class="field">
-                <label>Software requirement</label>
+              <div class="quantity-card">
+                <div class="field">
+                  <label for="devicesRequired">Number of devices required</label>
+                  <div class="device-control">
+                    <button type="button" id="decreaseDevices" aria-label="Decrease number of devices">−</button>
+                    <input id="devicesRequired" name="devicesRequired" type="number" min="1" max="100" value="1" inputmode="numeric" required />
+                    <button type="button" id="increaseDevices" aria-label="Increase number of devices">+</button>
+                  </div>
+                  <div class="quick-qty-row" aria-label="Quick quantity shortcuts">
+                    <button type="button" class="quick-qty" data-quick-qty="8">8</button>
+                    <button type="button" class="quick-qty" data-quick-qty="20">20</button>
+                    <button type="button" class="quick-qty" data-quick-qty="30">30</button>
+                    <button type="button" class="quick-qty" data-quick-qty="40">40</button>
+                  </div>
+                </div>
+              </div>
 
+              <div class="apps-card">
+                <label>Apps required</label>
                 <label class="toggle-switch">
-                  <input
-                    id="softwareProcreate"
-                    name="softwareRequirement"
-                    type="checkbox"
-                    value="Procreate"
-                  />
+                  <input id="softwareProcreate" name="softwareRequirement" type="checkbox" value="Procreate" />
                   <span class="toggle-slider"></span>
                   <span class="toggle-label">Procreate</span>
                 </label>
+                <span class="helper">Optional. Leave unticked if no specialised app is needed.</span>
               </div>
 
-              <div class="field">
-                <label for="devicesRequired">Number of devices required</label>
-                <div class="device-control">
-                  <button type="button" id="decreaseDevices" aria-label="Decrease number of devices">−</button>
-                  <input id="devicesRequired" name="devicesRequired" type="number" min="1" max="100" value="1" inputmode="numeric" required />
-                  <button type="button" id="increaseDevices" aria-label="Increase number of devices">+</button>
+              <div class="accessory-card additional-resources-section" id="additionalResourcesSection" style="display:none;">
+                <div>
+                  <label>Accessories</label>
+                  <span class="helper">Optional bookable resources such as mouse, headset or Apple Pencil.</span>
                 </div>
-                <span class="helper">Use the + or − buttons for quick adjustment.</span>
+                <div id="additionalResourcesList"></div>
               </div>
             </div>
+          </section>
 
-            <div class="field full additional-resources-section" id="additionalResourcesSection" style="display:none;">
+          <section class="guided-section locked" id="timingSection">
+            <div class="section-heading">
               <div>
-                <label>Additional bookable resources</label>
-                <span class="helper">Optional accessories such as mouse, headset or Apple Pencil will be allocated as separate resources.</span>
+                <h3>2. When do you need it?</h3>
+                <p>Choose the date, booking type and time period.</p>
               </div>
-              <div id="additionalResourcesList"></div>
+              <span class="section-tag">Required</span>
             </div>
-          </div>
+            <div class="guided-section-body">
+              <div class="guided-grid-2">
+                <div class="field">
+                  <label for="bookingDate">Date of booking</label>
+                  <input id="bookingDate" name="bookingDate" type="date" required />
+                  <span class="helper">Bookings can only be made from Monday to Friday, starting from the next available school day.</span>
+                </div>
+                <div class="field">
+                  <label>Booking type</label>
+                  <div class="segmented-control" role="radiogroup" aria-label="Booking type">
+                    <button type="button" class="segment active" id="oneTimeBookingBtn" data-booking-type="one-time" aria-pressed="true">One-Time</button>
+                    <button type="button" class="segment" id="recurringBookingBtn" data-booking-type="recurring" aria-pressed="false">Recurring</button>
+                  </div>
+                  <span id="recurringPermissionNote" class="permission-note" style="display:none;">Recurring booking is available only to authorised users.</span>
+                </div>
+              </div>
 
-          <div class="summary" id="bookingSummary">
-            Your booking summary will appear here as you complete the form.
-          </div>
+              <div class="field recurrence-section" id="recurrenceSection" style="display: none; margin-top:16px;">
+                <div class="recurrence-grid">
+                  <div class="field compact">
+                    <label>Repeat every</label>
+                    <div class="segmented-control" role="radiogroup" aria-label="Repeat every">
+                      <button type="button" class="segment active" id="repeatWeeklyBtn" data-repeat-interval="1" aria-pressed="true">Week</button>
+                      <button type="button" class="segment" id="repeatFortnightlyBtn" data-repeat-interval="2" aria-pressed="false">2 Weeks</button>
+                    </div>
+                  </div>
+                  <div class="field compact">
+                    <label for="recurrenceCount">Occurrences</label>
+                    <div class="device-control recurrence-count-control">
+                      <button type="button" id="decreaseRecurrence" aria-label="Decrease number of occurrences">−</button>
+                      <input id="recurrenceCount" name="recurrenceCount" type="number" min="2" max="4" value="2" inputmode="numeric" readonly />
+                      <button type="button" id="increaseRecurrence" aria-label="Increase number of occurrences">+</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="recurrence-preview" id="recurrencePreview">Recurring dates will appear here.</div>
+              </div>
 
-          <div class="actions">
-            <button class="btn btn-secondary" type="reset">Clear</button>
-            <button class="btn btn-primary" type="submit">Submit Booking Request</button>
-          </div>
+              <div class="guided-grid-2" style="margin-top:16px;">
+                <div class="field">
+                  <label for="startTime">Start time</label>
+                  <select id="startTime" name="startTime" required>
+                    <option value="">Select start time</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="endTime">End time</label>
+                  <select id="endTime" name="endTime" required>
+                    <option value="">Select end time</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </section>
 
-          <div id="statusMessage" class="status" role="status" aria-live="polite"></div>
+          <section class="guided-section locked" id="locationSection">
+            <div class="section-heading">
+              <div>
+                <h3>3. Where should it be used?</h3>
+                <p>Select the deployment location. Collection-only resources will show clear instructions after allocation.</p>
+              </div>
+              <span class="section-tag">Required</span>
+            </div>
+            <div class="guided-section-body">
+              <div class="field">
+                <label for="location">Deployment location</label>
+                <select id="location" name="location" required>
+                  <option value="">Loading locations...</option>
+                </select>
+              </div>
+              <div class="field" id="customLocationField" style="display: none; margin-top:16px;">
+                <label for="customLocation">Custom location description</label>
+                <input id="customLocation" name="customLocation" type="text" placeholder="Enter custom deployment location" />
+                <span class="helper">Provide additional details for locations not listed above.</span>
+              </div>
+            </div>
+          </section>
 
-          <p class="admin-note">
-            Booking submissions are sent securely to the backend and saved into the relevant monthly booking file after resource allocation is completed.
-          </p>
+          <section class="guided-section locked" id="reviewSection">
+            <div class="section-heading">
+              <div>
+                <h3>4. Review before submitting</h3>
+                <p>Check the summary below. The portal will allocate resources automatically after submission.</p>
+              </div>
+              <span class="section-tag">Final check</span>
+            </div>
+            <div class="guided-section-body">
+              <div class="summary review-card" id="bookingSummary">Your booking summary will appear here as you complete the form.</div>
+              <div class="actions">
+                <button class="btn btn-secondary" type="reset">Clear</button>
+                <button class="btn btn-primary" type="submit">Submit Booking Request</button>
+              </div>
+              <div id="statusMessage" class="status" role="status" aria-live="polite"></div>
+              <p class="admin-note">Bookings are saved after automatic allocation. Collection-only resources will be shown clearly after confirmation.</p>
+            </div>
+          </section>
         </form>
       </div>
     </section>
@@ -1788,28 +2095,79 @@ document.getElementById("requesterName").textContent = user.name;
       updateSummary();
     }
 
+    function updateGuidedVisibility() {
+      const hasDevice = Boolean(deviceTypeSelect?.value);
+      const hasDateTime = Boolean(bookingDate?.value && startTime?.value && endTime?.value && endTime.value > startTime.value);
+      const data = getBookingData();
+      const hasLocation = Boolean(data.location);
+
+      document.getElementById('timingSection')?.classList.toggle('locked', !hasDevice);
+      document.getElementById('locationSection')?.classList.toggle('locked', !hasDevice || !hasDateTime);
+      document.getElementById('reviewSection')?.classList.toggle('locked', !hasDevice || !hasDateTime || !hasLocation);
+
+      const stepChoose = document.getElementById('stepChoose');
+      const stepWhen = document.getElementById('stepWhen');
+      const stepWhere = document.getElementById('stepWhere');
+      const stepReview = document.getElementById('stepReview');
+      [stepChoose, stepWhen, stepWhere, stepReview].forEach(step => step?.classList.remove('active', 'complete'));
+
+      if (!hasDevice) {
+        stepChoose?.classList.add('active');
+      } else if (!hasDateTime) {
+        stepChoose?.classList.add('complete');
+        stepWhen?.classList.add('active');
+      } else if (!hasLocation) {
+        stepChoose?.classList.add('complete');
+        stepWhen?.classList.add('complete');
+        stepWhere?.classList.add('active');
+      } else {
+        stepChoose?.classList.add('complete');
+        stepWhen?.classList.add('complete');
+        stepWhere?.classList.add('complete');
+        stepReview?.classList.add('active');
+      }
+    }
+
+    function updateDeviceChoiceCards() {
+      document.querySelectorAll('[data-device-choice]').forEach(button => {
+        button.classList.toggle('active', button.dataset.deviceChoice === deviceTypeSelect.value);
+      });
+    }
+
     function updateSummary() {
       const data = getBookingData();
       const name = data.name || 'Requester';
-      const location = data.location || 'selected location';
-      const date = formatDate(data.bookingDate);
-      const start = data.startTime || 'start time';
-      const end = data.endTime || 'end time';
+      const location = data.location || 'Not selected';
+      const date = data.bookingDate ? formatDate(data.bookingDate) : 'Not selected';
+      const time = data.startTime && data.endTime ? `${data.startTime}–${data.endTime}` : 'Not selected';
       const devices = data.devicesRequired || 1;
-      const deviceType = data.deviceType || 'selected device type';
-      const softwareRequirement = data.softwareRequirement !== 'None'
-        ? ` with <strong>${data.softwareRequirement}</strong>`
-        : '';
-
-      const recurrenceText = bookingMode === 'recurring'
-        ? ` This is a recurring request with <strong>${Number(recurrenceCount.value)}</strong> occurrences.`
-        : '';
+      const deviceType = data.deviceType || 'Not selected';
+      const softwareRequirement = data.softwareRequirement !== 'None' ? data.softwareRequirement : 'None';
       const additionalResources = getSelectedAdditionalResources();
       const accessoryText = additionalResources.length
-        ? ` Additional resources requested: <strong>${additionalResources.map(item => `${item.quantity} ${item.type}`).join(', ')}</strong>.`
-        : '';
+        ? additionalResources.map(item => `${item.quantity} ${item.type}`).join(', ')
+        : 'None';
+      const bookingTypeText = bookingMode === 'recurring'
+        ? `Recurring · ${Number(recurrenceCount.value)} occurrence(s)`
+        : 'One-Time';
 
-      summary.innerHTML = `<strong>${name}</strong> is requesting <strong>${devices}</strong> <strong>${deviceType}</strong> device${devices > 1 ? 's' : ''}${softwareRequirement} for <strong>${location}</strong> on <strong>${date}</strong>, from <strong>${start}</strong> to <strong>${end}</strong>.${accessoryText}${recurrenceText}`;
+      summary.innerHTML = `
+        <strong>Booking Summary</strong>
+        <div class="review-grid">
+          <div class="review-item"><span>Requester</span><strong>${name}</strong></div>
+          <div class="review-item"><span>Booking Type</span><strong>${bookingTypeText}</strong></div>
+          <div class="review-item"><span>Device</span><strong>${devices} ${deviceType}</strong></div>
+          <div class="review-item"><span>Date & Time</span><strong>${date}<br>${time}</strong></div>
+          <div class="review-item"><span>Location</span><strong>${location}</strong></div>
+          <div class="review-item"><span>Apps</span><strong>${softwareRequirement}</strong></div>
+          <div class="review-item"><span>Accessories</span><strong>${accessoryText}</strong></div>
+          <div class="review-item"><span>Allocation</span><strong>Automatic after submission</strong></div>
+        </div>
+        <div class="fulfilment-hint"><strong>Fulfilment note:</strong> Deployment resources will be delivered to the selected location. If a collection-only resource such as an iPad Bag is allocated, the confirmation message will instruct the user to collect it from the ICT Work Room.</div>
+      `;
+
+      updateDeviceChoiceCards();
+      updateGuidedVisibility();
     }
 
     function showStatus(type, message) {
@@ -1916,7 +2274,12 @@ document.getElementById("requesterName").textContent = user.name;
           ? ` Allocation method: <strong>${allocation.allocationMethod}</strong>.`
           : '';
 
-        return `Booking confirmed. Allocated resources: <strong>${allocatedResources}</strong>. Total allocated capacity: <strong>${allocation.totalAllocatedCapacity || 0}</strong> devices.${method}`;
+        const isCollection = String(savedBooking.fulfilmentMode || savedBooking.fulfillmentMode || '').toLowerCase() === 'collection' || String(savedBooking.deploymentRequired).toLowerCase() === 'false' || String(savedBooking.deploymentStatus || '').toLowerCase() === 'collection only';
+        const fulfilmentMessage = isCollection
+          ? ` <br><br><strong>Collection Required:</strong> Please collect <strong>${allocatedResources}</strong> from the ICT Work Room before your booking and return it after the session.`
+          : ` <br><br><strong>Deployment:</strong> The allocated resource will be prepared for <strong>${savedBooking.location || 'the selected location'}</strong>.`;
+
+        return `Booking confirmed. Allocated resources: <strong>${allocatedResources}</strong>. Total allocated capacity: <strong>${allocation.totalAllocatedCapacity || 0}</strong> devices.${method}${fulfilmentMessage}`;
       }
 
       return `Booking saved but could not be fully fulfilled with the currently available resources. Status: <strong>${savedBooking.status}</strong>.`;
@@ -1932,6 +2295,25 @@ document.getElementById("requesterName").textContent = user.name;
 
       increaseDevices.addEventListener('click', () => adjustDeviceCount(1));
       decreaseDevices.addEventListener('click', () => adjustDeviceCount(-1));
+
+      document.querySelectorAll('[data-device-choice]').forEach(button => {
+        button.addEventListener('click', () => {
+          deviceTypeSelect.value = button.dataset.deviceChoice || '';
+          updateSummary();
+        });
+      });
+
+      document.querySelectorAll('[data-quick-qty]').forEach(button => {
+        button.addEventListener('click', () => {
+          devicesRequired.value = button.dataset.quickQty;
+          syncAccessoryQuantitiesToDeviceCount();
+          updateSummary();
+        });
+      });
+
+      deviceTypeSelect.addEventListener('change', updateSummary);
+      startTime.addEventListener('change', updateSummary);
+      endTime.addEventListener('change', updateSummary);
 
       additionalResourcesList.addEventListener('change', event => {
         const row = event.target.closest('.additional-resource-row');
