@@ -598,6 +598,42 @@
       }
     }
 
+
+    .guided-section-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 16px;
+      padding-top: 14px;
+      border-top: 1px dashed #cbd5e1;
+    }
+
+    .section-next-button {
+      border: 0;
+      min-height: 44px;
+      padding: 0 16px;
+      border-radius: 14px;
+      background: var(--primary);
+      color: #ffffff;
+      font-weight: 900;
+      cursor: pointer;
+      box-shadow: 0 10px 22px rgba(15, 118, 110, 0.18);
+    }
+
+    .section-next-button:disabled {
+      background: #e2e8f0;
+      color: #94a3b8;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    @media (max-width: 760px) {
+      .guided-section-actions {
+        align-items: stretch;
+        flex-direction: column;
+      }
+    }
+
     .summary {
       margin-top: 22px;
       border-radius: 18px;
@@ -1633,6 +1669,11 @@
                 </div>
                 <div id="additionalResourcesList"></div>
               </div>
+
+              <div class="guided-section-actions">
+                <button type="button" id="continueToTimingBtn" class="section-next-button" disabled>Next: Select timing</button>
+                <span class="helper">Adjust quantity, apps and accessories first, then continue when ready.</span>
+              </div>
             </div>
           </section>
 
@@ -1843,6 +1884,7 @@ document.getElementById("requesterName").textContent = user.name;
     let increaseRecurrence;
     let recurrencePreview;
     let recurringPermissionNote;
+    let continueToTimingBtn;
     let bookingMode = 'one-time';
     let repeatIntervalWeeks = 1;
     let currentBookingRequestId = createBookingRequestId();
@@ -1902,6 +1944,7 @@ document.getElementById("requesterName").textContent = user.name;
       increaseRecurrence = getRequiredElement('increaseRecurrence');
       recurrencePreview = getRequiredElement('recurrencePreview');
       recurringPermissionNote = getRequiredElement('recurringPermissionNote');
+      continueToTimingBtn = getRequiredElement('continueToTimingBtn');
     }
 
     async function fetchJSONList(endpoint, key) {
@@ -2183,6 +2226,7 @@ document.getElementById("requesterName").textContent = user.name;
       document.getElementById('timingSection')?.classList.toggle('locked', !hasDevice);
       document.getElementById('locationSection')?.classList.toggle('locked', !hasDevice || !hasDateTime);
       document.getElementById('reviewSection')?.classList.toggle('locked', !hasDevice || !hasDateTime || !hasLocation);
+      if (continueToTimingBtn) continueToTimingBtn.disabled = !hasDevice;
 
       const stepChoose = document.getElementById('stepChoose');
       const stepWhen = document.getElementById('stepWhen');
@@ -2250,22 +2294,37 @@ document.getElementById("requesterName").textContent = user.name;
     let guidedScrollTimer = null;
     let lastGuidedTargetId = '';
 
-    function scheduleGuidedScroll() {
+    function getScrollOffset() {
+      const nav = document.querySelector('.portal-nav-v2');
+      const navHeight = nav ? nav.getBoundingClientRect().height : 0;
+      return Math.max(16, navHeight + 18);
+    }
+
+    function smoothScrollToSection(section) {
+      if (!section || section.classList.contains('locked')) return;
+
+      const targetId = section.id || '';
+      if (targetId === lastGuidedTargetId) return;
+      lastGuidedTargetId = targetId;
+
+      const targetTop = section.getBoundingClientRect().top + window.pageYOffset - getScrollOffset();
+
+      section.classList.add('just-unlocked');
+      window.scrollTo({
+        top: Math.max(0, targetTop),
+        behavior: 'smooth'
+      });
+      focusFirstControlInSection(section);
+
+      window.setTimeout(() => section.classList.remove('just-unlocked'), 950);
+    }
+
+    function scheduleGuidedScroll(targetSection = null) {
       window.clearTimeout(guidedScrollTimer);
       guidedScrollTimer = window.setTimeout(() => {
-        const section = getNextIncompleteSection();
-        if (!section || section.classList.contains('locked')) return;
-
-        const targetId = section.id || '';
-        if (targetId === lastGuidedTargetId) return;
-        lastGuidedTargetId = targetId;
-
-        section.classList.add('just-unlocked');
-        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        focusFirstControlInSection(section);
-
-        window.setTimeout(() => section.classList.remove('just-unlocked'), 950);
-      }, 180);
+        const section = targetSection || getNextIncompleteSection();
+        smoothScrollToSection(section);
+      }, 220);
     }
 
     function updateSummary() {
@@ -2431,11 +2490,15 @@ document.getElementById("requesterName").textContent = user.name;
       increaseDevices.addEventListener('click', () => adjustDeviceCount(1));
       decreaseDevices.addEventListener('click', () => adjustDeviceCount(-1));
 
+      continueToTimingBtn.addEventListener('click', () => {
+        updateSummary();
+        scheduleGuidedScroll(document.getElementById('timingSection'));
+      });
+
       document.querySelectorAll('[data-device-choice]').forEach(button => {
         button.addEventListener('click', () => {
           deviceTypeSelect.value = button.dataset.deviceChoice || '';
           updateSummary();
-          scheduleGuidedScroll();
         });
       });
 
@@ -2449,15 +2512,18 @@ document.getElementById("requesterName").textContent = user.name;
 
       deviceTypeSelect.addEventListener('change', () => {
         updateSummary();
-        scheduleGuidedScroll();
       });
       startTime.addEventListener('change', () => {
         updateSummary();
-        scheduleGuidedScroll();
+        if (bookingDate.value && startTime.value && endTime.value && endTime.value > startTime.value) {
+          scheduleGuidedScroll();
+        }
       });
       endTime.addEventListener('change', () => {
         updateSummary();
-        scheduleGuidedScroll();
+        if (bookingDate.value && startTime.value && endTime.value && endTime.value > startTime.value) {
+          scheduleGuidedScroll();
+        }
       });
 
       additionalResourcesList.addEventListener('click', event => {
@@ -2499,7 +2565,6 @@ document.getElementById("requesterName").textContent = user.name;
         }
         updateAccessorySelectionStyles();
         updateSummary();
-        scheduleGuidedScroll();
       });
 
       additionalResourcesList.addEventListener('input', () => {
@@ -2510,7 +2575,9 @@ document.getElementById("requesterName").textContent = user.name;
       locationSelect.addEventListener('change', () => {
         toggleCustomLocationField();
         updateSummary();
-        scheduleGuidedScroll();
+        if (getBookingData().location) {
+          scheduleGuidedScroll();
+        }
       });
 
       bookingDate.addEventListener('change', () => {
@@ -2519,13 +2586,12 @@ document.getElementById("requesterName").textContent = user.name;
         }
         updateRecurrencePreview();
         updateSummary();
-        scheduleGuidedScroll();
       });
 
       form.addEventListener('input', event => {
         statusMessage.className = 'status';
         updateSummary();
-        if (event.target === customLocationInput || event.target === bookingDate) {
+        if (event.target === customLocationInput && customLocationInput.value.trim()) {
           scheduleGuidedScroll();
         }
       });
