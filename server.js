@@ -2203,6 +2203,71 @@ function extractLegacyLocation(row) {
   };
 }
 
+function getAccessoryDetectionRules() {
+  return getAvailableAccessoryTypes().map(type => {
+    const normalisedType = String(type || "").trim();
+    const escapedType = normalisedType.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s*");
+    const aliases = [escapedType];
+
+    if (/apple\s*pencil/i.test(normalisedType)) {
+      aliases.push("apple\\s*pencils?", "pencils?", "stylus(?:es)?");
+    } else if (/headset/i.test(normalisedType)) {
+      aliases.push("head\\s*sets?", "headsets?", "headphones?", "earpieces?");
+    } else if (/mouse/i.test(normalisedType)) {
+      aliases.push("mouses?", "mice");
+    }
+
+    return {
+      type: normalisedType,
+      pattern: new RegExp(`(?:${aliases.join("|")})`, "i")
+    };
+  });
+}
+
+function detectQuantityNearAccessory(text, matchIndex, matchLength) {
+  const leftContext = text.slice(Math.max(0, matchIndex - 36), matchIndex);
+  const rightContext = text.slice(matchIndex + matchLength, Math.min(text.length, matchIndex + matchLength + 36));
+
+  const quantityPatterns = [
+    /(?:qty|quantity|x|×|need|needs|needed|require|requires|required|request|requests|requested|for|with)\s*[:=-]?\s*(\d{1,3})\s*$/i,
+    /(\d{1,3})\s*(?:x|×|pcs?|pieces?|units?|sets?|pairs?|nos?\.?|number)?\s*$/i,
+    /^\s*(?:qty|quantity|x|×|need|needs|needed|require|requires|required|request|requests|requested|for|with)?\s*[:=-]?\s*(\d{1,3})\b/i,
+    /^\s*(?:-|–|—|:)\s*(\d{1,3})\b/i
+  ];
+
+  for (const pattern of quantityPatterns.slice(0, 2)) {
+    const match = leftContext.match(pattern);
+    if (match) return Number(match[1]);
+  }
+
+  for (const pattern of quantityPatterns.slice(2)) {
+    const match = rightContext.match(pattern);
+    if (match) return Number(match[1]);
+  }
+
+  return 0;
+}
+
+function inferLegacyAccessoriesFromText(text, sourceLabel) {
+  const rawText = normaliseImportValue(text);
+  if (!rawText) return { accessories: [], resolutions: [] };
+
+  const accessories = [];
+  const resolutions = [];
+  const rules = getAccessoryDetectionRules();
+
+  rules.forEach(rule => {
+    const match = rawText.match(rule.pattern);
+    if (!match) return;
+
+    const quantity = detectQuantityNearAccessory(rawText, match.index || 0, match[0].length);
+    accessories.push({ type: rule.type, quantity });
+    resolutions.push(`${rule.type} detected from ${sourceLabel}${quantity > 0 ? ` (${quantity})` : ""}`);
+  });
+
+  return { accessories, resolutions };
+}
+
 function mergeAccessoryQuantities(accessories, defaultQuantity) {
   const byType = new Map();
 
@@ -2211,10 +2276,14 @@ function mergeAccessoryQuantities(accessories, defaultQuantity) {
     if (!type) return;
     const quantity = Number(item.quantity) > 0 ? Number(item.quantity) : defaultQuantity;
     const key = type.toLowerCase();
+
+    // Legacy exports often mention the same accessory in both the Resources
+    // column and the Purpose/Booking Remarks columns. Use the highest detected
+    // quantity instead of summing duplicate mentions, to avoid over-booking.
     if (!byType.has(key)) {
       byType.set(key, { type, quantity });
     } else {
-      byType.get(key).quantity += quantity;
+      byType.get(key).quantity = Math.max(byType.get(key).quantity, quantity);
     }
   });
 
@@ -2276,7 +2345,11 @@ function mapLegacyBookingRow(row, index, users) {
     "Software Requirement", "Software", "softwareRequirement"
   ])) || legacyResourceInference.softwareRequirement || "None";
 
+  const legacyPurpose = normaliseImportValue(getImportValue(row, ["Purpose"]));
+  const legacyBookingRemarks = normaliseImportValue(getImportValue(row, ["Booking Remarks", "Booking Remark", "Remarks", "Remark", "bookingRemarks"]));
+
   const additionalResources = [];
+  const accessoryResolutionNotes = [];
 
   accessoryTypes.forEach(type => {
     const quantity = Number(getImportValue(row, [
@@ -2288,6 +2361,14 @@ function mapLegacyBookingRow(row, index, users) {
   });
 
   legacyResourceInference.accessoryResources.forEach(item => additionalResources.push(item));
+
+  const purposeAccessories = inferLegacyAccessoriesFromText(legacyPurpose, "Purpose");
+  purposeAccessories.accessories.forEach(item => additionalResources.push(item));
+  purposeAccessories.resolutions.forEach(note => accessoryResolutionNotes.push(note));
+
+  const remarksAccessories = inferLegacyAccessoriesFromText(legacyBookingRemarks, "Booking Remarks");
+  remarksAccessories.accessories.forEach(item => additionalResources.push(item));
+  remarksAccessories.resolutions.forEach(note => accessoryResolutionNotes.push(note));
 
   const legacyResourceType = normaliseImportValue(getImportValue(row, [
     "Accessory Type", "Additional Resource Type", "Additional Resource", "Peripheral", "Accessory"
@@ -2347,8 +2428,9 @@ function mapLegacyBookingRow(row, index, users) {
     matchedResourceName: legacyResourceInference.matchedResourceName || "",
     matchedResourceCategory: legacyResourceInference.matchedResourceCategory || "",
     legacyResourceResolution: legacyResourceInference.resourceResolution || "",
-    legacyPurpose: normaliseImportValue(getImportValue(row, ["Purpose"])),
-    legacyBookingRemarks: normaliseImportValue(getImportValue(row, ["Booking Remarks", "Remarks", "Remark"])),
+    legacyAccessoryResolution: accessoryResolutionNotes.join("; "),
+    legacyPurpose,
+    legacyBookingRemarks,
     legacyLocationResolution: locationResolution.resolution,
     importWarnings: {
       warning: warnings

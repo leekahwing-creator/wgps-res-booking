@@ -1664,6 +1664,7 @@
                 const legacyResource = booking.legacyResourceText || '-';
                 const portalResource = booking.matchedResourceName || (booking.deviceType && booking.deviceType !== '-' ? `${booking.devicesRequired || '-'} ${booking.deviceType}` : '-');
                 const resourceResolution = booking.legacyResourceResolution || '';
+                const accessoryResolution = booking.legacyAccessoryResolution || '-';
                 return `<tr class="preview-summary-row">
                   <td class="col-row">${escapeHtml(row.rowNumber)}</td>
                   <td class="col-status"><span class="status-pill ${row.valid ? 'valid' : 'invalid'}">${rowStatus}</span></td>
@@ -1677,7 +1678,7 @@
                   <td colspan="7">
                     <div class="preview-detail-panel">
                       <div class="detail-grid">
-                        <div class="detail-card"><span class="detail-label">Accessories</span><div class="detail-value">${escapeHtml(accessoryList)}</div></div>
+                        <div class="detail-card"><span class="detail-label">Accessories</span><div class="detail-value">${escapeHtml(accessoryList)}<br><span class="location-resolution">${escapeHtml(accessoryResolution)}</span></div></div>
                         <div class="detail-card"><span class="detail-label">Issues / warnings</span><div class="detail-value">${escapeHtml(issues)}</div></div>
                         <div class="detail-card"><span class="detail-label">Legacy resource text</span><div class="detail-value">${escapeHtml(legacyResource)}</div></div>
                         <div class="detail-card"><span class="detail-label">Portal resource mapping</span><div class="detail-value">${escapeHtml(portalResource)}${booking.matchedResourceId ? ` (${escapeHtml(booking.matchedResourceId)})` : ''}<br>${escapeHtml(resourceResolution || '-')}</div></div>
