@@ -1233,6 +1233,12 @@
     .file-info-panel.active { display: block; }
     .file-info-panel strong { color: var(--primary-dark); }
 
+    .file-diagnostics { margin-top: 10px; display: grid; gap: 8px; }
+    .diagnostic-pill-row { display: flex; flex-wrap: wrap; gap: 8px; }
+    .diagnostic-pill { display:inline-flex; align-items:center; gap:6px; padding:6px 9px; border-radius:999px; border:1px solid var(--border); background:#fff; color:#334155; font-size:.82rem; font-weight:800; }
+    .diagnostic-pill.ok { background:#dcfce7; border-color:#bbf7d0; color:#166534; }
+    .diagnostic-pill.missing { background:#fee2e2; border-color:#fecaca; color:#991b1b; }
+
 
     .range-card {
       border: 1px solid var(--border);
@@ -1593,22 +1599,178 @@
       return normalised;
     }
 
+    function normaliseHeaderText(value) {
+      return String(value ?? '')
+        .normalize('NFKC')
+        .replace(/[\u00A0\u2000-\u200D\uFEFF]/g, ' ')
+        .replace(/[\r\n\t]+/g, ' ')
+        .replace(/[^a-zA-Z0-9/()@._ -]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
+    }
+
+    function headerMatches(header, aliases) {
+      const normalised = normaliseHeaderText(header);
+      return aliases.some(alias => normalised === normaliseHeaderText(alias));
+    }
+
+    const REQUIRED_LEGACY_HEADER_GROUPS = [
+      { key: 'date', label: 'Date', aliases: ['date', 'booking date'] },
+      { key: 'resources', label: 'Resources', aliases: ['resources', 'resource'] },
+      { key: 'timeslots', label: 'Timeslots', aliases: ['timeslots', 'time slots', 'time slot', 'periods'] }
+    ];
+
+    const OPTIONAL_LEGACY_HEADER_GROUPS = [
+      { key: 'purpose', label: 'Purpose', aliases: ['purpose'] },
+      { key: 'remarks', label: 'Booking Remarks', aliases: ['booking remarks', 'booking remark', 'remarks', 'remark'] },
+      { key: 'bookedFor', label: 'Booked For', aliases: ['booked for', 'requester', 'requester email', 'email'] },
+      { key: 'bookedBy', label: 'Booked By', aliases: ['booked by', 'requester name', 'name', 'teacher', 'user'] }
+    ];
+
+    function analyseHeaderCells(cells) {
+      const normalisedCells = (cells || []).map(normaliseHeaderText).filter(Boolean);
+      const detected = {};
+
+      [...REQUIRED_LEGACY_HEADER_GROUPS, ...OPTIONAL_LEGACY_HEADER_GROUPS].forEach(group => {
+        detected[group.key] = normalisedCells.some(cell =>
+          group.aliases.some(alias => cell === normaliseHeaderText(alias))
+        );
+      });
+
+      const requiredScore = REQUIRED_LEGACY_HEADER_GROUPS.reduce((score, group) => score + (detected[group.key] ? 1 : 0), 0);
+      const optionalScore = OPTIONAL_LEGACY_HEADER_GROUPS.reduce((score, group) => score + (detected[group.key] ? 1 : 0), 0);
+
+      return {
+        detected,
+        requiredScore,
+        optionalScore,
+        totalScore: requiredScore * 10 + optionalScore,
+        normalisedCells
+      };
+    }
+
     function findLegacyHeaderRow(sheet) {
       const rows = XLSX.utils.sheet_to_json(sheet, {
         header: 1,
         defval: '',
-        raw: false
+        raw: false,
+        blankrows: false
       });
 
-      for (let index = 0; index < Math.min(rows.length, 20); index++) {
-        const normalisedCells = (rows[index] || []).map(cell => String(cell || '').trim().toLowerCase());
-        const hasDate = normalisedCells.includes('date');
-        const hasResources = normalisedCells.includes('resources') || normalisedCells.includes('resource');
-        const hasTimeslots = normalisedCells.includes('timeslots') || normalisedCells.includes('time slots');
-        if (hasDate && hasResources && hasTimeslots) return index;
+      let best = { index: 0, analysis: analyseHeaderCells([]) };
+      const searchLimit = Math.min(rows.length, 100);
+
+      for (let index = 0; index < searchLimit; index++) {
+        const analysis = analyseHeaderCells(rows[index] || []);
+        if (analysis.totalScore > best.analysis.totalScore) {
+          best = { index, analysis };
+        }
+
+        // Date + Resources + Timeslots is a strong legacy report signature.
+        if (analysis.requiredScore === REQUIRED_LEGACY_HEADER_GROUPS.length) {
+          return { index, analysis, rowsScanned: searchLimit };
+        }
       }
 
-      return 0;
+      return { index: best.index, analysis: best.analysis, rowsScanned: searchLimit };
+    }
+
+    function findBestWorksheet(workbook) {
+      let best = null;
+
+      workbook.SheetNames.forEach(sheetName => {
+        const sheet = workbook.Sheets[sheetName];
+        const header = findLegacyHeaderRow(sheet);
+        const candidate = { sheetName, sheet, header };
+
+        if (!best || candidate.header.analysis.totalScore > best.header.analysis.totalScore) {
+          best = candidate;
+        }
+      });
+
+      if (!best) {
+        throw new Error('The Excel workbook does not contain a readable worksheet.');
+      }
+
+      return best;
+    }
+
+    function sheetToRowsFromHeader(sheet, headerRowIndex) {
+      return XLSX.utils.sheet_to_json(sheet, {
+        defval: '',
+        raw: false,
+        range: headerRowIndex,
+        blankrows: false
+      }).map(normaliseExcelRow)
+        .filter(row => Object.values(row).some(value => String(value || '').trim()));
+    }
+
+    function validateParsedWorkbook(parsed) {
+      const requiredDetected = REQUIRED_LEGACY_HEADER_GROUPS.every(group => parsed.headerAnalysis?.detected?.[group.key]);
+      if (!requiredDetected) {
+        const missing = REQUIRED_LEGACY_HEADER_GROUPS
+          .filter(group => !parsed.headerAnalysis?.detected?.[group.key])
+          .map(group => group.label)
+          .join(', ');
+        throw new Error(`Unable to confidently detect the legacy report header row. Missing expected column(s): ${missing}.`);
+      }
+
+      if (!Array.isArray(parsed.rows) || parsed.rows.length === 0) {
+        throw new Error('The detected worksheet/header row did not produce any importable rows.');
+      }
+    }
+
+    function readWorkbookFromArrayBuffer(buffer) {
+      return XLSX.read(buffer, {
+        type: 'array',
+        cellDates: true,
+        dense: false
+      });
+    }
+
+    function readWorkbookFromUint8Array(buffer) {
+      return XLSX.read(new Uint8Array(buffer), {
+        type: 'array',
+        cellDates: true,
+        dense: false
+      });
+    }
+
+    function readFileAsBinaryString(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = event => resolve(event.target?.result || '');
+        reader.onerror = () => reject(reader.error || new Error('Unable to read file using mobile-safe fallback parser.'));
+        reader.readAsBinaryString(file);
+      });
+    }
+
+    function readWorkbookFromBinaryString(binaryString) {
+      return XLSX.read(binaryString, {
+        type: 'binary',
+        cellDates: true,
+        dense: false
+      });
+    }
+
+    function parseWorkbook(workbook, parserMode) {
+      if (!workbook.SheetNames.length) {
+        throw new Error('The Excel workbook does not contain any worksheet.');
+      }
+
+      const selected = findBestWorksheet(workbook);
+      const rows = sheetToRowsFromHeader(selected.sheet, selected.header.index);
+
+      return {
+        rows,
+        sheetName: selected.sheetName,
+        sheetCount: workbook.SheetNames.length,
+        headerRowNumber: selected.header.index + 1,
+        headerAnalysis: selected.header.analysis,
+        rowsScannedForHeader: selected.header.rowsScanned,
+        parserMode
+      };
     }
 
     async function parseExcelFile(file) {
@@ -1616,34 +1778,50 @@
         throw new Error('Excel parser could not be loaded. Please check the internet connection or use CSV as a fallback.');
       }
 
+      const attempts = [];
       const buffer = await file.arrayBuffer();
-      const workbook = XLSX.read(buffer, {
-        type: 'array',
-        cellDates: true
-      });
 
-      if (!workbook.SheetNames.length) {
-        throw new Error('The Excel workbook does not contain any worksheet.');
+      try {
+        const parsed = parseWorkbook(readWorkbookFromArrayBuffer(buffer), 'arrayBuffer');
+        validateParsedWorkbook(parsed);
+        return { ...parsed, workbookName: file.name };
+      } catch (error) {
+        attempts.push(`arrayBuffer: ${error.message}`);
       }
 
-      const firstSheetName = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[firstSheetName];
-      const headerRowIndex = findLegacyHeaderRow(sheet);
+      try {
+        const parsed = parseWorkbook(readWorkbookFromUint8Array(buffer), 'Uint8Array fallback');
+        validateParsedWorkbook(parsed);
+        return { ...parsed, workbookName: file.name };
+      } catch (error) {
+        attempts.push(`Uint8Array: ${error.message}`);
+      }
 
-      const rows = XLSX.utils.sheet_to_json(sheet, {
-        defval: '',
-        raw: false,
-        range: headerRowIndex
-      }).map(normaliseExcelRow)
-        .filter(row => Object.values(row).some(value => String(value || '').trim()));
+      try {
+        const binaryString = await readFileAsBinaryString(file);
+        const parsed = parseWorkbook(readWorkbookFromBinaryString(binaryString), 'binaryString mobile fallback');
+        validateParsedWorkbook(parsed);
+        return { ...parsed, workbookName: file.name };
+      } catch (error) {
+        attempts.push(`binaryString: ${error.message}`);
+      }
 
-      return {
-        rows,
-        workbookName: file.name,
-        sheetName: firstSheetName,
-        sheetCount: workbook.SheetNames.length,
-        headerRowNumber: headerRowIndex + 1
-      };
+      throw new Error(`Unable to parse the workbook consistently on this device. ${attempts.join(' | ')}`);
+    }
+
+    function renderHeaderDiagnostics(parsedWorkbook) {
+      const allGroups = [...REQUIRED_LEGACY_HEADER_GROUPS, ...OPTIONAL_LEGACY_HEADER_GROUPS];
+      const detected = parsedWorkbook.headerAnalysis?.detected || {};
+      const pills = allGroups.map(group => {
+        const ok = Boolean(detected[group.key]);
+        return `<span class="diagnostic-pill ${ok ? 'ok' : 'missing'}">${ok ? '✓' : '−'} ${escapeHtml(group.label)}</span>`;
+      }).join('');
+
+      return `
+        <div class="file-diagnostics">
+          <div>Compatibility mode: <strong>${escapeHtml(parsedWorkbook.parserMode || 'standard')}</strong> · Header search scanned up to <strong>${escapeHtml(parsedWorkbook.rowsScannedForHeader || '')}</strong> row(s).</div>
+          <div class="diagnostic-pill-row" aria-label="Detected import columns">${pills}</div>
+        </div>`;
     }
 
     function setFileInfo(html) {
@@ -1854,7 +2032,7 @@
           structuredRowsFromFile = parsedWorkbook.rows;
           lastRows = structuredRowsFromFile;
           importText.value = JSON.stringify(structuredRowsFromFile, null, 2);
-          setFileInfo(`✓ <strong>${escapeHtml(parsedWorkbook.workbookName)}</strong><br>Excel workbook loaded · Worksheet: <strong>${escapeHtml(parsedWorkbook.sheetName)}</strong> · Rows detected: <strong>${structuredRowsFromFile.length}</strong> · Header row: <strong>${parsedWorkbook.headerRowNumber}</strong> · Worksheets: <strong>${parsedWorkbook.sheetCount}</strong>`);
+          setFileInfo(`✓ <strong>${escapeHtml(parsedWorkbook.workbookName)}</strong><br>Excel workbook loaded · Worksheet detected: <strong>${escapeHtml(parsedWorkbook.sheetName)}</strong> · Rows detected: <strong>${structuredRowsFromFile.length}</strong> · Header row: <strong>${parsedWorkbook.headerRowNumber}</strong> · Worksheets: <strong>${parsedWorkbook.sheetCount}</strong>${renderHeaderDiagnostics(parsedWorkbook)}`);
           showStatus('success', `${structuredRowsFromFile.length} Excel row(s) loaded. Select an import range, then preview the import.`);
           return;
         }
