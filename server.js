@@ -366,6 +366,35 @@ function normaliseResourceType(type) {
   return allowedTypes.includes(type) ? type : "Set";
 }
 
+function normaliseFulfilmentMode(mode, resource = {}) {
+  const cleanedMode = String(mode || resource.fulfilmentMode || resource.fulfillmentMode || "").trim();
+  const allowedModes = ["Deployment", "Collection"];
+  if (allowedModes.includes(cleanedMode)) return cleanedMode;
+
+  // Backward-compatible default for existing resources.xml records that do not
+  // yet carry a fulfilmentMode field. iPad bags are collection-only in current
+  // operating practice and should not require classroom deployment.
+  const name = String(resource.name || "").toLowerCase();
+  const deviceType = String(resource.deviceType || "").toLowerCase();
+  const resourceType = String(resource.resourceType || "").toLowerCase();
+  if (deviceType.includes("ipad") && (resourceType === "bag" || /\bipad\s+bag\b/.test(name))) {
+    return "Collection";
+  }
+
+  return "Deployment";
+}
+
+function resourceRequiresDeployment(resource = {}) {
+  return normaliseFulfilmentMode(resource.fulfilmentMode || resource.fulfillmentMode, resource) !== "Collection";
+}
+
+function bookingRequiresDeployment(booking = {}) {
+  if (booking.deploymentRequired === false) return false;
+  if (String(booking.deploymentRequired || "").toLowerCase() === "false") return false;
+  if (String(booking.fulfilmentMode || booking.fulfillmentMode || "").toLowerCase() === "collection") return false;
+  return true;
+}
+
 function normaliseDeviceType(type) {
   return String(type || "").trim() || "iPad";
 }
@@ -478,6 +507,7 @@ function buildResourcesXml(resources, softwareCatalog) {
           resourceType: normaliseResourceType(resource.resourceType),
           status: normaliseResourceStatus(resource.status),
           location: String(resource.location || "").trim(),
+          fulfilmentMode: normaliseFulfilmentMode(resource.fulfilmentMode || resource.fulfillmentMode, resource),
           software: {
             item: softwareItems
           },
@@ -599,6 +629,8 @@ function formatResourceForResponse(resource) {
     resourceType: normaliseResourceType(resource.resourceType),
     status: normaliseResourceStatus(resource.status),
     location: resource.location || "",
+    fulfilmentMode: normaliseFulfilmentMode(resource.fulfilmentMode || resource.fulfillmentMode, resource),
+    deploymentRequired: resourceRequiresDeployment(resource),
     software: normaliseSoftwareItems(resource.software),
     notes: resource.notes || "",
     createdAt: resource.createdAt || "",
@@ -2094,6 +2126,8 @@ function inferLegacyResource(resourceText) {
     matchedResourceId: "",
     matchedResourceName: "",
     matchedResourceCategory: "",
+    matchedResourceFulfilmentMode: "Deployment",
+    matchedResourceDeploymentRequired: true,
     resourceResolution: "",
     accessoryResources: [],
     softwareRequirement: "None",
@@ -2138,6 +2172,8 @@ function inferLegacyResource(resourceText) {
     result.matchedResourceId = resource.id || "";
     result.matchedResourceName = resource.name || "";
     result.matchedResourceCategory = resource.category || "";
+    result.matchedResourceFulfilmentMode = normaliseFulfilmentMode(resource.fulfilmentMode || resource.fulfillmentMode, resource);
+    result.matchedResourceDeploymentRequired = resourceRequiresDeployment(resource);
     result.resourceResolution = registeredMatch.resolution;
 
     if (resource.category === "Accessory") {
@@ -2543,7 +2579,16 @@ function mapLegacyBookingRow(row, index, users) {
   ])) || injectedSegment?.endTime || timeslotParse.endTime;
 
   const locationResolution = extractLegacyLocation(row);
-  const location = locationResolution.location;
+  let location = locationResolution.location;
+
+  const isCollectionOnlyResource = legacyResourceInference.isICT && legacyResourceInference.matchedResourceDeploymentRequired === false;
+  const fulfilmentMode = isCollectionOnlyResource ? "Collection" : "Deployment";
+  const deploymentRequired = fulfilmentMode !== "Collection";
+  if (!location && isCollectionOnlyResource) {
+    location = "ICT Work Room Collection";
+    locationResolution.location = location;
+    locationResolution.resolution = "Collection-only resource; no deployment location required";
+  }
 
   const deviceType = normaliseImportValue(getImportValue(row, [
     "Device Type", "deviceType"
@@ -2607,7 +2652,7 @@ function mapLegacyBookingRow(row, index, users) {
   if (!bookingDate) errors.push("Booking date is required.");
   if (!startTime) errors.push("Start time is required.");
   if (!endTime) errors.push("End time is required.");
-  if (!location) errors.push("Deployment location could not be detected from the legacy record.");
+  if (!location && deploymentRequired) errors.push("Deployment location could not be detected from the legacy record.");
   if (!deviceType) errors.push(legacyResourceInference.reason || "Device type is required.");
   if (!Number.isInteger(devicesRequired) || devicesRequired <= 0) errors.push("Number of devices must be a positive whole number.");
 
@@ -2617,6 +2662,10 @@ function mapLegacyBookingRow(row, index, users) {
 
   if (locationResolution.resolution && locationResolution.resolution !== "Matched existing location") {
     warnings.push(locationResolution.resolution);
+  }
+
+  if (isCollectionOnlyResource) {
+    warnings.push("Collection-only resource; excluded from DE Deployment Dashboard.");
   }
 
   if (row.__legacyResourceSegment?.resolution) {
@@ -2631,6 +2680,9 @@ function mapLegacyBookingRow(row, index, users) {
     startTime,
     endTime,
     location,
+    fulfilmentMode,
+    deploymentRequired,
+    collectionInstructions: isCollectionOnlyResource ? "Collect from ICT Work Room and return after the booking session." : "",
     deviceType,
     devicesRequired,
     softwareRequirement,
@@ -2647,6 +2699,7 @@ function mapLegacyBookingRow(row, index, users) {
     matchedResourceId: legacyResourceInference.matchedResourceId || "",
     matchedResourceName: legacyResourceInference.matchedResourceName || "",
     matchedResourceCategory: legacyResourceInference.matchedResourceCategory || "",
+    matchedResourceFulfilmentMode: legacyResourceInference.matchedResourceFulfilmentMode || fulfilmentMode,
     legacyResourceResolution: legacyResourceInference.resourceResolution || "",
     legacyAccessoryResolution: accessoryResolutionNotes.join("; "),
     legacyPurpose,
@@ -2802,7 +2855,7 @@ function saveImportedBooking(mappedBooking, importerUser) {
     ...bookingRequest,
     status: allocationResult.status,
     allocation: allocationResult.allocation,
-    deploymentStatus: "Pending Deployment",
+    deploymentStatus: bookingRequiresDeployment(bookingRequest) ? "Pending Deployment" : "Collection Only",
     claimedByUserId: "",
     claimedByName: "",
     claimedAt: "",
@@ -3004,7 +3057,7 @@ app.post("/api/bookings", requireLogin, (req, res) => {
         ...singleBookingRequest,
         status: allocationResult.status,
         allocation: allocationResult.allocation,
-        deploymentStatus: "Pending Deployment",
+        deploymentStatus: bookingRequiresDeployment(singleBookingRequest) ? "Pending Deployment" : "Collection Only",
         claimedByUserId: "",
         claimedByName: "",
         claimedAt: "",
@@ -3339,6 +3392,7 @@ app.get("/api/de/bookings", requireLogin, requireDEOrAdmin, (req, res) => {
     const bookings = readBookingsFromFile(bookingsFile)
       .filter(booking => booking.bookingDate === bookingDate)
       .filter(booking => booking.status !== "Deleted" && booking.status !== "Cancelled")
+      .filter(booking => bookingRequiresDeployment(booking))
       .sort((a, b) => `${a.startTime || ""} ${a.location || ""}`.localeCompare(`${b.startTime || ""} ${b.location || ""}`));
 
     const users = getUsersFromXML();
@@ -3986,6 +4040,7 @@ app.post("/api/admin/resources", requireLogin, requireAdmin, (req, res) => {
       resourceType,
       status: normaliseResourceStatus(payload.status),
       location: String(payload.location || "").trim(),
+      fulfilmentMode: normaliseFulfilmentMode(payload.fulfilmentMode || payload.fulfillmentMode, { ...payload, name, category, deviceType, resourceType }),
       software: { item: normaliseSoftwareItems(payload.software) },
       notes: String(payload.notes || "").trim(),
       createdAt: now,
@@ -4037,6 +4092,7 @@ app.put("/api/admin/resources/:resourceId", requireLogin, requireAdmin, (req, re
       resourceType: normaliseResourceType(payload.resourceType),
       status: normaliseResourceStatus(payload.status),
       location: String(payload.location || "").trim(),
+      fulfilmentMode: normaliseFulfilmentMode(payload.fulfilmentMode || payload.fulfillmentMode, { ...payload, name: String(payload.name || "").trim(), category: normaliseResourceCategory(payload.category), deviceType: normaliseDeviceType(payload.deviceType), resourceType: normaliseResourceType(payload.resourceType) }),
       software: { item: normaliseSoftwareItems(payload.software) },
       notes: String(payload.notes || "").trim(),
       updatedAt: new Date().toISOString()

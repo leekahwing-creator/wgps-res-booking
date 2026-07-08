@@ -1707,6 +1707,14 @@
             <label for="resourceLocation">Storage / default location</label>
             <input id="resourceLocation" type="text" placeholder="e.g. ICT Room" />
           </div>
+          <div class="field">
+            <label for="fulfilmentMode">Fulfilment mode</label>
+            <select id="fulfilmentMode">
+              <option value="Deployment">DE Deployment</option>
+              <option value="Collection">Collection from ICT Work Room</option>
+            </select>
+            <span class="note">Collection-only resources do not require a deployment location and will not appear on the DE Dashboard.</span>
+          </div>
           <div class="field" id="addSoftwareField">
             <label>Installed software</label>
             <div id="softwareChecklist" class="software-checklist"></div>
@@ -1784,6 +1792,15 @@
           <div class="field">
             <label for="editResourceLocation">Storage / default location</label>
             <input id="editResourceLocation" type="text" placeholder="e.g. ICT Room" />
+          </div>
+
+          <div class="field">
+            <label for="editFulfilmentMode">Fulfilment mode</label>
+            <select id="editFulfilmentMode">
+              <option value="Deployment">DE Deployment</option>
+              <option value="Collection">Collection from ICT Work Room</option>
+            </select>
+            <span class="note">Collection-only resources do not require a deployment location and will not appear on the DE Dashboard.</span>
           </div>
 
           <div class="field" id="editSoftwareField">
@@ -2056,7 +2073,7 @@
               <span class="small-avatar">${escapeHtml(getInitial(resource.name))}</span>
               <span class="identity-text">
                 <strong>${escapeHtml(resource.name)}</strong>
-                <span>ID: ${escapeHtml(resource.id)} · Type: ${escapeHtml(resource.resourceType || '-')}</span>
+                <span>ID: ${escapeHtml(resource.id)} · Type: ${escapeHtml(resource.resourceType || '-')} · ${String(resource.fulfilmentMode || 'Deployment') === 'Collection' ? 'Collection' : 'Deployment'}</span>
               </span>
             </div>
           </td>
@@ -2386,6 +2403,7 @@
       document.getElementById('capacity').value = 1;
       document.getElementById('resourceStatus').value = 'Available';
       document.getElementById('resourceLocation').value = '';
+      document.getElementById('fulfilmentMode').value = category === 'Accessory' ? 'Collection' : 'Deployment';
       document.getElementById('notes').value = '';
       renderSoftwareChecklist('softwareChecklist', []);
       updateSoftwareFieldVisibility(category, 'addSoftwareField', 'softwareChecklist');
@@ -2406,6 +2424,7 @@
         capacity: Number(document.getElementById('capacity').value),
         status: document.getElementById('resourceStatus').value,
         location: document.getElementById('resourceLocation').value.trim(),
+        fulfilmentMode: document.getElementById('fulfilmentMode').value,
         software: document.getElementById('resourceCategory').value === 'Accessory' ? [] : getSelectedSoftware('softwareChecklist'),
         notes: document.getElementById('notes').value.trim()
       };
@@ -2444,6 +2463,7 @@
       document.getElementById('editCapacity').value = selectedResource.capacity || 1;
       document.getElementById('editResourceStatus').value = selectedResource.status || 'Available';
       document.getElementById('editResourceLocation').value = selectedResource.location || '';
+      document.getElementById('editFulfilmentMode').value = selectedResource.fulfilmentMode || (selectedResource.deploymentRequired === false ? 'Collection' : 'Deployment');
       document.getElementById('editNotes').value = selectedResource.notes || '';
       renderSoftwareChecklist('editSoftwareChecklist', selectedResource.software || []);
       updateSoftwareFieldVisibility(selectedResource.category || 'Device', 'editSoftwareField', 'editSoftwareChecklist');
@@ -2473,6 +2493,7 @@
         capacity: Number(document.getElementById('editCapacity').value),
         status: document.getElementById('editResourceStatus').value,
         location: document.getElementById('editResourceLocation').value.trim(),
+        fulfilmentMode: document.getElementById('editFulfilmentMode').value,
         software: document.getElementById('editResourceCategory').value === 'Accessory' ? [] : getSelectedSoftware('editSoftwareChecklist'),
         notes: document.getElementById('editNotes').value.trim()
       };

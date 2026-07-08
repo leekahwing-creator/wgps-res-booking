@@ -1284,6 +1284,7 @@
               <div class="meta-box"><span>Resources</span><strong>${getResourceList(booking)}</strong></div>
               <div class="meta-box"><span>Accessories</span><strong>${formatAdditionalResources(booking.additionalResources)}</strong></div>
               <div class="meta-box"><span>Accessory Allocation</span><strong>${getAdditionalResourceAllocationList(booking)}</strong></div>
+              <div class="meta-box"><span>Fulfilment</span><strong>${booking.deploymentRequired === false || String(booking.fulfilmentMode || '').toLowerCase() === 'collection' ? escapeHtml(booking.collectionInstructions || 'Collection from ICT Work Room') : 'DE Deployment'}</strong></div>
               <div class="meta-box"><span>Allocation</span><strong>${booking.allocation?.allocationMethod || '-'}</strong></div>
             </div>
 
