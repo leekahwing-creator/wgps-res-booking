@@ -1765,6 +1765,8 @@
             </div>
           </div>
 
+          <div id="editIdChangeNotice" class="status warning" style="display:none;">Changing the device / accessory type or resource grouping will generate a new Resource ID so the ID remains consistent with the updated resource classification.</div>
+
           <div class="two-col">
             <div class="field">
               <label for="editCapacity">Capacity</label>
@@ -2493,12 +2495,26 @@
         </span>
       `;
 
+      updateEditIdChangeNotice();
       editResourceDrawer.classList.add('open');
     }
 
     function closeEditDrawer() {
       editResourceDrawer.classList.remove('open');
       selectedResource = null;
+    }
+
+    function updateEditIdChangeNotice() {
+      const notice = document.getElementById('editIdChangeNotice');
+      if (!notice || !selectedResource) return;
+
+      const selectedDeviceType = document.getElementById('editDeviceType').value;
+      const selectedResourceType = document.getElementById('editResourceType').value;
+      const typeChanged =
+        String(selectedResource.deviceType || '') !== String(selectedDeviceType || '') ||
+        String(selectedResource.resourceType || '') !== String(selectedResourceType || '');
+
+      notice.style.display = typeChanged ? 'block' : 'none';
     }
 
     function buildEditResourcePayload() {
@@ -2571,7 +2587,11 @@
       populateResourceTypeOptions('editDeviceType', category, category === 'Accessory' ? 'Mouse' : 'iPad');
       document.getElementById('editResourceType').value = category === 'Accessory' ? 'Set' : 'Cart';
       document.getElementById('editFulfilmentMode').value = category === 'Accessory' ? 'Collection' : 'Deployment';
+      updateEditIdChangeNotice();
     });
+
+    document.getElementById('editDeviceType').addEventListener('change', updateEditIdChangeNotice);
+    document.getElementById('editResourceType').addEventListener('change', updateEditIdChangeNotice);
 
     document.getElementById('logoutBtn').addEventListener('click', async () => {
       await fetch('/api/logout', { method: 'POST' });

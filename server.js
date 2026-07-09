@@ -4083,16 +4083,36 @@ app.put("/api/admin/resources/:resourceId", requireLogin, requireAdmin, (req, re
       return res.status(400).json({ success: false, message: "Capacity must be a positive whole number." });
     }
 
+    const name = String(payload.name || "").trim();
+    const category = normaliseResourceCategory(payload.category);
+    const deviceType = normaliseDeviceType(payload.deviceType);
+    const resourceType = normaliseResourceType(payload.resourceType);
+    const previousId = String(existing.id || "").trim();
+    const typeChanged =
+      String(existing.deviceType || "") !== deviceType ||
+      String(existing.resourceType || "") !== resourceType;
+
+    const updatedId = typeChanged
+      ? generateNextResourceId(resources.filter((_, resourceIndex) => resourceIndex !== index), deviceType, resourceType)
+      : previousId;
+
     resources[index] = {
       ...existing,
-      name: String(payload.name || "").trim(),
-      category: normaliseResourceCategory(payload.category),
-      deviceType: normaliseDeviceType(payload.deviceType),
+      id: updatedId,
+      name,
+      category,
+      deviceType,
       capacity,
-      resourceType: normaliseResourceType(payload.resourceType),
+      resourceType,
       status: normaliseResourceStatus(payload.status),
       location: String(payload.location || "").trim(),
-      fulfilmentMode: normaliseFulfilmentMode(payload.fulfilmentMode || payload.fulfillmentMode, { ...payload, name: String(payload.name || "").trim(), category: normaliseResourceCategory(payload.category), deviceType: normaliseDeviceType(payload.deviceType), resourceType: normaliseResourceType(payload.resourceType) }),
+      fulfilmentMode: normaliseFulfilmentMode(payload.fulfilmentMode || payload.fulfillmentMode, {
+        ...payload,
+        name,
+        category,
+        deviceType,
+        resourceType
+      }),
       software: { item: normaliseSoftwareItems(payload.software) },
       notes: String(payload.notes || "").trim(),
       updatedAt: new Date().toISOString()
@@ -4102,8 +4122,12 @@ app.put("/api/admin/resources/:resourceId", requireLogin, requireAdmin, (req, re
 
     res.json({
       success: true,
-      message: "Resource updated successfully.",
-      resource: formatResourceForResponse(resources[index])
+      message: typeChanged && previousId !== updatedId
+        ? `Resource updated successfully. Resource ID changed from ${previousId} to ${updatedId} to match the updated resource type.`
+        : "Resource updated successfully.",
+      resource: formatResourceForResponse(resources[index]),
+      previousResourceId: previousId,
+      resourceIdChanged: previousId !== updatedId
     });
   } catch (error) {
     console.error("Admin resource update error:", error);
