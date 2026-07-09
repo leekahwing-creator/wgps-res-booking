@@ -2120,6 +2120,7 @@ document.getElementById("requesterName").textContent = user.name;
     let continueToTimingBtn;
     let continueToReviewBtn;
     let timingSmartHint;
+    let timingSectionUnlocked = false;
     let bookingMode = 'one-time';
     let repeatIntervalWeeks = 1;
     let currentBookingRequestId = createBookingRequestId();
@@ -2491,9 +2492,10 @@ document.getElementById("requesterName").textContent = user.name;
       const data = getBookingData();
       const hasLocation = Boolean(data.location);
 
-      document.getElementById('timingSection')?.classList.toggle('locked', !hasDevice);
-      document.getElementById('locationSection')?.classList.toggle('locked', !hasDevice || !hasDateTime);
-      document.getElementById('reviewSection')?.classList.toggle('locked', !hasDevice || !hasDateTime || !hasLocation);
+      const timingUnlocked = Boolean(timingSectionUnlocked && hasDevice);
+      document.getElementById('timingSection')?.classList.toggle('locked', !timingUnlocked);
+      document.getElementById('locationSection')?.classList.toggle('locked', !timingUnlocked || !hasDateTime);
+      document.getElementById('reviewSection')?.classList.toggle('locked', !timingUnlocked || !hasDateTime || !hasLocation);
       if (continueToTimingBtn) continueToTimingBtn.disabled = !isResourceSectionReady();
       if (continueToReviewBtn) continueToReviewBtn.disabled = !hasLocation;
       updateTimingSmartHint();
@@ -2504,7 +2506,7 @@ document.getElementById("requesterName").textContent = user.name;
       const stepReview = document.getElementById('stepReview');
       [stepChoose, stepWhen, stepWhere, stepReview].forEach(step => step?.classList.remove('active', 'complete'));
 
-      if (!hasDevice) {
+      if (!hasDevice || !timingSectionUnlocked) {
         stepChoose?.classList.add('active');
       } else if (!hasDateTime) {
         stepChoose?.classList.add('complete');
@@ -2550,7 +2552,7 @@ document.getElementById("requesterName").textContent = user.name;
       const data = getBookingData();
       const hasLocation = Boolean(data.location);
 
-      if (!hasDevice) return document.getElementById('resourceSection');
+      if (!hasDevice || !timingSectionUnlocked) return document.getElementById('resourceSection');
       if (!hasDateTime) return document.getElementById('timingSection');
       if (!hasLocation) return document.getElementById('locationSection');
       return document.getElementById('reviewSection');
@@ -2831,6 +2833,7 @@ document.getElementById("requesterName").textContent = user.name;
       decreaseDevices.addEventListener('click', () => adjustDeviceCount(-1));
 
       continueToTimingBtn.addEventListener('click', () => {
+        timingSectionUnlocked = true;
         updateSummary();
         scheduleGuidedScroll(document.getElementById('timingSection'));
       });
@@ -2954,6 +2957,7 @@ document.getElementById("requesterName").textContent = user.name;
           statusMessage.className = 'status';
           currentBookingRequestId = createBookingRequestId();
           lastGuidedTargetId = '';
+          timingSectionUnlocked = false;
           toggleCustomLocationField();
           updateSummary();
         }, 0);
