@@ -2297,7 +2297,9 @@ function inferLegacyResource(resourceText) {
   };
 
   if (!text) {
-    result.reason = "Resource field is empty.";
+    result.isNonICT = true;
+    result.reason = "Legacy row does not contain an ICT resource booking.";
+    result.resourceResolution = "Skipped non-ICT resource";
     return result;
   }
 
@@ -2382,8 +2384,9 @@ function inferLegacyResource(resourceText) {
   }
 
   if (!result.isICT) {
-    result.reason = "Legacy resource did not match any registered portal resource or supported generic ICT device type.";
-    result.resourceResolution = "No registered resource match";
+    result.isNonICT = true;
+    result.reason = "Legacy resource did not match any registered portal resource or supported generic ICT device type and is treated as a non-ICT / venue-only booking.";
+    result.resourceResolution = "Skipped non-ICT resource";
   }
 
   return result;
@@ -2409,6 +2412,36 @@ function getKnownLocationNames() {
     .map(location => location.name)
     .filter(name => name && name !== "Other")
     .sort((a, b) => b.length - a.length);
+}
+
+function normaliseLocationCandidate(value) {
+  return String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "");
+}
+
+function findKnownLocationByCandidate(candidate, knownLocations) {
+  const cleanedCandidate = normaliseLocationCandidate(candidate);
+  if (!cleanedCandidate) return "";
+
+  return knownLocations.find(location =>
+    normaliseLocationCandidate(location) === cleanedCandidate
+  ) || "";
+}
+
+function looksLikeDescriptiveDeploymentLocation(text) {
+  const raw = normaliseImportValue(text);
+  if (!raw) return false;
+
+  const lower = raw.toLowerCase();
+  const locationIntentPatterns = [
+    /\b(?:student\s+care\s+room|room|classroom|venue|block|level|lvl|floor)\b/,
+    /\b(?:next\s+to|beside|near|outside|opposite|behind|in\s+front\s+of|at)\b/,
+    /\b(?:ish|annex|library|canteen|hall|studio|dance\s+studio|staff\s+room)\b/
+  ];
+
+  return locationIntentPatterns.some(pattern => pattern.test(lower));
 }
 
 function extractLegacyLocation(row) {
@@ -2444,11 +2477,24 @@ function extractLegacyLocation(row) {
     }
   }
 
+  const prefixedClassMatch = searchableText.match(/\bP\s*([1-6][A-G])\b/i);
+  if (prefixedClassMatch) {
+    const classCandidate = prefixedClassMatch[1].toUpperCase();
+    const knownClassLocation = findKnownLocationByCandidate(classCandidate, knownLocations);
+    return {
+      location: knownClassLocation || classCandidate,
+      resolution: knownClassLocation ? "Matched existing location" : "Custom class-like location",
+      sourceText: searchableText
+    };
+  }
+
   const classMatch = searchableText.match(/\b(?:class(?:room)?\s*)?([1-6][A-G])(?:\s*class(?:room)?)?\b/i);
   if (classMatch) {
+    const classCandidate = classMatch[1].toUpperCase();
+    const knownClassLocation = findKnownLocationByCandidate(classCandidate, knownLocations);
     return {
-      location: classMatch[1].toUpperCase(),
-      resolution: knownLocations.includes(classMatch[1].toUpperCase()) ? "Matched existing location" : "Custom class-like location",
+      location: knownClassLocation || classCandidate,
+      resolution: knownClassLocation ? "Matched existing location" : "Custom class-like location",
       sourceText: searchableText
     };
   }
@@ -2470,6 +2516,16 @@ function extractLegacyLocation(row) {
     return {
       location: `Room ${decimalRoomMatch[0].trim()}`,
       resolution: "Custom room location",
+      sourceText: searchableText
+    };
+  }
+
+
+  const descriptiveSource = sources.find(source => looksLikeDescriptiveDeploymentLocation(source));
+  if (descriptiveSource) {
+    return {
+      location: descriptiveSource,
+      resolution: "Custom descriptive location",
       sourceText: searchableText
     };
   }
@@ -2901,9 +2957,134 @@ function mapLegacyBookingRow(row, index, users) {
   };
 }
 
+function normaliseConsolidationKeyValue(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function getImportRequesterKey(mappedBooking = {}) {
+  return normaliseConsolidationKeyValue(
+    mappedBooking.userId ||
+    mappedBooking.importedRequesterEmail ||
+    mappedBooking.importedRequesterName
+  );
+}
+
+function getImportLocationKey(mappedBooking = {}) {
+  return normaliseConsolidationKeyValue(mappedBooking.location);
+}
+
+function getImportBookingMergeKey(row) {
+  const booking = row?.mappedBooking || {};
+  return [
+    getImportRequesterKey(booking),
+    normaliseConsolidationKeyValue(booking.bookingDate),
+    getImportLocationKey(booking)
+  ].join("|");
+}
+
+function getAdditionalResourceList(booking = {}) {
+  return normaliseAdditionalResourceRequests(booking.additionalResources);
+}
+
+function hasDeviceRequest(row) {
+  const booking = row?.mappedBooking || {};
+  return Boolean(booking.deviceType && Number(booking.devicesRequired || 0) > 0);
+}
+
+function hasAccessoryRequest(row) {
+  return getAdditionalResourceList(row?.mappedBooking || {}).length > 0;
+}
+
+function isAccessoryOnlyImportRow(row) {
+  return !hasDeviceRequest(row) && hasAccessoryRequest(row);
+}
+
+function mergeAdditionalResourcesForImport(deviceBooking, accessoryBooking) {
+  const merged = [
+    ...getAdditionalResourceList(deviceBooking),
+    ...getAdditionalResourceList(accessoryBooking)
+  ];
+  return {
+    resource: normaliseAdditionalResourceRequests(mergeAccessoryQuantities(merged, Number(deviceBooking.devicesRequired || 0) || 1))
+  };
+}
+
+function removeDeviceTypeErrors(errors = []) {
+  return toArray(errors).filter(error =>
+    !/device type is required|number of devices must be a positive whole number/i.test(String(error || ""))
+  );
+}
+
+function consolidateAccessoryOnlyImportRows(mappedRows) {
+  const rows = toArray(mappedRows);
+  const deviceRowsByKey = new Map();
+
+  rows.forEach(row => {
+    if (!hasDeviceRequest(row)) return;
+    const booking = row.mappedBooking || {};
+    if (!booking.bookingDate || !booking.location || !getImportRequesterKey(booking)) return;
+    const key = getImportBookingMergeKey(row);
+    if (!deviceRowsByKey.has(key)) deviceRowsByKey.set(key, []);
+    deviceRowsByKey.get(key).push(row);
+  });
+
+  const mergedAccessoryRowIds = new Set();
+
+  rows.forEach((row, rowIndex) => {
+    if (!isAccessoryOnlyImportRow(row)) return;
+
+    const booking = row.mappedBooking || {};
+    if (!booking.bookingDate || !booking.location || !getImportRequesterKey(booking)) return;
+
+    const candidates = deviceRowsByKey.get(getImportBookingMergeKey(row)) || [];
+    if (candidates.length === 0) return;
+
+    const target = candidates.find(candidate =>
+      candidate.mappedBooking?.startTime === booking.startTime ||
+      candidate.mappedBooking?.endTime === booking.endTime
+    ) || candidates[0];
+
+    target.mappedBooking.additionalResources = mergeAdditionalResourcesForImport(target.mappedBooking, booking);
+
+    const mergeNote = `Accessory-only legacy row ${row.rowNumber} merged into device row ${target.rowNumber}; device booking timing retained.`;
+    const targetWarnings = toArray(target.warnings);
+    if (!targetWarnings.includes(mergeNote)) targetWarnings.push(mergeNote);
+    target.warnings = targetWarnings;
+    target.mappedBooking.importWarnings = {
+      warning: Array.from(new Set([
+        ...toArray(target.mappedBooking.importWarnings?.warning),
+        mergeNote
+      ]))
+    };
+
+    const accessoryResolutionText = [
+      target.mappedBooking.legacyAccessoryResolution,
+      `Merged accessories from legacy row ${row.rowNumber}`
+    ].filter(Boolean).join('; ');
+    target.mappedBooking.legacyAccessoryResolution = accessoryResolutionText;
+
+    mergedAccessoryRowIds.add(rowIndex);
+  });
+
+  return rows
+    .filter((_, index) => !mergedAccessoryRowIds.has(index))
+    .map(row => {
+      if (row.valid) return row;
+      const cleanedErrors = removeDeviceTypeErrors(row.errors);
+      return {
+        ...row,
+        errors: cleanedErrors,
+        valid: cleanedErrors.length === 0
+      };
+    });
+}
+
 function previewLegacyBookingRows(rows, dateRange = {}) {
   const users = getUsersFromXML();
-  const allRows = toArray(rows).flatMap((row, index) => {
+  let allRows = toArray(rows).flatMap((row, index) => {
     const sourceRow = row || {};
     const resourceSegments = parseLegacyResourceDeploymentSegments(sourceRow);
     const timeSegments = parseLegacyTimeslotSegments(getImportValue(sourceRow, [
@@ -2919,6 +3100,8 @@ function previewLegacyBookingRows(rows, dateRange = {}) {
       )
     );
   });
+
+  allRows = consolidateAccessoryOnlyImportRows(allRows);
 
   const inRangeRows = [];
   const outOfRangeRows = [];
