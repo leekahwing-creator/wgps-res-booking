@@ -1584,6 +1584,164 @@
       }
     }
 
+
+    /* Compact Resource Options Refinement */
+    .quantity-card {
+      margin-top: 14px;
+      padding: 12px;
+      border-radius: 16px;
+    }
+
+    .quantity-card .field {
+      display: grid;
+      grid-template-columns: minmax(170px, 1fr) minmax(170px, 2fr);
+      gap: 10px 14px;
+      align-items: center;
+    }
+
+    .quantity-card label {
+      align-self: center;
+    }
+
+    .quantity-card .device-control {
+      grid-template-columns: 48px minmax(90px, 1fr) 48px;
+      gap: 8px;
+    }
+
+    .quantity-card .quick-qty-row {
+      grid-column: 1 / -1;
+      align-items: center;
+    }
+
+    .quantity-card .quick-qty-row::before {
+      content: "Quick:";
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-right: 2px;
+    }
+
+    .apps-card {
+      margin-top: 10px;
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .apps-card > label:first-child,
+    .accessory-card > div > label {
+      margin-right: 2px;
+      white-space: nowrap;
+    }
+
+    .apps-card .toggle-switch {
+      min-height: 34px;
+      gap: 10px;
+    }
+
+    .apps-card .helper {
+      flex: 1 1 260px;
+    }
+
+    .accessory-card.additional-resources-section {
+      margin-top: 10px;
+      padding: 12px 14px;
+      gap: 10px;
+    }
+
+    .accessory-card.additional-resources-section > div:first-child {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    #additionalResourcesList {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .additional-resource-row {
+      display: inline-flex !important;
+      grid-template-columns: none !important;
+      align-items: center;
+      gap: 8px;
+      width: auto;
+      min-height: 42px;
+      padding: 9px 11px;
+      border-radius: 999px;
+    }
+
+    .additional-resource-row label {
+      gap: 8px;
+      white-space: nowrap;
+    }
+
+    .additional-resource-row input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      min-height: 18px;
+      flex: 0 0 auto;
+    }
+
+    .additional-resource-row input[data-accessory-quantity] {
+      display: none;
+      width: 68px;
+      min-height: 34px;
+      padding: 5px 8px;
+      font-size: 0.92rem;
+      border-radius: 999px;
+    }
+
+    .additional-resource-row.selected input[data-accessory-quantity] {
+      display: block;
+    }
+
+    .additional-resource-row.selected::after {
+      content: none;
+    }
+
+    .additional-resource-row.incompatible::after {
+      position: static;
+      content: "iPad only";
+      margin-left: 4px;
+    }
+
+    .accessory-compatibility-note {
+      display: none;
+    }
+
+    @media (max-width: 760px) {
+      .quantity-card .field {
+        grid-template-columns: 1fr;
+      }
+
+      .apps-card {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      #additionalResourcesList {
+        display: grid;
+        grid-template-columns: 1fr;
+      }
+
+      .additional-resource-row {
+        width: 100%;
+        justify-content: space-between;
+        border-radius: 16px;
+      }
+
+      .additional-resource-row label {
+        white-space: normal;
+      }
+    }
+
   </style>
 </head>
 <body>
@@ -1729,20 +1887,20 @@
                   <span class="toggle-slider"></span>
                   <span class="toggle-label">Procreate</span>
                 </label>
-                <span class="helper">Optional. Leave unticked if no specialised app is needed.</span>
+                <span class="helper">Optional app request.</span>
               </div>
 
               <div class="accessory-card additional-resources-section" id="additionalResourcesSection" style="display:none;">
                 <div>
                   <label>Accessories</label>
-                  <span class="helper">Optional bookable resources such as mouse, headset or Apple Pencil.</span>
+                  <span class="helper">Optional add-ons. Quantity follows device count unless changed.</span>
                 </div>
                 <div id="additionalResourcesList"></div>
               </div>
 
               <div class="guided-section-actions">
                 <button type="button" id="continueToTimingBtn" class="section-next-button" disabled>Next: Select timing</button>
-                <span class="helper">Adjust quantity, apps and accessories first, then continue when ready.</span>
+                <span class="helper">Choose any optional add-ons, then continue.</span>
               </div>
             </div>
           </section>
