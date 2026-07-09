@@ -1667,19 +1667,11 @@
               </select>
             </div>
             <div class="field">
-              <label for="deviceType">Resource type</label>
-              <input id="deviceType" list="resourceTypeSuggestions" placeholder="e.g. Laptop, Mouse, Apple Pencil" />
-              <datalist id="resourceTypeSuggestions">
-                <option value="iPad"></option>
-                <option value="iPad with Keyboard"></option>
-                <option value="Laptop"></option>
-                <option value="Mouse"></option>
-                <option value="Headset"></option>
-                <option value="Apple Pencil"></option>
-              </datalist>
+              <label for="deviceType">Device / accessory type</label>
+              <select id="deviceType" required></select>
             </div>
             <div class="field">
-              <label for="resourceType">Resource type</label>
+              <label for="resourceType">Resource grouping</label>
               <select id="resourceType">
                 <option value="Cart">Cart</option>
                 <option value="Bag">Bag</option>
@@ -1759,11 +1751,11 @@
               </select>
             </div>
             <div class="field">
-              <label for="editDeviceType">Resource type</label>
-              <input id="editDeviceType" list="resourceTypeSuggestions" placeholder="e.g. Laptop, Mouse, Apple Pencil" />
+              <label for="editDeviceType">Device / accessory type</label>
+              <select id="editDeviceType" required></select>
             </div>
             <div class="field">
-              <label for="editResourceType">Resource type</label>
+              <label for="editResourceType">Resource grouping</label>
               <select id="editResourceType">
                 <option value="Cart">Cart</option>
                 <option value="Bag">Bag</option>
@@ -2137,6 +2129,31 @@
       }
     }
 
+    const deviceTypeOptionsByCategory = {
+      Device: ['iPad', 'iPad with Keyboard', 'Laptop'],
+      Accessory: ['Mouse', 'Headset', 'Apple Pencil']
+    };
+
+    function populateResourceTypeOptions(selectId, category, selectedValue = '') {
+      const select = document.getElementById(selectId);
+      if (!select) return;
+
+      const normalisedCategory = category === 'Accessory' ? 'Accessory' : 'Device';
+      const baseOptions = deviceTypeOptionsByCategory[normalisedCategory] || deviceTypeOptionsByCategory.Device;
+      const selected = String(selectedValue || '').trim();
+      const options = selected && !baseOptions.some(option => option.toLowerCase() === selected.toLowerCase())
+        ? [...baseOptions, selected]
+        : baseOptions;
+
+      select.innerHTML = options
+        .map(option => `<option value="${escapeHtml(option)}">${escapeHtml(option)}</option>`)
+        .join('');
+
+      select.value = selected && options.includes(selected)
+        ? selected
+        : options[0];
+    }
+
     function getSoftwareUsageCount(softwareName) {
       const lowerName = String(softwareName || '').toLowerCase();
       return resources.filter(resource =>
@@ -2398,7 +2415,7 @@
       document.getElementById('resourceId').value = '';
       document.getElementById('resourceName').value = '';
       document.getElementById('resourceCategory').value = category;
-      document.getElementById('deviceType').value = category === 'Accessory' ? 'Mouse' : 'iPad';
+      populateResourceTypeOptions('deviceType', category, category === 'Accessory' ? 'Mouse' : 'iPad');
       document.getElementById('resourceType').value = category === 'Accessory' ? 'Set' : 'Cart';
       document.getElementById('capacity').value = 1;
       document.getElementById('resourceStatus').value = 'Available';
@@ -2458,7 +2475,7 @@
       document.getElementById('editResourceId').value = selectedResource.id || '';
       document.getElementById('editResourceName').value = selectedResource.name || '';
       document.getElementById('editResourceCategory').value = selectedResource.category || 'Device';
-      document.getElementById('editDeviceType').value = selectedResource.deviceType || 'iPad';
+      populateResourceTypeOptions('editDeviceType', selectedResource.category || 'Device', selectedResource.deviceType || 'iPad');
       document.getElementById('editResourceType').value = selectedResource.resourceType || 'Cart';
       document.getElementById('editCapacity').value = selectedResource.capacity || 1;
       document.getElementById('editResourceStatus').value = selectedResource.status || 'Available';
@@ -2541,17 +2558,19 @@
     }
 
     document.getElementById('resourceCategory').addEventListener('change', event => {
-      updateSoftwareFieldVisibility(event.target.value, 'addSoftwareField', 'softwareChecklist');
-      if (event.target.value === 'Accessory') {
-        document.getElementById('resourceType').value = 'Set';
-      }
+      const category = event.target.value;
+      updateSoftwareFieldVisibility(category, 'addSoftwareField', 'softwareChecklist');
+      populateResourceTypeOptions('deviceType', category, category === 'Accessory' ? 'Mouse' : 'iPad');
+      document.getElementById('resourceType').value = category === 'Accessory' ? 'Set' : 'Cart';
+      document.getElementById('fulfilmentMode').value = category === 'Accessory' ? 'Collection' : 'Deployment';
     });
 
     document.getElementById('editResourceCategory').addEventListener('change', event => {
-      updateSoftwareFieldVisibility(event.target.value, 'editSoftwareField', 'editSoftwareChecklist');
-      if (event.target.value === 'Accessory') {
-        document.getElementById('editResourceType').value = 'Set';
-      }
+      const category = event.target.value;
+      updateSoftwareFieldVisibility(category, 'editSoftwareField', 'editSoftwareChecklist');
+      populateResourceTypeOptions('editDeviceType', category, category === 'Accessory' ? 'Mouse' : 'iPad');
+      document.getElementById('editResourceType').value = category === 'Accessory' ? 'Set' : 'Cart';
+      document.getElementById('editFulfilmentMode').value = category === 'Accessory' ? 'Collection' : 'Deployment';
     });
 
     document.getElementById('logoutBtn').addEventListener('click', async () => {
@@ -2694,6 +2713,8 @@
       if (!user) return;
 
       resourceRowsPerPageSelect.value = String(rowsPerPage);
+      populateResourceTypeOptions('deviceType', 'Device', 'iPad');
+      populateResourceTypeOptions('editDeviceType', 'Device', 'iPad');
       updateHeroForActiveTab('resources');
 
       switchAdminTab('resources');
