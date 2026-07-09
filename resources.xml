@@ -20,9 +20,9 @@
     <location />
     <software />
     <compatibleAccessories>
-      <accessory>Mouse</accessory>
-      <accessory>Headset (USB-C)</accessory>
-      <accessory>Headset (3.5mm audio jack)</accessory>
+      <accessory>ACC-MOUSE</accessory>
+      <accessory>ACC-HEADSET-USB-C</accessory>
+      <accessory>ACC-HEADSET-35MM</accessory>
     </compatibleAccessories>
     <notes />
     <updatedAt />
@@ -38,9 +38,9 @@
     <location />
     <software />
     <compatibleAccessories>
-      <accessory>Mouse</accessory>
-      <accessory>Headset (USB-C)</accessory>
-      <accessory>Headset (3.5mm audio jack)</accessory>
+      <accessory>ACC-MOUSE</accessory>
+      <accessory>ACC-HEADSET-USB-C</accessory>
+      <accessory>ACC-HEADSET-35MM</accessory>
     </compatibleAccessories>
     <notes />
     <updatedAt />
@@ -56,9 +56,9 @@
     <location />
     <software />
     <compatibleAccessories>
-      <accessory>Mouse</accessory>
-      <accessory>Headset (USB-C)</accessory>
-      <accessory>Headset (3.5mm audio jack)</accessory>
+      <accessory>ACC-MOUSE</accessory>
+      <accessory>ACC-HEADSET-USB-C</accessory>
+      <accessory>ACC-HEADSET-35MM</accessory>
     </compatibleAccessories>
     <notes />
     <updatedAt />
@@ -74,9 +74,9 @@
     <location />
     <software />
     <compatibleAccessories>
-      <accessory>Mouse</accessory>
-      <accessory>Headset (USB-C)</accessory>
-      <accessory>Headset (3.5mm audio jack)</accessory>
+      <accessory>ACC-MOUSE</accessory>
+      <accessory>ACC-HEADSET-USB-C</accessory>
+      <accessory>ACC-HEADSET-35MM</accessory>
     </compatibleAccessories>
     <notes />
     <updatedAt />
@@ -92,8 +92,8 @@
     <location />
     <software />
     <compatibleAccessories>
-      <accessory>Apple Pencil</accessory>
-      <accessory>Headset (USB-C)</accessory>
+      <accessory>ACC-APPLE-PENCIL</accessory>
+      <accessory>ACC-HEADSET-USB-C</accessory>
     </compatibleAccessories>
     <notes />
     <updatedAt />
@@ -109,8 +109,8 @@
     <location />
     <software />
     <compatibleAccessories>
-      <accessory>Apple Pencil</accessory>
-      <accessory>Headset (USB-C)</accessory>
+      <accessory>ACC-APPLE-PENCIL</accessory>
+      <accessory>ACC-HEADSET-USB-C</accessory>
     </compatibleAccessories>
     <notes />
     <updatedAt />
@@ -126,8 +126,8 @@
     <location />
     <software />
     <compatibleAccessories>
-      <accessory>Apple Pencil</accessory>
-      <accessory>Headset (USB-C)</accessory>
+      <accessory>ACC-APPLE-PENCIL</accessory>
+      <accessory>ACC-HEADSET-USB-C</accessory>
     </compatibleAccessories>
     <notes />
     <updatedAt />
@@ -143,8 +143,8 @@
     <location />
     <software />
     <compatibleAccessories>
-      <accessory>Apple Pencil</accessory>
-      <accessory>Headset (3.5mm audio jack)</accessory>
+      <accessory>ACC-APPLE-PENCIL</accessory>
+      <accessory>ACC-HEADSET-35MM</accessory>
     </compatibleAccessories>
     <notes />
     <updatedAt />
@@ -160,9 +160,9 @@
     <location />
     <software />
     <compatibleAccessories>
-      <accessory>Mouse</accessory>
-      <accessory>Apple Pencil</accessory>
-      <accessory>Headset (USB-C)</accessory>
+      <accessory>ACC-MOUSE</accessory>
+      <accessory>ACC-APPLE-PENCIL</accessory>
+      <accessory>ACC-HEADSET-USB-C</accessory>
     </compatibleAccessories>
     <notes />
     <updatedAt />
@@ -178,8 +178,8 @@
     <location />
     <software />
     <compatibleAccessories>
-      <accessory>Apple Pencil</accessory>
-      <accessory>Headset (USB-C)</accessory>
+      <accessory>ACC-APPLE-PENCIL</accessory>
+      <accessory>ACC-HEADSET-USB-C</accessory>
     </compatibleAccessories>
     <notes />
     <updatedAt />
@@ -195,8 +195,8 @@
     <location />
     <software />
     <compatibleAccessories>
-      <accessory>Apple Pencil</accessory>
-      <accessory>Headset (3.5mm audio jack)</accessory>
+      <accessory>ACC-APPLE-PENCIL</accessory>
+      <accessory>ACC-HEADSET-35MM</accessory>
     </compatibleAccessories>
     <notes />
     <updatedAt />
@@ -212,8 +212,8 @@
     <location />
     <software />
     <compatibleAccessories>
-      <accessory>Apple Pencil</accessory>
-      <accessory>Headset (3.5mm audio jack)</accessory>
+      <accessory>ACC-APPLE-PENCIL</accessory>
+      <accessory>ACC-HEADSET-35MM</accessory>
     </compatibleAccessories>
     <notes />
     <updatedAt />
@@ -229,8 +229,8 @@
     <location />
     <software />
     <compatibleAccessories>
-      <accessory>Apple Pencil</accessory>
-      <accessory>Headset (3.5mm audio jack)</accessory>
+      <accessory>ACC-APPLE-PENCIL</accessory>
+      <accessory>ACC-HEADSET-35MM</accessory>
     </compatibleAccessories>
     <notes />
     <updatedAt />
@@ -246,8 +246,8 @@
     <location />
     <software />
     <compatibleAccessories>
-      <accessory>Apple Pencil</accessory>
-      <accessory>Headset (3.5mm audio jack)</accessory>
+      <accessory>ACC-APPLE-PENCIL</accessory>
+      <accessory>ACC-HEADSET-35MM</accessory>
     </compatibleAccessories>
     <notes />
     <updatedAt />

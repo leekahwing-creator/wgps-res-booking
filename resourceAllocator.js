@@ -31,6 +31,63 @@ function normaliseResourceCategory(resource) {
   return String(resource?.category || "Device").trim() || "Device";
 }
 
+function normaliseAccessoryCompatibilityKey(value) {
+  const text = String(value || "").trim();
+  const lower = text.toLowerCase();
+
+  if (!text) return "";
+
+  if (/^acc[-_ ]?mouse$/i.test(text) || lower === "mouse" || lower.includes("mouse") || lower.includes("mice")) {
+    return "ACC-MOUSE";
+  }
+
+  if (/^acc[-_ ]?apple[-_ ]?pencil$/i.test(text) || lower.includes("apple pencil") || lower.includes("stylus")) {
+    return "ACC-APPLE-PENCIL";
+  }
+
+  if (
+    /^acc[-_ ]?headset[-_ ]?(usb[-_ ]?c|usb_c|usbc)$/i.test(text) ||
+    (/head\s*set|headset|headphones?|earpieces?/.test(lower) && /usb\s*-?\s*c|type\s*c|usb-c/.test(lower))
+  ) {
+    return "ACC-HEADSET-USB-C";
+  }
+
+  if (
+    /^acc[-_ ]?headset[-_ ]?(35mm|3[-_ ]?5mm|audio[-_ ]?jack)$/i.test(text) ||
+    (/head\s*set|headset|headphones?|earpieces?/.test(lower) && /3\.5|3\.5mm|audio\s*jack|aux|stereo\s*jack/.test(lower))
+  ) {
+    return "ACC-HEADSET-35MM";
+  }
+
+  if (/head\s*set|headset|headphones?|earpieces?/.test(lower)) {
+    return "ACC-HEADSET";
+  }
+
+  return text
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function normaliseCompatibleAccessoryKeys(resource) {
+  const raw = resource?.compatibleAccessories;
+  const values = raw?.accessory || raw?.item || raw || [];
+
+  return Array.from(new Set(toArray(values)
+    .map(normaliseAccessoryCompatibilityKey)
+    .filter(Boolean)));
+}
+
+function resourceSupportsAdditionalResources(resource, additionalRequests) {
+  const requests = normaliseAdditionalResources(additionalRequests);
+  if (requests.length === 0) return true;
+
+  const supportedKeys = new Set(normaliseCompatibleAccessoryKeys(resource));
+  if (supportedKeys.size === 0) return false;
+
+  return requests.every(request => supportedKeys.has(normaliseAccessoryCompatibilityKey(request.type)));
+}
+
 function normaliseSoftwareList(resource) {
   return toArray(resource.software?.item)
     .map(item => String(item || "").trim())
@@ -196,6 +253,7 @@ function allocateResources(bookingRequest) {
   const allResources = toArray(parsedResources.resources?.resource);
   const bookedResourceIds = getBookedResourceIds(bookingRequest);
   const usedResourceIds = new Set(bookedResourceIds);
+  const additionalRequests = normaliseAdditionalResources(bookingRequest.additionalResources);
 
   const selectedDeviceResources = selectResourcesForRequest(
     allResources,
@@ -203,7 +261,8 @@ function allocateResources(bookingRequest) {
     resource =>
       normaliseResourceCategory(resource) !== "Accessory" &&
       resource.deviceType === bookingRequest.deviceType &&
-      resourceSupportsSoftware(resource, bookingRequest.softwareRequirement),
+      resourceSupportsSoftware(resource, bookingRequest.softwareRequirement) &&
+      resourceSupportsAdditionalResources(resource, additionalRequests),
     Number(bookingRequest.devicesRequired)
   );
 
@@ -211,14 +270,13 @@ function allocateResources(bookingRequest) {
   const deviceCanFulfil =
     Number(deviceAllocation.totalAllocatedCapacity) >= Number(bookingRequest.devicesRequired);
 
-  const additionalRequests = normaliseAdditionalResources(bookingRequest.additionalResources);
   const additionalAllocations = additionalRequests.map(request => {
     const selectedAccessoryResources = selectResourcesForRequest(
       allResources,
       usedResourceIds,
       resource =>
         normaliseResourceCategory(resource) === "Accessory" &&
-        String(resource.deviceType || "").toLowerCase() === request.type.toLowerCase(),
+        normaliseAccessoryCompatibilityKey(resource.deviceType) === normaliseAccessoryCompatibilityKey(request.type),
       request.quantity
     );
 
@@ -255,5 +313,8 @@ module.exports = {
   normaliseResourceCategory,
   collectResourceIdsFromAllocation,
   findBestResourceCombination,
-  buildAllocationBlock
+  buildAllocationBlock,
+  normaliseAccessoryCompatibilityKey,
+  normaliseCompatibleAccessoryKeys,
+  resourceSupportsAdditionalResources
 };

@@ -8,7 +8,9 @@ const {
   normaliseResourceCategory,
   findBestResourceCombination,
   buildAllocationBlock,
-  collectResourceIdsFromAllocation
+  collectResourceIdsFromAllocation,
+  normaliseAccessoryCompatibilityKey,
+  resourceSupportsAdditionalResources
 } = require("./resourceAllocator");
 
 const parser = new XMLParser({ ignoreAttributes: false });
@@ -50,26 +52,29 @@ function selectResourcesForRequest(allResources, remainingResourceIds, predicate
 }
 
 function allocateBookingPackage(allResources, remainingResourceIds, booking, method) {
+  const additionalRequests = normaliseAdditionalResources(booking.additionalResources);
+
   const selectedDeviceResources = selectResourcesForRequest(
     allResources,
     remainingResourceIds,
     resource =>
       normaliseResourceCategory(resource) !== "Accessory" &&
       resource.deviceType === booking.deviceType &&
-      resourceSupportsSoftware(resource, booking.softwareRequirement),
+      resourceSupportsSoftware(resource, booking.softwareRequirement) &&
+      resourceSupportsAdditionalResources(resource, additionalRequests),
     Number(booking.devicesRequired)
   );
 
   const deviceAllocation = buildAllocationBlock(selectedDeviceResources, method);
   const deviceFulfilled = Number(deviceAllocation.totalAllocatedCapacity) >= Number(booking.devicesRequired);
 
-  const additionalAllocations = normaliseAdditionalResources(booking.additionalResources).map(request => {
+  const additionalAllocations = additionalRequests.map(request => {
     const selectedAccessoryResources = selectResourcesForRequest(
       allResources,
       remainingResourceIds,
       resource =>
         normaliseResourceCategory(resource) === "Accessory" &&
-        String(resource.deviceType || "").toLowerCase() === request.type.toLowerCase(),
+        normaliseAccessoryCompatibilityKey(resource.deviceType) === normaliseAccessoryCompatibilityKey(request.type),
       request.quantity
     );
 

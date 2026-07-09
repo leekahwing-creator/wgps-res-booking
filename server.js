@@ -352,13 +352,64 @@ function normaliseSoftwareItems(software) {
   return [];
 }
 
+function normaliseAccessoryCompatibilityKey(value) {
+  const text = String(value || "").trim();
+  const lower = text.toLowerCase();
+
+  if (!text) return "";
+
+  if (/^acc[-_ ]?mouse$/i.test(text) || lower === "mouse" || lower.includes("mouse") || lower.includes("mice")) {
+    return "ACC-MOUSE";
+  }
+
+  if (/^acc[-_ ]?apple[-_ ]?pencil$/i.test(text) || lower.includes("apple pencil") || lower.includes("stylus")) {
+    return "ACC-APPLE-PENCIL";
+  }
+
+  if (
+    /^acc[-_ ]?headset[-_ ]?(usb[-_ ]?c|usb_c|usbc)$/i.test(text) ||
+    (/head\s*set|headset|headphones?|earpieces?/.test(lower) && /usb\s*-?\s*c|type\s*c|usb-c/.test(lower))
+  ) {
+    return "ACC-HEADSET-USB-C";
+  }
+
+  if (
+    /^acc[-_ ]?headset[-_ ]?(35mm|3[-_ ]?5mm|audio[-_ ]?jack)$/i.test(text) ||
+    (/head\s*set|headset|headphones?|earpieces?/.test(lower) && /3\.5|3\.5mm|audio\s*jack|aux|stereo\s*jack/.test(lower))
+  ) {
+    return "ACC-HEADSET-35MM";
+  }
+
+  if (/head\s*set|headset|headphones?|earpieces?/.test(lower)) {
+    return "ACC-HEADSET";
+  }
+
+  return text
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function accessoryKeyToDisplayName(key) {
+  const normalisedKey = normaliseAccessoryCompatibilityKey(key);
+  const displayNames = {
+    "ACC-MOUSE": "Mouse",
+    "ACC-APPLE-PENCIL": "Apple Pencil",
+    "ACC-HEADSET-USB-C": "Headset (USB-C)",
+    "ACC-HEADSET-35MM": "Headset (3.5mm audio jack)",
+    "ACC-HEADSET": "Headset"
+  };
+
+  return displayNames[normalisedKey] || String(key || "").trim();
+}
+
 function normaliseCompatibleAccessories(compatibleAccessories) {
   if (!compatibleAccessories) return [];
 
   if (Array.isArray(compatibleAccessories)) {
     return Array.from(new Set(
       compatibleAccessories
-        .map(item => normaliseAccessoryRequestType(item))
+        .map(item => normaliseAccessoryCompatibilityKey(item))
         .filter(Boolean)
     ));
   }
@@ -698,12 +749,35 @@ function formatResourceForResponse(resource) {
     deploymentRequired: resourceRequiresDeployment(resource),
     software: normaliseSoftwareItems(resource.software),
     compatibleAccessories: normaliseResourceCategory(resource.category) === "Device"
+      ? normaliseCompatibleAccessories(resource.compatibleAccessories).map(accessoryKeyToDisplayName)
+      : [],
+    compatibleAccessoryKeys: normaliseResourceCategory(resource.category) === "Device"
       ? normaliseCompatibleAccessories(resource.compatibleAccessories)
       : [],
     notes: resource.notes || "",
     createdAt: resource.createdAt || "",
     updatedAt: resource.updatedAt || ""
   };
+}
+
+function resourceSupportsAdditionalResourceRequests(resource, additionalResources) {
+  const requests = normaliseAdditionalResourceRequests(additionalResources);
+  if (requests.length === 0) return true;
+
+  const compatibleKeys = new Set(normaliseCompatibleAccessories(resource.compatibleAccessories));
+  if (compatibleKeys.size === 0) return false;
+
+  return requests.every(item => compatibleKeys.has(normaliseAccessoryCompatibilityKey(item.type)));
+}
+
+function getAvailableAccessoryKeySet(resources = readResourcesFromXML().map(formatResourceForResponse)) {
+  return new Set(
+    resources
+      .filter(resource => resource.category === "Accessory")
+      .filter(resource => resource.status === "Available")
+      .map(resource => normaliseAccessoryCompatibilityKey(resource.deviceType))
+      .filter(Boolean)
+  );
 }
 
 function resourceHasFutureBookings(resourceId) {
@@ -1538,23 +1612,43 @@ function normaliseAdditionalResourceRequests(additionalResources) {
 
 function validateAdditionalResourceRequests(bookingRequest) {
   const errors = [];
-  const accessoryTypes = new Set(
-    readResourcesFromXML()
-      .map(formatResourceForResponse)
-      .filter(resource => resource.category === "Accessory")
-      .filter(resource => resource.status === "Available")
-      .map(resource => resource.deviceType.toLowerCase())
-  );
+  const resources = readResourcesFromXML().map(formatResourceForResponse);
+  const accessoryKeySet = getAvailableAccessoryKeySet(resources);
+  const additionalRequests = normaliseAdditionalResourceRequests(bookingRequest.additionalResources);
 
-  normaliseAdditionalResourceRequests(bookingRequest.additionalResources).forEach(item => {
-    if (!accessoryTypes.has(item.type.toLowerCase())) {
-      errors.push(`${item.type} is not an available accessory resource.`);
+  additionalRequests.forEach(item => {
+    const accessoryKey = normaliseAccessoryCompatibilityKey(item.type);
+    if (!accessoryKeySet.has(accessoryKey)) {
+      errors.push(`${accessoryKeyToDisplayName(item.type)} is not an available accessory resource.`);
     }
   });
 
+  if (errors.length > 0 || additionalRequests.length === 0) {
+    return errors;
+  }
+
+  const candidateDevices = resources
+    .filter(resource => resource.category !== "Accessory")
+    .filter(resource => resource.status === "Available")
+    .filter(resource => String(resource.deviceType || "") === String(bookingRequest.deviceType || ""));
+
+  if (candidateDevices.length === 0) {
+    return errors;
+  }
+
+  const compatibleCandidateExists = candidateDevices.some(resource =>
+    resourceSupportsAdditionalResourceRequests(resource, additionalRequests)
+  );
+
+  if (!compatibleCandidateExists) {
+    const requestedAccessories = additionalRequests
+      .map(item => accessoryKeyToDisplayName(item.type))
+      .join(", ");
+    errors.push(`No available ${bookingRequest.deviceType} resource is configured as compatible with the requested accessory combination: ${requestedAccessories}.`);
+  }
+
   return errors;
 }
-
 
 function normaliseFingerprintText(value) {
   return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
