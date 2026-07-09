@@ -191,7 +191,6 @@
     <notes />
     <updatedAt />
   </resource>
-
   <resource>
     <id>ACC-MOUSE-01</id>
     <name>Mouse Set 1</name>
@@ -204,20 +203,6 @@
     <software />
     <notes>Bookable accessory resource for laptop or iPad with keyboard deployment.</notes>
   </resource>
-
-  <resource>
-    <id>ACC-HEADSET-01</id>
-    <name>Headset Set 1</name>
-    <category>Accessory</category>
-    <deviceType>Headset</deviceType>
-    <capacity>40</capacity>
-    <resourceType>Set</resourceType>
-    <status>Available</status>
-    <location>ICT Room</location>
-    <software />
-    <notes>Bookable headset accessory resource.</notes>
-  </resource>
-
   <resource>
     <id>ACC-APPLE-PENCIL-01</id>
     <name>Apple Pencil Set 1</name>
@@ -230,5 +215,34 @@
     <software />
     <notes>Bookable accessory resource for iPad deployment.</notes>
   </resource>
-
+  <resource>
+    <id>ACC-HEADSET-35MM-01</id>
+    <name>Headset Set 1 (3.5mm audio jack)</name>
+    <category>Accessory</category>
+    <deviceType>Headset (3.5mm audio jack)</deviceType>
+    <capacity>40</capacity>
+    <resourceType>Set</resourceType>
+    <status>Available</status>
+    <location>ICT Room</location>
+    <software />
+    <notes>Bookable 3.5mm audio jack headset accessory resource.</notes>
+    <fulfilmentMode>Deployment</fulfilmentMode>
+    <createdAt />
+    <updatedAt />
+  </resource>
+  <resource>
+    <id>ACC-HEADSET-USB-C-01</id>
+    <name>Headset Set 1 (USB-C)</name>
+    <category>Accessory</category>
+    <deviceType>Headset (USB-C)</deviceType>
+    <capacity>40</capacity>
+    <resourceType>Set</resourceType>
+    <status>Available</status>
+    <location>ICT Room</location>
+    <software />
+    <notes>Bookable USB-C headset accessory resource.</notes>
+    <fulfilmentMode>Deployment</fulfilmentMode>
+    <createdAt />
+    <updatedAt />
+  </resource>
 </resources>

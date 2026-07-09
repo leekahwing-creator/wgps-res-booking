@@ -399,6 +399,23 @@ function normaliseDeviceType(type) {
   return String(type || "").trim() || "iPad";
 }
 
+function normaliseAccessoryVariantType(type) {
+  const text = String(type || "").trim();
+  const lower = text.toLowerCase();
+
+  if (/head\s*set|headset|headphones?|earpieces?/.test(lower)) {
+    if (/usb\s*-?\s*c|type\s*c|usb-c/.test(lower)) return "Headset (USB-C)";
+    if (/3\.5|3\.5mm|audio\s*jack|aux|stereo\s*jack/.test(lower)) return "Headset (3.5mm audio jack)";
+  }
+
+  return text;
+}
+
+function normaliseAccessoryRequestType(type) {
+  return normaliseAccessoryVariantType(type);
+}
+
+
 function normaliseSoftwareStatus(status) {
   const allowedStatuses = ["Active", "Retired"];
   return allowedStatuses.includes(status) ? status : "Active";
@@ -502,7 +519,7 @@ function buildResourcesXml(resources, softwareCatalog) {
           id: String(resource.id || "").trim(),
           name: String(resource.name || "").trim(),
           category: normaliseResourceCategory(resource.category),
-          deviceType: normaliseDeviceType(resource.deviceType),
+          deviceType: normaliseResourceCategory(resource.category) === "Accessory" ? normaliseAccessoryVariantType(resource.deviceType) : normaliseDeviceType(resource.deviceType),
           capacity: Number(resource.capacity) || 0,
           resourceType: normaliseResourceType(resource.resourceType),
           status: normaliseResourceStatus(resource.status),
@@ -565,6 +582,21 @@ function initialiseResourceStorage() {
   ensureLiveResourcesFile();
   const document = readResourcesDocument(liveResourcesFile);
 
+  // Migrate earlier generic Headset accessory records into the default 3.5mm
+  // variant so headset inventory can be maintained separately by connector type.
+  document.resources.forEach(resource => {
+    if (
+      normaliseResourceCategory(resource.category) === "Accessory" &&
+      String(resource.deviceType || "").trim().toLowerCase() === "headset"
+    ) {
+      resource.deviceType = "Headset (3.5mm audio jack)";
+      if (!/3\.5|usb/i.test(String(resource.name || ""))) {
+        resource.name = `${String(resource.name || "Headset Set").trim()} (3.5mm audio jack)`;
+      }
+      resource.updatedAt = resource.updatedAt || new Date().toISOString();
+    }
+  });
+
   // Persistent disks keep an existing resources.xml across deployments. When the
   // bundled resources.xml gains new seed records such as accessory resources, merge
   // only missing records by ID into the live file without overwriting Admin edits.
@@ -624,7 +656,7 @@ function formatResourceForResponse(resource) {
     id: resource.id,
     name: resource.name || "",
     category: normaliseResourceCategory(resource.category),
-    deviceType: normaliseDeviceType(resource.deviceType),
+    deviceType: normaliseResourceCategory(resource.category) === "Accessory" ? normaliseAccessoryVariantType(resource.deviceType) : normaliseDeviceType(resource.deviceType),
     capacity: Number(resource.capacity) || 0,
     resourceType: normaliseResourceType(resource.resourceType),
     status: normaliseResourceStatus(resource.status),
@@ -1462,7 +1494,7 @@ app.get("/api/resources/catalog", requireLogin, (req, res) => {
 function normaliseAdditionalResourceRequests(additionalResources) {
   return toArray(additionalResources?.resource || additionalResources)
     .map(item => ({
-      type: String(item?.type || item?.deviceType || item?.name || "").trim(),
+      type: normaliseAccessoryRequestType(item?.type || item?.deviceType || item?.name || ""),
       quantity: Number(item?.quantity || 0)
     }))
     .filter(item => item.type && Number.isInteger(item.quantity) && item.quantity > 0);
@@ -1863,7 +1895,7 @@ function inferLegacyAccessoriesFromResourceText(resourceText) {
     if (/apple\s*pencil|stylus/.test(text)) {
       type = "Apple Pencil";
     } else if (/head\s*set|headset|headphones?|earpieces?/.test(text)) {
-      type = "Headset";
+      type = /usb\s*-?\s*c|type\s*c|usb-c/.test(text) ? "Headset (USB-C)" : (/3\.5|3\.5mm|audio\s*jack|aux|stereo\s*jack/.test(text) ? "Headset (3.5mm audio jack)" : "Headset");
     } else if (/\bmouse\b|mice/.test(text)) {
       type = "Mouse";
     }
@@ -2329,6 +2361,12 @@ function getAccessoryDetectionRules() {
       aliases.push("apple\\s*pencils?", "pencils?", "stylus(?:es)?");
     } else if (/headset/i.test(normalisedType)) {
       aliases.push("head\\s*sets?", "headsets?", "headphones?", "earpieces?");
+      if (/usb\s*-?\s*c/i.test(normalisedType)) {
+        aliases.push("usb\\s*-?\\s*c", "type\\s*c", "usb-c\\s*jack");
+      }
+      if (/3\.5|audio\s*jack/i.test(normalisedType)) {
+        aliases.push("3\\.5\\s*mm", "3\\.5mm", "audio\\s*jack", "aux", "stereo\\s*jack");
+      }
     } else if (/mouse/i.test(normalisedType)) {
       aliases.push("mouses?", "mice");
     }
@@ -2375,6 +2413,11 @@ function inferLegacyAccessoriesFromText(text, sourceLabel) {
   rules.forEach(rule => {
     const match = rawText.match(rule.pattern);
     if (!match) return;
+
+    const ruleTypeLower = String(rule.type || "").toLowerCase();
+    const rawLower = rawText.toLowerCase();
+    if (ruleTypeLower.includes("headset") && ruleTypeLower.includes("usb") && !/usb\s*-?\s*c|type\s*c|usb-c/.test(rawLower)) return;
+    if (ruleTypeLower.includes("headset") && (ruleTypeLower.includes("3.5") || ruleTypeLower.includes("audio")) && !/3\.5|3\.5mm|audio\s*jack|aux|stereo\s*jack/.test(rawLower)) return;
 
     const quantity = detectQuantityNearAccessory(rawText, match.index || 0, match[0].length);
     accessories.push({ type: rule.type, quantity });
@@ -4012,7 +4055,7 @@ app.post("/api/admin/resources", requireLogin, requireAdmin, (req, res) => {
 
     const name = String(payload.name || "").trim();
     const category = normaliseResourceCategory(payload.category);
-    const deviceType = normaliseDeviceType(payload.deviceType);
+    const deviceType = category === "Accessory" ? normaliseAccessoryVariantType(payload.deviceType) : normaliseDeviceType(payload.deviceType);
     const resourceType = normaliseResourceType(payload.resourceType);
     const capacity = Number(payload.capacity);
 
@@ -4085,7 +4128,7 @@ app.put("/api/admin/resources/:resourceId", requireLogin, requireAdmin, (req, re
 
     const name = String(payload.name || "").trim();
     const category = normaliseResourceCategory(payload.category);
-    const deviceType = normaliseDeviceType(payload.deviceType);
+    const deviceType = category === "Accessory" ? normaliseAccessoryVariantType(payload.deviceType) : normaliseDeviceType(payload.deviceType);
     const resourceType = normaliseResourceType(payload.resourceType);
     const previousId = String(existing.id || "").trim();
     const typeChanged =
