@@ -1430,10 +1430,79 @@
       cursor: pointer;
     }
 
-    .quick-qty:hover {
+    .quick-qty:hover,
+    .quick-qty.active {
       border-color: var(--primary);
       color: var(--primary-dark);
       background: #ecfeff;
+      box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.08);
+    }
+
+    .smart-hint {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: #f0fdfa;
+      border: 1px solid #ccfbf1;
+      color: #115e59;
+      font-size: 0.86rem;
+      line-height: 1.4;
+      font-weight: 700;
+    }
+
+    .smart-hint.muted {
+      background: #f8fafc;
+      border-color: #e2e8f0;
+      color: #64748b;
+      font-weight: 600;
+    }
+
+    .accessory-compatibility-note {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 0.78rem;
+      line-height: 1.3;
+    }
+
+    .additional-resource-row.incompatible {
+      opacity: 0.5;
+      cursor: not-allowed;
+      background: #f8fafc;
+    }
+
+    .additional-resource-row.incompatible:hover {
+      border-color: #e2e8f0;
+      background: #f8fafc;
+    }
+
+    .additional-resource-row.incompatible::after {
+      content: "iPad only";
+      position: absolute;
+      top: 12px;
+      right: 176px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      background: #e2e8f0;
+      color: #64748b;
+      font-size: 0.72rem;
+      font-weight: 900;
+    }
+
+    .review-card.ready {
+      border-color: rgba(22, 101, 52, 0.3);
+      background: linear-gradient(135deg, #ecfdf5, #ffffff);
+    }
+
+    .review-ready-banner {
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 14px;
+      background: #dcfce7;
+      color: #166534;
+      border: 1px solid #bbf7d0;
+      font-weight: 900;
+      line-height: 1.35;
     }
 
     .apps-card, .accessory-card {
@@ -1644,6 +1713,7 @@
                     <button type="button" id="increaseDevices" aria-label="Increase number of devices">+</button>
                   </div>
                   <div class="quick-qty-row" aria-label="Quick quantity shortcuts">
+                    <button type="button" class="quick-qty" data-quick-qty="1">1</button>
                     <button type="button" class="quick-qty" data-quick-qty="8">8</button>
                     <button type="button" class="quick-qty" data-quick-qty="20">20</button>
                     <button type="button" class="quick-qty" data-quick-qty="30">30</button>
@@ -1737,6 +1807,7 @@
                   </select>
                 </div>
               </div>
+              <div id="timingSmartHint" class="smart-hint muted">Select a start time. The portal can suggest a sensible end time automatically.</div>
             </div>
           </section>
 
@@ -1759,6 +1830,10 @@
                 <label for="customLocation">Custom location description</label>
                 <input id="customLocation" name="customLocation" type="text" placeholder="Enter custom deployment location" />
                 <span class="helper">Provide additional details for locations not listed above.</span>
+              </div>
+              <div class="guided-section-actions">
+                <button type="button" id="continueToReviewBtn" class="section-next-button" disabled>Next: Review booking</button>
+                <span class="helper">Confirm the location before reviewing your request.</span>
               </div>
             </div>
           </section>
@@ -1885,6 +1960,8 @@ document.getElementById("requesterName").textContent = user.name;
     let recurrencePreview;
     let recurringPermissionNote;
     let continueToTimingBtn;
+    let continueToReviewBtn;
+    let timingSmartHint;
     let bookingMode = 'one-time';
     let repeatIntervalWeeks = 1;
     let currentBookingRequestId = createBookingRequestId();
@@ -1945,6 +2022,8 @@ document.getElementById("requesterName").textContent = user.name;
       recurrencePreview = getRequiredElement('recurrencePreview');
       recurringPermissionNote = getRequiredElement('recurringPermissionNote');
       continueToTimingBtn = getRequiredElement('continueToTimingBtn');
+      continueToReviewBtn = getRequiredElement('continueToReviewBtn');
+      timingSmartHint = getRequiredElement('timingSmartHint');
     }
 
     async function fetchJSONList(endpoint, key) {
@@ -1998,6 +2077,34 @@ document.getElementById("requesterName").textContent = user.name;
       updateAccessorySelectionStyles();
     }
 
+    function isApplePencilAccessory(type) {
+      return /apple\s*pencil|pencil/i.test(String(type || ''));
+    }
+
+    function isIpadDeviceType() {
+      return /ipad/i.test(String(deviceTypeSelect?.value || ''));
+    }
+
+    function isAccessoryCompatible(type) {
+      return !isApplePencilAccessory(type) || isIpadDeviceType();
+    }
+
+    function clearIncompatibleAccessories() {
+      if (!additionalResourcesList) return;
+      additionalResourcesList.querySelectorAll('.additional-resource-row').forEach(row => {
+        const checkbox = row.querySelector('[data-accessory-check]');
+        const quantityInput = row.querySelector('[data-accessory-quantity]');
+        if (!checkbox) return;
+        if (!isAccessoryCompatible(checkbox.value)) {
+          checkbox.checked = false;
+          checkbox.disabled = true;
+          if (quantityInput) quantityInput.disabled = true;
+        } else {
+          checkbox.disabled = false;
+        }
+      });
+    }
+
     function renderAccessoryOptions() {
       if (!additionalResourcesSection || !additionalResourcesList) return;
 
@@ -2008,15 +2115,18 @@ document.getElementById("requesterName").textContent = user.name;
       }
 
       additionalResourcesSection.style.display = 'grid';
-      additionalResourcesList.innerHTML = accessoryTypes.map(type => `
+      additionalResourcesList.innerHTML = accessoryTypes.map(type => {
+        const isApplePencil = isApplePencilAccessory(type);
+        const note = isApplePencil ? '<span class="accessory-compatibility-note">Available only when booking iPads.</span>' : '';
+        return `
         <div class="additional-resource-row" data-accessory-type="${type}" role="checkbox" aria-checked="false" tabindex="0">
           <label>
             <input type="checkbox" data-accessory-check value="${type}" />
-            <span>${type}</span>
+            <span>${type}${note}</span>
           </label>
           <input type="number" data-accessory-quantity value="${devicesRequired?.value || 1}" min="1" max="100" disabled />
-        </div>
-      `).join('');
+        </div>`;
+      }).join('');
     }
 
     function getSelectedAdditionalResources() {
@@ -2226,7 +2336,9 @@ document.getElementById("requesterName").textContent = user.name;
       document.getElementById('timingSection')?.classList.toggle('locked', !hasDevice);
       document.getElementById('locationSection')?.classList.toggle('locked', !hasDevice || !hasDateTime);
       document.getElementById('reviewSection')?.classList.toggle('locked', !hasDevice || !hasDateTime || !hasLocation);
-      if (continueToTimingBtn) continueToTimingBtn.disabled = !hasDevice;
+      if (continueToTimingBtn) continueToTimingBtn.disabled = !isResourceSectionReady();
+      if (continueToReviewBtn) continueToReviewBtn.disabled = !hasLocation;
+      updateTimingSmartHint();
 
       const stepChoose = document.getElementById('stepChoose');
       const stepWhen = document.getElementById('stepWhen');
@@ -2262,9 +2374,14 @@ document.getElementById("requesterName").textContent = user.name;
       additionalResourcesList.querySelectorAll('.additional-resource-row').forEach(row => {
         const checkbox = row.querySelector('[data-accessory-check]');
         const quantityInput = row.querySelector('[data-accessory-quantity]');
-        const selected = Boolean(checkbox?.checked);
+        const compatible = isAccessoryCompatible(checkbox?.value || row.dataset.accessoryType);
+        if (checkbox) checkbox.disabled = !compatible;
+        if (!compatible && checkbox) checkbox.checked = false;
+        const selected = Boolean(checkbox?.checked) && compatible;
         row.classList.toggle('selected', selected);
+        row.classList.toggle('incompatible', !compatible);
         row.setAttribute('aria-checked', String(selected));
+        row.setAttribute('aria-disabled', String(!compatible));
         if (quantityInput) quantityInput.disabled = !selected;
       });
     }
@@ -2327,6 +2444,62 @@ document.getElementById("requesterName").textContent = user.name;
       }, 220);
     }
 
+
+    function updateQuickQuantityStyles() {
+      const current = Number(devicesRequired?.value || 0);
+      document.querySelectorAll('[data-quick-qty]').forEach(button => {
+        button.classList.toggle('active', Number(button.dataset.quickQty) === current);
+      });
+    }
+
+    function isResourceSectionReady() {
+      return Boolean(deviceTypeSelect?.value && Number(devicesRequired?.value || 0) > 0);
+    }
+
+    function isTimingSectionReady() {
+      return Boolean(bookingDate?.value && startTime?.value && endTime?.value && endTime.value > startTime.value);
+    }
+
+    function isLocationSectionReady() {
+      return Boolean(getBookingData().location);
+    }
+
+    function isBookingReadyToSubmit() {
+      return isResourceSectionReady() && isTimingSectionReady() && isLocationSectionReady();
+    }
+
+    function addMinutesToTime(timeValue, minutesToAdd) {
+      if (!timeValue) return '';
+      const [hours, minutes] = timeValue.split(':').map(Number);
+      const total = hours * 60 + minutes + minutesToAdd;
+      const endLimit = 17 * 60 + 30;
+      if (total > endLimit) return '';
+      return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+    }
+
+    function suggestEndTimeIfEmpty() {
+      if (!startTime?.value || endTime?.value) return;
+      const suggestedEnd = addMinutesToTime(startTime.value, 60);
+      if (!suggestedEnd) return;
+      endTime.value = suggestedEnd;
+    }
+
+    function updateTimingSmartHint() {
+      if (!timingSmartHint) return;
+      if (!startTime.value) {
+        timingSmartHint.className = 'smart-hint muted';
+        timingSmartHint.textContent = 'Select a start time. The portal can suggest a sensible end time automatically.';
+        return;
+      }
+      if (startTime.value && endTime.value && endTime.value > startTime.value) {
+        timingSmartHint.className = 'smart-hint';
+        timingSmartHint.textContent = `Timing selected: ${startTime.value}–${endTime.value}. You can continue once the location section appears.`;
+        return;
+      }
+      timingSmartHint.className = 'smart-hint muted';
+      timingSmartHint.textContent = 'Please choose an end time that is later than the start time.';
+    }
+
     function updateSummary() {
       const data = getBookingData();
       const name = data.name || 'Requester';
@@ -2344,8 +2517,14 @@ document.getElementById("requesterName").textContent = user.name;
         ? `Recurring · ${Number(recurrenceCount.value)} occurrence(s)`
         : 'One-Time';
 
+      const ready = isBookingReadyToSubmit();
+      summary.classList.toggle('ready', ready);
+      const readyBanner = ready
+        ? '<div class="review-ready-banner">✓ Ready to submit. Please check the details, then submit your booking request.</div>'
+        : '';
+
       summary.innerHTML = `
-        <strong>Booking Summary</strong>
+        <strong>${ready ? 'Booking Summary · Ready' : 'Booking Summary'}</strong>
         <div class="review-grid">
           <div class="review-item"><span>Requester</span><strong>${name}</strong></div>
           <div class="review-item"><span>Booking Type</span><strong>${bookingTypeText}</strong></div>
@@ -2357,9 +2536,12 @@ document.getElementById("requesterName").textContent = user.name;
           <div class="review-item"><span>Allocation</span><strong>Automatic after submission</strong></div>
         </div>
         <div class="fulfilment-hint"><strong>Fulfilment note:</strong> Deployment resources will be delivered to the selected location. If a collection-only resource such as an iPad Bag is allocated, the confirmation message will instruct the user to collect it from the ICT Work Room.</div>
+        ${readyBanner}
       `;
 
       updateDeviceChoiceCards();
+      updateQuickQuantityStyles();
+      clearIncompatibleAccessories();
       updateAccessorySelectionStyles();
       updateGuidedVisibility();
     }
@@ -2495,9 +2677,15 @@ document.getElementById("requesterName").textContent = user.name;
         scheduleGuidedScroll(document.getElementById('timingSection'));
       });
 
+      continueToReviewBtn.addEventListener('click', () => {
+        updateSummary();
+        scheduleGuidedScroll(document.getElementById('reviewSection'));
+      });
+
       document.querySelectorAll('[data-device-choice]').forEach(button => {
         button.addEventListener('click', () => {
           deviceTypeSelect.value = button.dataset.deviceChoice || '';
+          clearIncompatibleAccessories();
           updateSummary();
         });
       });
@@ -2511,9 +2699,11 @@ document.getElementById("requesterName").textContent = user.name;
       });
 
       deviceTypeSelect.addEventListener('change', () => {
+        clearIncompatibleAccessories();
         updateSummary();
       });
       startTime.addEventListener('change', () => {
+        suggestEndTimeIfEmpty();
         updateSummary();
         if (bookingDate.value && startTime.value && endTime.value && endTime.value > startTime.value) {
           scheduleGuidedScroll();
@@ -2531,7 +2721,7 @@ document.getElementById("requesterName").textContent = user.name;
         if (!row || event.target.matches('[data-accessory-quantity]')) return;
 
         const checkbox = row.querySelector('[data-accessory-check]');
-        if (!checkbox) return;
+        if (!checkbox || !isAccessoryCompatible(checkbox.value)) return;
 
         if (!event.target.matches('[data-accessory-check]')) {
           checkbox.checked = !checkbox.checked;
@@ -2546,7 +2736,7 @@ document.getElementById("requesterName").textContent = user.name;
 
         event.preventDefault();
         const checkbox = row.querySelector('[data-accessory-check]');
-        if (!checkbox) return;
+        if (!checkbox || !isAccessoryCompatible(checkbox.value)) return;
         checkbox.checked = !checkbox.checked;
         checkbox.dispatchEvent(new Event('change', { bubbles: true }));
       });
@@ -2601,6 +2791,7 @@ document.getElementById("requesterName").textContent = user.name;
           const earliestBookingDate = getNextAvailableBookingDate();
           bookingDate.value = earliestBookingDate;
           devicesRequired.value = 1;
+          endTime.value = '';
           setBookingMode('one-time');
           statusMessage.className = 'status';
           currentBookingRequestId = createBookingRequestId();
