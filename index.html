@@ -1743,148 +1743,94 @@
     }
 
 
-    /* Booking Page Refinement: compact quantity, context-aware apps, clean accessories */
-    .quantity-card {
-      display: block;
-      margin-top: 14px;
-      padding: 12px 14px;
-      border-radius: 16px;
+    /* Booking page overflow + compatibility-driven accessory layout fix */
+    .booking-card,
+    .guided-section,
+    .guided-section-body,
+    .quantity-card,
+    .apps-card,
+    .accessory-card {
+      max-width: 100%;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .device-choice-grid,
+    .guided-grid-2,
+    .guided-grid-3,
+    .quantity-card .field,
+    .device-control,
+    .quick-qty-row,
+    .apps-card,
+    #additionalResourcesList {
+      min-width: 0;
     }
 
     .quantity-card .field {
-      display: grid;
-      grid-template-columns: auto minmax(170px, 260px) minmax(220px, 1fr);
-      gap: 10px 14px;
+      grid-template-columns: auto minmax(180px, 1fr) minmax(210px, auto);
       align-items: center;
     }
 
     .quantity-card label {
-      margin: 0;
-      white-space: nowrap;
+      white-space: normal;
     }
 
     .quantity-card .device-control {
-      grid-template-columns: 42px minmax(72px, 1fr) 42px;
-      gap: 8px;
-    }
-
-    .quantity-card .device-control button {
-      min-height: 42px;
-      border-radius: 13px;
-    }
-
-    .quantity-card .device-control input {
-      min-height: 42px;
+      width: 100%;
+      max-width: 260px;
+      justify-self: start;
     }
 
     .quantity-card .quick-qty-row {
       grid-column: auto;
-      align-items: center;
-      flex-wrap: nowrap;
-      overflow-x: auto;
-      padding-bottom: 2px;
-    }
-
-    .quantity-card .quick-qty-row::before {
-      content: "Quick:";
-      flex: 0 0 auto;
-      color: var(--muted);
-      font-size: 0.78rem;
-      font-weight: 900;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      margin-right: 2px;
-    }
-
-    .apps-card.app-disabled {
-      opacity: 0.62;
-    }
-
-    .apps-card.app-disabled .toggle-switch {
-      cursor: not-allowed;
-    }
-
-    .apps-card.app-disabled .toggle-label {
-      color: #64748b;
-    }
-
-    .accessory-card.additional-resources-section {
-      margin-top: 10px;
-      padding: 14px;
-      gap: 12px;
+      flex-wrap: wrap;
+      overflow: visible;
+      justify-self: start;
+      max-width: 100%;
     }
 
     #additionalResourcesList {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 10px;
+      width: 100%;
     }
 
     .additional-resource-row {
-      display: flex !important;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      width: 100%;
-      min-height: 50px;
-      padding: 12px 14px;
-      border-radius: 16px;
+      width: 100% !important;
+      min-width: 0;
+      justify-content: flex-start;
+      border-radius: 18px;
+      padding: 14px 16px;
     }
 
     .additional-resource-row label {
       min-width: 0;
-      white-space: normal;
+      width: 100%;
     }
 
     .additional-resource-row label span {
       overflow-wrap: anywhere;
     }
 
-    .additional-resource-row input[data-accessory-quantity] {
-      display: none !important;
-    }
-
-    .additional-resource-row.selected {
-      border-color: var(--primary);
-      background: #ecfeff;
-      box-shadow: 0 12px 24px rgba(15, 118, 110, 0.11);
-    }
-
-    .additional-resource-row.selected::after {
-      content: "✓";
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 28px;
-      height: 28px;
-      flex: 0 0 auto;
-      border-radius: 999px;
-      background: var(--primary);
-      color: #ffffff;
-      font-weight: 900;
-      position: static;
-      padding: 0;
-      margin-left: auto;
-    }
-
-    .accessory-empty-state {
+    .accessory-empty-note {
+      grid-column: 1 / -1;
       padding: 12px 14px;
       border: 1px dashed #cbd5e1;
-      border-radius: 16px;
-      background: #ffffff;
+      border-radius: 14px;
       color: var(--muted);
-      font-weight: 700;
-      line-height: 1.35;
+      background: #ffffff;
+      font-size: 0.9rem;
+      line-height: 1.4;
     }
 
-    @media (max-width: 760px) {
+    @media (max-width: 980px) {
       .quantity-card .field {
         grid-template-columns: 1fr;
       }
 
-      .quantity-card .quick-qty-row {
-        flex-wrap: wrap;
-        overflow-x: visible;
+      .quantity-card .device-control {
+        max-width: none;
       }
 
       #additionalResourcesList {
@@ -2230,8 +2176,7 @@ document.getElementById("requesterName").textContent = user.name;
     
     let locationsDatabase = [];
     let accessoryTypes = [];
-    let resourceCatalogResources = [];
-    let compatibilityByDeviceType = new Map();
+    let accessoryCompatibilityByDevice = {};
 
 
     const fallbackLocationsDatabase = [
@@ -2378,145 +2323,20 @@ document.getElementById("requesterName").textContent = user.name;
         const response = await fetch('/api/resources/catalog', { cache: 'no-store' });
         const result = await response.json();
         if (!response.ok || !result.success) throw new Error(result.message || 'Unable to load resource catalog.');
-
-        resourceCatalogResources = Array.isArray(result.resources) ? result.resources : [];
-        accessoryTypes = normaliseCatalogAccessoryTypes(result.accessoryTypes || []);
-        compatibilityByDeviceType = buildCompatibilityLookup(result);
+        accessoryTypes = Array.isArray(result.accessoryTypes) ? result.accessoryTypes : [];
+        accessoryCompatibilityByDevice = result.accessoryCompatibilityByDevice || result.compatibilityByDevice || {};
       } catch (error) {
         console.warn('Unable to load accessory resource catalog.', error.message);
         accessoryTypes = [];
-        resourceCatalogResources = [];
-        compatibilityByDeviceType = new Map();
       }
 
       renderAccessoryOptions();
-      updateSoftwareAvailability();
       updateAccessorySelectionStyles();
-      updateSummary();
     }
 
-    function canonicalAccessoryKey(value) {
-      return String(value || '')
-        .toLowerCase()
-        .replace(/&/g, 'and')
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '');
+    function normaliseAccessoryKey(value) {
+      return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
     }
-
-    function normaliseCatalogAccessoryTypes(rawAccessoryTypes) {
-      return rawAccessoryTypes.map(item => {
-        if (typeof item === 'string') {
-          return {
-            key: canonicalAccessoryKey(item),
-            type: item,
-            label: getAccessoryDisplayLabel(item)
-          };
-        }
-
-        const type = item.deviceType || item.type || item.name || item.label || item.key || '';
-        return {
-          key: String(item.key || item.accessoryKey || item.id || canonicalAccessoryKey(type)).trim(),
-          type,
-          label: item.label || getAccessoryDisplayLabel(type)
-        };
-      }).filter(item => item.type);
-    }
-
-    function getAccessoryMatchKeys(accessory) {
-      return new Set([
-        canonicalAccessoryKey(accessory.key),
-        canonicalAccessoryKey(accessory.type),
-        canonicalAccessoryKey(accessory.label)
-      ].filter(Boolean));
-    }
-
-    function normaliseCompatibilityList(value) {
-      if (!value) return [];
-      if (Array.isArray(value)) return value.flatMap(normaliseCompatibilityList);
-      if (typeof value === 'string') return value.split(/[\n,]/).map(item => item.trim()).filter(Boolean);
-      if (value.accessory) return normaliseCompatibilityList(value.accessory);
-      if (value.item) return normaliseCompatibilityList(value.item);
-      if (value.type || value.deviceType || value.name || value.key || value.accessoryKey || value.id) {
-        return [value.key || value.accessoryKey || value.id || value.type || value.deviceType || value.name];
-      }
-      return [];
-    }
-
-    function buildCompatibilityLookup(result = {}) {
-      const lookup = new Map();
-
-      function addCompatibility(deviceType, compatibleAccessories) {
-        const deviceKey = String(deviceType || '').trim();
-        if (!deviceKey) return;
-
-        const existing = lookup.get(deviceKey) || new Set();
-        normaliseCompatibilityList(compatibleAccessories)
-          .map(canonicalAccessoryKey)
-          .filter(Boolean)
-          .forEach(key => existing.add(key));
-        lookup.set(deviceKey, existing);
-      }
-
-      const explicitMaps = [
-        result.compatibilityByDeviceType,
-        result.compatibleAccessoriesByDeviceType,
-        result.deviceAccessoryCompatibility,
-        result.accessoryCompatibility
-      ];
-
-      explicitMaps.forEach(map => {
-        if (!map || typeof map !== 'object') return;
-        Object.entries(map).forEach(([deviceType, compatibleAccessories]) => {
-          addCompatibility(deviceType, compatibleAccessories);
-        });
-      });
-
-      resourceCatalogResources
-        .filter(resource => String(resource.category || '').toLowerCase() !== 'accessory')
-        .forEach(resource => {
-          addCompatibility(resource.deviceType, resource.compatibleAccessories);
-        });
-
-      return lookup;
-    }
-
-    function getAllowedAccessoryTypesForSelectedDevice() {
-      const selectedDeviceType = String(deviceTypeSelect?.value || '').trim();
-      if (!selectedDeviceType) return [];
-
-      const allowedKeys = compatibilityByDeviceType.get(selectedDeviceType);
-
-      if (!allowedKeys || allowedKeys.size === 0) {
-        return accessoryTypes;
-      }
-
-      return accessoryTypes.filter(accessory => {
-        const keys = getAccessoryMatchKeys(accessory);
-        return Array.from(keys).some(key => allowedKeys.has(key));
-      });
-    }
-
-    function updateSoftwareAvailability() {
-      if (!softwareProcreate) return;
-
-      const procreateAllowed = isIpadDeviceType();
-      softwareProcreate.disabled = !procreateAllowed;
-
-      if (!procreateAllowed) {
-        softwareProcreate.checked = false;
-      }
-
-      const appsCard = softwareProcreate.closest('.apps-card');
-      appsCard?.classList.toggle('app-disabled', !procreateAllowed);
-
-      const helper = appsCard?.querySelector('.helper');
-      if (helper) {
-        helper.textContent = procreateAllowed
-          ? 'Optional app request. Leave unticked if Procreate is not required.'
-          : 'Available only when booking iPad-type devices.';
-      }
-    }
-
 
     function isApplePencilAccessory(type) {
       return /apple\s*pencil|pencil/i.test(String(type || ''));
@@ -2526,8 +2346,42 @@ document.getElementById("requesterName").textContent = user.name;
       return /ipad/i.test(String(deviceTypeSelect?.value || ''));
     }
 
+    function getAllowedAccessoriesForSelectedDevice() {
+      const selectedDeviceType = String(deviceTypeSelect?.value || '').trim();
+      if (!selectedDeviceType) return accessoryTypes;
+
+      const direct = accessoryCompatibilityByDevice[selectedDeviceType];
+      const caseInsensitiveKey = Object.keys(accessoryCompatibilityByDevice || {})
+        .find(key => key.toLowerCase() === selectedDeviceType.toLowerCase());
+      const allowed = Array.isArray(direct) ? direct : (caseInsensitiveKey ? accessoryCompatibilityByDevice[caseInsensitiveKey] : []);
+
+      return Array.from(new Set((allowed || []).filter(Boolean)));
+    }
+
+    function isAccessoryCompatible(type) {
+      const selectedDeviceType = String(deviceTypeSelect?.value || '').trim();
+      if (!selectedDeviceType) return true;
+
+      const allowed = getAllowedAccessoriesForSelectedDevice();
+      if (!allowed.length) return false;
+      const target = normaliseAccessoryKey(type);
+      return allowed.some(item => normaliseAccessoryKey(item) === target);
+    }
+
     function clearIncompatibleAccessories() {
-      renderAccessoryOptions();
+      if (!additionalResourcesList) return;
+      additionalResourcesList.querySelectorAll('.additional-resource-row').forEach(row => {
+        const checkbox = row.querySelector('[data-accessory-check]');
+        const quantityInput = row.querySelector('[data-accessory-quantity]');
+        if (!checkbox) return;
+        if (!isAccessoryCompatible(checkbox.value)) {
+          checkbox.checked = false;
+          checkbox.disabled = true;
+          if (quantityInput) quantityInput.disabled = true;
+        } else {
+          checkbox.disabled = false;
+        }
+      });
     }
 
     function getAccessoryDisplayLabel(type) {
@@ -2540,8 +2394,6 @@ document.getElementById("requesterName").textContent = user.name;
     function renderAccessoryOptions() {
       if (!additionalResourcesSection || !additionalResourcesList) return;
 
-      const selectedDeviceType = String(deviceTypeSelect?.value || '').trim();
-
       if (accessoryTypes.length === 0) {
         additionalResourcesSection.style.display = 'none';
         additionalResourcesList.innerHTML = '';
@@ -2549,31 +2401,24 @@ document.getElementById("requesterName").textContent = user.name;
       }
 
       additionalResourcesSection.style.display = 'grid';
+      const selectedDeviceType = String(deviceTypeSelect?.value || '').trim();
+      const visibleAccessoryTypes = selectedDeviceType
+        ? accessoryTypes.filter(type => isAccessoryCompatible(type))
+        : accessoryTypes;
 
-      if (!selectedDeviceType) {
-        additionalResourcesList.innerHTML = '<div class="accessory-empty-state">Select a device type first to see compatible accessories.</div>';
+      if (selectedDeviceType && visibleAccessoryTypes.length === 0) {
+        additionalResourcesList.innerHTML = '<div class="accessory-empty-note">No compatible accessories are configured for this device type in Resources Admin.</div>';
         return;
       }
 
-      const allowedAccessories = getAllowedAccessoryTypesForSelectedDevice();
-
-      if (allowedAccessories.length === 0) {
-        additionalResourcesList.innerHTML = '<div class="accessory-empty-state">No optional accessories are configured for this device type.</div>';
-        return;
-      }
-
-      additionalResourcesList.innerHTML = allowedAccessories.map(accessory => {
-        const safeType = String(accessory.type || '').replace(/"/g, '&quot;');
-        const safeKey = String(accessory.key || canonicalAccessoryKey(accessory.type)).replace(/"/g, '&quot;');
-        return `
-        <div class="additional-resource-row" data-accessory-type="${safeType}" data-accessory-key="${safeKey}" role="checkbox" aria-checked="false" tabindex="0">
+      additionalResourcesList.innerHTML = visibleAccessoryTypes.map(type => `
+        <div class="additional-resource-row" data-accessory-type="${type}" role="checkbox" aria-checked="false" tabindex="0">
           <label>
-            <input type="checkbox" data-accessory-check value="${safeType}" data-accessory-key="${safeKey}" />
-            <span>${accessory.label || getAccessoryDisplayLabel(accessory.type)}</span>
+            <input type="checkbox" data-accessory-check value="${type}" />
+            <span>${getAccessoryDisplayLabel(type)}</span>
           </label>
           <input type="number" data-accessory-quantity value="${devicesRequired?.value || 1}" min="1" max="100" disabled />
-        </div>`;
-      }).join('');
+        </div>`).join('');
     }
 
     function getSelectedAdditionalResources() {
@@ -2584,13 +2429,12 @@ document.getElementById("requesterName").textContent = user.name;
           const quantityInput = row.querySelector('[data-accessory-quantity]');
           return {
             type: checkbox?.value || '',
-            accessoryKey: checkbox?.dataset.accessoryKey || row.dataset.accessoryKey || '',
             quantity: Number(quantityInput?.value || 0),
             selected: Boolean(checkbox?.checked)
           };
         })
         .filter(item => item.selected && item.type && item.quantity > 0)
-        .map(({ type, accessoryKey, quantity }) => ({ type, accessoryKey, quantity }));
+        .map(({ type, quantity }) => ({ type, quantity }));
     }
 
     function syncAccessoryQuantitiesToDeviceCount() {
@@ -2823,11 +2667,14 @@ document.getElementById("requesterName").textContent = user.name;
       additionalResourcesList.querySelectorAll('.additional-resource-row').forEach(row => {
         const checkbox = row.querySelector('[data-accessory-check]');
         const quantityInput = row.querySelector('[data-accessory-quantity]');
-        const selected = Boolean(checkbox?.checked);
+        const compatible = isAccessoryCompatible(checkbox?.value || row.dataset.accessoryType);
+        if (checkbox) checkbox.disabled = !compatible;
+        if (!compatible && checkbox) checkbox.checked = false;
+        const selected = Boolean(checkbox?.checked) && compatible;
         row.classList.toggle('selected', selected);
-        row.classList.remove('incompatible');
+        row.classList.toggle('incompatible', !compatible);
         row.setAttribute('aria-checked', String(selected));
-        row.setAttribute('aria-disabled', 'false');
+        row.setAttribute('aria-disabled', String(!compatible));
         if (quantityInput) quantityInput.disabled = !selected;
       });
     }
@@ -2930,6 +2777,21 @@ document.getElementById("requesterName").textContent = user.name;
       endTime.value = suggestedEnd;
     }
 
+    function updateSoftwareAvailability() {
+      if (!softwareProcreate) return;
+      const enabled = isIpadDeviceType();
+      if (!enabled) softwareProcreate.checked = false;
+      softwareProcreate.disabled = !enabled;
+      const appsCard = softwareProcreate.closest('.apps-card');
+      if (appsCard) appsCard.classList.toggle('disabled-option', !enabled);
+      const helper = appsCard?.querySelector('.helper');
+      if (helper) {
+        helper.textContent = enabled
+          ? 'Optional app request. Leave unticked if Procreate is not required.'
+          : 'Available only when booking iPad-type devices.';
+      }
+    }
+
     function updateTimingSmartHint() {
       if (!timingSmartHint) return;
       if (!startTime.value) {
@@ -2947,6 +2809,7 @@ document.getElementById("requesterName").textContent = user.name;
     }
 
     function updateSummary() {
+      updateSoftwareAvailability();
       const data = getBookingData();
       const name = data.name || 'Requester';
       const location = data.location || 'Not selected';
@@ -2987,7 +2850,7 @@ document.getElementById("requesterName").textContent = user.name;
 
       updateDeviceChoiceCards();
       updateQuickQuantityStyles();
-      updateSoftwareAvailability();
+      clearIncompatibleAccessories();
       updateAccessorySelectionStyles();
       updateGuidedVisibility();
     }
@@ -3133,7 +2996,6 @@ document.getElementById("requesterName").textContent = user.name;
         button.addEventListener('click', () => {
           deviceTypeSelect.value = button.dataset.deviceChoice || '';
           renderAccessoryOptions();
-          updateSoftwareAvailability();
           updateSummary();
         });
       });
@@ -3148,7 +3010,6 @@ document.getElementById("requesterName").textContent = user.name;
 
       deviceTypeSelect.addEventListener('change', () => {
         renderAccessoryOptions();
-        updateSoftwareAvailability();
         updateSummary();
       });
       startTime.addEventListener('change', () => {
@@ -3170,7 +3031,7 @@ document.getElementById("requesterName").textContent = user.name;
         if (!row || event.target.matches('[data-accessory-quantity]')) return;
 
         const checkbox = row.querySelector('[data-accessory-check]');
-        if (!checkbox || checkbox.disabled) return;
+        if (!checkbox || !isAccessoryCompatible(checkbox.value)) return;
 
         if (!event.target.matches('[data-accessory-check]')) {
           checkbox.checked = !checkbox.checked;
@@ -3185,7 +3046,7 @@ document.getElementById("requesterName").textContent = user.name;
 
         event.preventDefault();
         const checkbox = row.querySelector('[data-accessory-check]');
-        if (!checkbox || checkbox.disabled) return;
+        if (!checkbox || !isAccessoryCompatible(checkbox.value)) return;
         checkbox.checked = !checkbox.checked;
         checkbox.dispatchEvent(new Event('change', { bubbles: true }));
       });
@@ -3246,9 +3107,6 @@ document.getElementById("requesterName").textContent = user.name;
           currentBookingRequestId = createBookingRequestId();
           lastGuidedTargetId = '';
           timingSectionUnlocked = false;
-          softwareProcreate.checked = false;
-          renderAccessoryOptions();
-          updateSoftwareAvailability();
           toggleCustomLocationField();
           updateSummary();
         }, 0);

@@ -352,64 +352,13 @@ function normaliseSoftwareItems(software) {
   return [];
 }
 
-function normaliseAccessoryCompatibilityKey(value) {
-  const text = String(value || "").trim();
-  const lower = text.toLowerCase();
-
-  if (!text) return "";
-
-  if (/^acc[-_ ]?mouse$/i.test(text) || lower === "mouse" || lower.includes("mouse") || lower.includes("mice")) {
-    return "ACC-MOUSE";
-  }
-
-  if (/^acc[-_ ]?apple[-_ ]?pencil$/i.test(text) || lower.includes("apple pencil") || lower.includes("stylus")) {
-    return "ACC-APPLE-PENCIL";
-  }
-
-  if (
-    /^acc[-_ ]?headset[-_ ]?(usb[-_ ]?c|usb_c|usbc)$/i.test(text) ||
-    (/head\s*set|headset|headphones?|earpieces?/.test(lower) && /usb\s*-?\s*c|type\s*c|usb-c/.test(lower))
-  ) {
-    return "ACC-HEADSET-USB-C";
-  }
-
-  if (
-    /^acc[-_ ]?headset[-_ ]?(35mm|3[-_ ]?5mm|audio[-_ ]?jack)$/i.test(text) ||
-    (/head\s*set|headset|headphones?|earpieces?/.test(lower) && /3\.5|3\.5mm|audio\s*jack|aux|stereo\s*jack/.test(lower))
-  ) {
-    return "ACC-HEADSET-35MM";
-  }
-
-  if (/head\s*set|headset|headphones?|earpieces?/.test(lower)) {
-    return "ACC-HEADSET";
-  }
-
-  return text
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
-function accessoryKeyToDisplayName(key) {
-  const normalisedKey = normaliseAccessoryCompatibilityKey(key);
-  const displayNames = {
-    "ACC-MOUSE": "Mouse",
-    "ACC-APPLE-PENCIL": "Apple Pencil",
-    "ACC-HEADSET-USB-C": "Headset (USB-C)",
-    "ACC-HEADSET-35MM": "Headset (3.5mm audio jack)",
-    "ACC-HEADSET": "Headset"
-  };
-
-  return displayNames[normalisedKey] || String(key || "").trim();
-}
-
 function normaliseCompatibleAccessories(compatibleAccessories) {
   if (!compatibleAccessories) return [];
 
   if (Array.isArray(compatibleAccessories)) {
     return Array.from(new Set(
       compatibleAccessories
-        .map(item => normaliseAccessoryCompatibilityKey(item))
+        .map(item => normaliseAccessoryRequestType(item))
         .filter(Boolean)
     ));
   }
@@ -749,35 +698,12 @@ function formatResourceForResponse(resource) {
     deploymentRequired: resourceRequiresDeployment(resource),
     software: normaliseSoftwareItems(resource.software),
     compatibleAccessories: normaliseResourceCategory(resource.category) === "Device"
-      ? normaliseCompatibleAccessories(resource.compatibleAccessories).map(accessoryKeyToDisplayName)
-      : [],
-    compatibleAccessoryKeys: normaliseResourceCategory(resource.category) === "Device"
       ? normaliseCompatibleAccessories(resource.compatibleAccessories)
       : [],
     notes: resource.notes || "",
     createdAt: resource.createdAt || "",
     updatedAt: resource.updatedAt || ""
   };
-}
-
-function resourceSupportsAdditionalResourceRequests(resource, additionalResources) {
-  const requests = normaliseAdditionalResourceRequests(additionalResources);
-  if (requests.length === 0) return true;
-
-  const compatibleKeys = new Set(normaliseCompatibleAccessories(resource.compatibleAccessories));
-  if (compatibleKeys.size === 0) return false;
-
-  return requests.every(item => compatibleKeys.has(normaliseAccessoryCompatibilityKey(item.type)));
-}
-
-function getAvailableAccessoryKeySet(resources = readResourcesFromXML().map(formatResourceForResponse)) {
-  return new Set(
-    resources
-      .filter(resource => resource.category === "Accessory")
-      .filter(resource => resource.status === "Available")
-      .map(resource => normaliseAccessoryCompatibilityKey(resource.deviceType))
-      .filter(Boolean)
-  );
 }
 
 function resourceHasFutureBookings(resourceId) {
@@ -1590,10 +1516,33 @@ app.get("/api/resources/catalog", requireLogin, (req, res) => {
         .filter(Boolean)
     )).sort((a, b) => a.localeCompare(b));
 
+    const accessoryCompatibilityByDevice = resources
+      .filter(resource => resource.category !== "Accessory")
+      .filter(resource => resource.status === "Available")
+      .reduce((lookup, resource) => {
+        const deviceType = resource.deviceType;
+        if (!deviceType) return lookup;
+        if (!lookup[deviceType]) lookup[deviceType] = [];
+        const existing = new Set(lookup[deviceType].map(item => String(item).toLowerCase()));
+        toArray(resource.compatibleAccessories)
+          .map(item => normaliseAccessoryRequestType(item))
+          .filter(Boolean)
+          .forEach(item => {
+            const key = String(item).toLowerCase();
+            if (!existing.has(key)) {
+              lookup[deviceType].push(item);
+              existing.add(key);
+            }
+          });
+        lookup[deviceType].sort((a, b) => a.localeCompare(b));
+        return lookup;
+      }, {});
+
     res.json({
       success: true,
       deviceTypes,
-      accessoryTypes
+      accessoryTypes,
+      accessoryCompatibilityByDevice
     });
   } catch (error) {
     console.error("Resource catalog retrieval error:", error);
@@ -1612,43 +1561,23 @@ function normaliseAdditionalResourceRequests(additionalResources) {
 
 function validateAdditionalResourceRequests(bookingRequest) {
   const errors = [];
-  const resources = readResourcesFromXML().map(formatResourceForResponse);
-  const accessoryKeySet = getAvailableAccessoryKeySet(resources);
-  const additionalRequests = normaliseAdditionalResourceRequests(bookingRequest.additionalResources);
+  const accessoryTypes = new Set(
+    readResourcesFromXML()
+      .map(formatResourceForResponse)
+      .filter(resource => resource.category === "Accessory")
+      .filter(resource => resource.status === "Available")
+      .map(resource => resource.deviceType.toLowerCase())
+  );
 
-  additionalRequests.forEach(item => {
-    const accessoryKey = normaliseAccessoryCompatibilityKey(item.type);
-    if (!accessoryKeySet.has(accessoryKey)) {
-      errors.push(`${accessoryKeyToDisplayName(item.type)} is not an available accessory resource.`);
+  normaliseAdditionalResourceRequests(bookingRequest.additionalResources).forEach(item => {
+    if (!accessoryTypes.has(item.type.toLowerCase())) {
+      errors.push(`${item.type} is not an available accessory resource.`);
     }
   });
 
-  if (errors.length > 0 || additionalRequests.length === 0) {
-    return errors;
-  }
-
-  const candidateDevices = resources
-    .filter(resource => resource.category !== "Accessory")
-    .filter(resource => resource.status === "Available")
-    .filter(resource => String(resource.deviceType || "") === String(bookingRequest.deviceType || ""));
-
-  if (candidateDevices.length === 0) {
-    return errors;
-  }
-
-  const compatibleCandidateExists = candidateDevices.some(resource =>
-    resourceSupportsAdditionalResourceRequests(resource, additionalRequests)
-  );
-
-  if (!compatibleCandidateExists) {
-    const requestedAccessories = additionalRequests
-      .map(item => accessoryKeyToDisplayName(item.type))
-      .join(", ");
-    errors.push(`No available ${bookingRequest.deviceType} resource is configured as compatible with the requested accessory combination: ${requestedAccessories}.`);
-  }
-
   return errors;
 }
+
 
 function normaliseFingerprintText(value) {
   return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
@@ -2297,9 +2226,7 @@ function inferLegacyResource(resourceText) {
   };
 
   if (!text) {
-    result.isNonICT = true;
-    result.reason = "Legacy row does not contain an ICT resource booking.";
-    result.resourceResolution = "Skipped non-ICT resource";
+    result.reason = "Resource field is empty.";
     return result;
   }
 
@@ -2384,9 +2311,8 @@ function inferLegacyResource(resourceText) {
   }
 
   if (!result.isICT) {
-    result.isNonICT = true;
-    result.reason = "Legacy resource did not match any registered portal resource or supported generic ICT device type and is treated as a non-ICT / venue-only booking.";
-    result.resourceResolution = "Skipped non-ICT resource";
+    result.reason = "Legacy resource did not match any registered portal resource or supported generic ICT device type.";
+    result.resourceResolution = "No registered resource match";
   }
 
   return result;
@@ -2412,36 +2338,6 @@ function getKnownLocationNames() {
     .map(location => location.name)
     .filter(name => name && name !== "Other")
     .sort((a, b) => b.length - a.length);
-}
-
-function normaliseLocationCandidate(value) {
-  return String(value || "")
-    .trim()
-    .toUpperCase()
-    .replace(/\s+/g, "");
-}
-
-function findKnownLocationByCandidate(candidate, knownLocations) {
-  const cleanedCandidate = normaliseLocationCandidate(candidate);
-  if (!cleanedCandidate) return "";
-
-  return knownLocations.find(location =>
-    normaliseLocationCandidate(location) === cleanedCandidate
-  ) || "";
-}
-
-function looksLikeDescriptiveDeploymentLocation(text) {
-  const raw = normaliseImportValue(text);
-  if (!raw) return false;
-
-  const lower = raw.toLowerCase();
-  const locationIntentPatterns = [
-    /\b(?:student\s+care\s+room|room|classroom|venue|block|level|lvl|floor)\b/,
-    /\b(?:next\s+to|beside|near|outside|opposite|behind|in\s+front\s+of|at)\b/,
-    /\b(?:ish|annex|library|canteen|hall|studio|dance\s+studio|staff\s+room)\b/
-  ];
-
-  return locationIntentPatterns.some(pattern => pattern.test(lower));
 }
 
 function extractLegacyLocation(row) {
@@ -2477,24 +2373,11 @@ function extractLegacyLocation(row) {
     }
   }
 
-  const prefixedClassMatch = searchableText.match(/\bP\s*([1-6][A-G])\b/i);
-  if (prefixedClassMatch) {
-    const classCandidate = prefixedClassMatch[1].toUpperCase();
-    const knownClassLocation = findKnownLocationByCandidate(classCandidate, knownLocations);
-    return {
-      location: knownClassLocation || classCandidate,
-      resolution: knownClassLocation ? "Matched existing location" : "Custom class-like location",
-      sourceText: searchableText
-    };
-  }
-
   const classMatch = searchableText.match(/\b(?:class(?:room)?\s*)?([1-6][A-G])(?:\s*class(?:room)?)?\b/i);
   if (classMatch) {
-    const classCandidate = classMatch[1].toUpperCase();
-    const knownClassLocation = findKnownLocationByCandidate(classCandidate, knownLocations);
     return {
-      location: knownClassLocation || classCandidate,
-      resolution: knownClassLocation ? "Matched existing location" : "Custom class-like location",
+      location: classMatch[1].toUpperCase(),
+      resolution: knownLocations.includes(classMatch[1].toUpperCase()) ? "Matched existing location" : "Custom class-like location",
       sourceText: searchableText
     };
   }
@@ -2516,16 +2399,6 @@ function extractLegacyLocation(row) {
     return {
       location: `Room ${decimalRoomMatch[0].trim()}`,
       resolution: "Custom room location",
-      sourceText: searchableText
-    };
-  }
-
-
-  const descriptiveSource = sources.find(source => looksLikeDescriptiveDeploymentLocation(source));
-  if (descriptiveSource) {
-    return {
-      location: descriptiveSource,
-      resolution: "Custom descriptive location",
       sourceText: searchableText
     };
   }
@@ -2957,134 +2830,9 @@ function mapLegacyBookingRow(row, index, users) {
   };
 }
 
-function normaliseConsolidationKeyValue(value) {
-  return String(value || "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ");
-}
-
-function getImportRequesterKey(mappedBooking = {}) {
-  return normaliseConsolidationKeyValue(
-    mappedBooking.userId ||
-    mappedBooking.importedRequesterEmail ||
-    mappedBooking.importedRequesterName
-  );
-}
-
-function getImportLocationKey(mappedBooking = {}) {
-  return normaliseConsolidationKeyValue(mappedBooking.location);
-}
-
-function getImportBookingMergeKey(row) {
-  const booking = row?.mappedBooking || {};
-  return [
-    getImportRequesterKey(booking),
-    normaliseConsolidationKeyValue(booking.bookingDate),
-    getImportLocationKey(booking)
-  ].join("|");
-}
-
-function getAdditionalResourceList(booking = {}) {
-  return normaliseAdditionalResourceRequests(booking.additionalResources);
-}
-
-function hasDeviceRequest(row) {
-  const booking = row?.mappedBooking || {};
-  return Boolean(booking.deviceType && Number(booking.devicesRequired || 0) > 0);
-}
-
-function hasAccessoryRequest(row) {
-  return getAdditionalResourceList(row?.mappedBooking || {}).length > 0;
-}
-
-function isAccessoryOnlyImportRow(row) {
-  return !hasDeviceRequest(row) && hasAccessoryRequest(row);
-}
-
-function mergeAdditionalResourcesForImport(deviceBooking, accessoryBooking) {
-  const merged = [
-    ...getAdditionalResourceList(deviceBooking),
-    ...getAdditionalResourceList(accessoryBooking)
-  ];
-  return {
-    resource: normaliseAdditionalResourceRequests(mergeAccessoryQuantities(merged, Number(deviceBooking.devicesRequired || 0) || 1))
-  };
-}
-
-function removeDeviceTypeErrors(errors = []) {
-  return toArray(errors).filter(error =>
-    !/device type is required|number of devices must be a positive whole number/i.test(String(error || ""))
-  );
-}
-
-function consolidateAccessoryOnlyImportRows(mappedRows) {
-  const rows = toArray(mappedRows);
-  const deviceRowsByKey = new Map();
-
-  rows.forEach(row => {
-    if (!hasDeviceRequest(row)) return;
-    const booking = row.mappedBooking || {};
-    if (!booking.bookingDate || !booking.location || !getImportRequesterKey(booking)) return;
-    const key = getImportBookingMergeKey(row);
-    if (!deviceRowsByKey.has(key)) deviceRowsByKey.set(key, []);
-    deviceRowsByKey.get(key).push(row);
-  });
-
-  const mergedAccessoryRowIds = new Set();
-
-  rows.forEach((row, rowIndex) => {
-    if (!isAccessoryOnlyImportRow(row)) return;
-
-    const booking = row.mappedBooking || {};
-    if (!booking.bookingDate || !booking.location || !getImportRequesterKey(booking)) return;
-
-    const candidates = deviceRowsByKey.get(getImportBookingMergeKey(row)) || [];
-    if (candidates.length === 0) return;
-
-    const target = candidates.find(candidate =>
-      candidate.mappedBooking?.startTime === booking.startTime ||
-      candidate.mappedBooking?.endTime === booking.endTime
-    ) || candidates[0];
-
-    target.mappedBooking.additionalResources = mergeAdditionalResourcesForImport(target.mappedBooking, booking);
-
-    const mergeNote = `Accessory-only legacy row ${row.rowNumber} merged into device row ${target.rowNumber}; device booking timing retained.`;
-    const targetWarnings = toArray(target.warnings);
-    if (!targetWarnings.includes(mergeNote)) targetWarnings.push(mergeNote);
-    target.warnings = targetWarnings;
-    target.mappedBooking.importWarnings = {
-      warning: Array.from(new Set([
-        ...toArray(target.mappedBooking.importWarnings?.warning),
-        mergeNote
-      ]))
-    };
-
-    const accessoryResolutionText = [
-      target.mappedBooking.legacyAccessoryResolution,
-      `Merged accessories from legacy row ${row.rowNumber}`
-    ].filter(Boolean).join('; ');
-    target.mappedBooking.legacyAccessoryResolution = accessoryResolutionText;
-
-    mergedAccessoryRowIds.add(rowIndex);
-  });
-
-  return rows
-    .filter((_, index) => !mergedAccessoryRowIds.has(index))
-    .map(row => {
-      if (row.valid) return row;
-      const cleanedErrors = removeDeviceTypeErrors(row.errors);
-      return {
-        ...row,
-        errors: cleanedErrors,
-        valid: cleanedErrors.length === 0
-      };
-    });
-}
-
 function previewLegacyBookingRows(rows, dateRange = {}) {
   const users = getUsersFromXML();
-  let allRows = toArray(rows).flatMap((row, index) => {
+  const allRows = toArray(rows).flatMap((row, index) => {
     const sourceRow = row || {};
     const resourceSegments = parseLegacyResourceDeploymentSegments(sourceRow);
     const timeSegments = parseLegacyTimeslotSegments(getImportValue(sourceRow, [
@@ -3100,8 +2848,6 @@ function previewLegacyBookingRows(rows, dateRange = {}) {
       )
     );
   });
-
-  allRows = consolidateAccessoryOnlyImportRows(allRows);
 
   const inRangeRows = [];
   const outOfRangeRows = [];
