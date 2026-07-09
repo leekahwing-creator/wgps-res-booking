@@ -960,6 +960,52 @@
       font-weight: 900;
     }
 
+
+    .sortable-header {
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      text-transform: inherit;
+      letter-spacing: inherit;
+      padding: 0;
+      width: 100%;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .sortable-header:hover,
+    .sortable-header:focus-visible {
+      color: var(--primary-dark);
+      outline: none;
+    }
+
+    .sort-indicator {
+      color: #94a3b8;
+      font-size: 0.82rem;
+      line-height: 1;
+    }
+
+    .sortable-header[aria-sort="ascending"] .sort-indicator,
+    .sortable-header[aria-sort="descending"] .sort-indicator {
+      color: var(--primary-dark);
+    }
+
+    .sortable-header[aria-sort="ascending"] .sort-indicator::before {
+      content: "▲";
+    }
+
+    .sortable-header[aria-sort="descending"] .sort-indicator::before {
+      content: "▼";
+    }
+
+    .sortable-header[aria-sort="none"] .sort-indicator::before {
+      content: "↕";
+    }
+
     .users-table td {
       font-size: 0.92rem;
     }
@@ -1565,13 +1611,13 @@
           <table class="users-table" aria-label="ICT resources table">
             <thead>
               <tr>
-                <th>Resource</th>
-                <th>Category</th>
-                <th>Resource Type</th>
-                <th>Capacity</th>
-                <th>Status</th>
-                <th>Location</th>
-                <th>Installed Software</th>
+                <th><button class="sortable-header" type="button" data-resource-sort="name" aria-sort="none">Resource <span class="sort-indicator" aria-hidden="true"></span></button></th>
+                <th><button class="sortable-header" type="button" data-resource-sort="category" aria-sort="none">Category <span class="sort-indicator" aria-hidden="true"></span></button></th>
+                <th><button class="sortable-header" type="button" data-resource-sort="deviceType" aria-sort="none">Resource Type <span class="sort-indicator" aria-hidden="true"></span></button></th>
+                <th><button class="sortable-header" type="button" data-resource-sort="capacity" aria-sort="none">Capacity <span class="sort-indicator" aria-hidden="true"></span></button></th>
+                <th><button class="sortable-header" type="button" data-resource-sort="status" aria-sort="none">Status <span class="sort-indicator" aria-hidden="true"></span></button></th>
+                <th><button class="sortable-header" type="button" data-resource-sort="location" aria-sort="none">Location <span class="sort-indicator" aria-hidden="true"></span></button></th>
+                <th><button class="sortable-header" type="button" data-resource-sort="software" aria-sort="none">Installed Software <span class="sort-indicator" aria-hidden="true"></span></button></th>
                 <th style="text-align:right;">Actions</th>
               </tr>
             </thead>
@@ -1943,6 +1989,12 @@
     let rowsPerPage = Number(localStorage.getItem('resourcesAdminRowsPerPage')) || 25;
     let activeAdminTab = 'resources';
 
+    // Default inventory view: Resource column, ascending.
+    // Sort choice is intentionally page-session only so every fresh visit starts
+    // with a predictable stock-taking order.
+    let resourceSortKey = 'name';
+    let resourceSortDirection = 'asc';
+
     function showStatus(type, message) {
       statusMessage.className = `status ${type}`;
       statusMessage.textContent = message;
@@ -2018,6 +2070,153 @@
       });
     }
 
+    function normaliseInventoryText(value) {
+      return String(value || '')
+        .toLowerCase()
+        .replace(/usb\s*[- ]?c/g, 'usb-c')
+        .replace(/3\.5\s*mm/g, '3.5mm')
+        .replace(/[^a-z0-9.]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    function getInventoryFamily(resource) {
+      const text = normaliseInventoryText(`${resource.deviceType || ''} ${resource.name || ''} ${resource.id || ''}`);
+      if (text.includes('apple pencil')) return 'Apple Pencil';
+      if (text.includes('headset') || text.includes('headphone')) return 'Headset';
+      if (text.includes('mouse') || text.includes('mice')) return 'Mouse';
+      if (text.includes('laptop') || text.includes('notebook')) return 'Laptop';
+      if (text.includes('keyboard')) return 'iPad with Keyboard';
+      if (text.includes('ipad')) return 'iPad';
+      return resource.deviceType || resource.name || '';
+    }
+
+    function getInventoryVariant(resource) {
+      const text = normaliseInventoryText(`${resource.deviceType || ''} ${resource.name || ''} ${resource.id || ''} ${resource.notes || ''}`);
+      if (text.includes('3.5mm') || text.includes('audio jack')) return '3.5mm audio jack';
+      if (text.includes('usb-c') || text.includes('usb c')) return 'USB-C';
+      return '';
+    }
+
+    function getInventorySetSequence(resource) {
+      const text = String(`${resource.name || ''} ${resource.id || ''}`).toUpperCase();
+      const letterMatch = text.match(/\b(?:SET|BAG|CART)\s*([A-Z])\b/) || text.match(/[-_](?:SET|BAG|CART)[-_]?([A-Z])\b/);
+      if (letterMatch) {
+        return { type: 1, value: letterMatch[1].charCodeAt(0) - 64, label: letterMatch[1] };
+      }
+
+      const numberMatch = text.match(/\b(?:SET|BAG|CART)\s*(\d+)\b/) || text.match(/[-_](?:SET|BAG|CART)[-_]?(\d+)\b/) || text.match(/[-_](\d+)$/);
+      if (numberMatch) {
+        return { type: 2, value: Number(numberMatch[1]) || 0, label: numberMatch[1] };
+      }
+
+      return { type: 9, value: 0, label: '' };
+    }
+
+    function getInventorySortParts(resource) {
+      const category = resource.category || 'Device';
+      const family = getInventoryFamily(resource);
+      const variant = getInventoryVariant(resource);
+      const sequence = getInventorySetSequence(resource);
+
+      const categoryOrder = { Device: 1, Accessory: 2 };
+      const deviceFamilyOrder = { Laptop: 10, iPad: 20, 'iPad with Keyboard': 30 };
+      const accessoryFamilyOrder = { 'Apple Pencil': 10, Headset: 20, Mouse: 30 };
+      const variantOrder = { '': 0, '3.5mm audio jack': 1, 'USB-C': 2 };
+      const groupingOrder = { Cart: 1, Bag: 2, Set: 3, Other: 9 };
+
+      return {
+        categoryRank: categoryOrder[category] || 9,
+        familyRank: category === 'Accessory'
+          ? (accessoryFamilyOrder[family] || 99)
+          : (deviceFamilyOrder[family] || 99),
+        family,
+        groupingRank: groupingOrder[resource.resourceType] || 9,
+        sequenceType: sequence.type,
+        sequenceValue: sequence.value,
+        sequenceLabel: sequence.label,
+        variantRank: variantOrder[variant] ?? 9,
+        variant,
+        name: resource.name || '',
+        id: resource.id || ''
+      };
+    }
+
+    function compareText(a, b) {
+      return String(a || '').localeCompare(String(b || ''), undefined, {
+        numeric: true,
+        sensitivity: 'base'
+      });
+    }
+
+    function compareInventoryResourceName(a, b) {
+      const left = getInventorySortParts(a);
+      const right = getInventorySortParts(b);
+
+      const checks = [
+        left.categoryRank - right.categoryRank,
+        left.familyRank - right.familyRank,
+        compareText(left.family, right.family),
+        left.groupingRank - right.groupingRank,
+        left.sequenceType - right.sequenceType,
+        left.sequenceValue - right.sequenceValue,
+        compareText(left.sequenceLabel, right.sequenceLabel),
+        left.variantRank - right.variantRank,
+        compareText(left.variant, right.variant),
+        compareText(left.name, right.name),
+        compareText(left.id, right.id)
+      ];
+
+      return checks.find(value => value !== 0) || 0;
+    }
+
+    function getResourceSortValue(resource, key) {
+      if (key === 'name') return `${resource.name || ''} ${resource.id || ''}`;
+      if (key === 'category') return resource.category || 'Device';
+      if (key === 'deviceType') return resource.deviceType || '';
+      if (key === 'capacity') return Number(resource.capacity || 0);
+      if (key === 'status') return resource.status || '';
+      if (key === 'location') return resource.location || '';
+      if (key === 'software') return (resource.software || []).join(', ');
+      return resource.name || '';
+    }
+
+    function sortResources(resourceList) {
+      const direction = resourceSortDirection === 'desc' ? -1 : 1;
+      return [...resourceList].sort((a, b) => {
+        if (resourceSortKey === 'name') {
+          const inventoryDiff = compareInventoryResourceName(a, b);
+          if (inventoryDiff !== 0) return inventoryDiff * direction;
+        }
+
+        const aValue = getResourceSortValue(a, resourceSortKey);
+        const bValue = getResourceSortValue(b, resourceSortKey);
+
+        if (typeof aValue === 'number' || typeof bValue === 'number') {
+          const numberDiff = (Number(aValue) || 0) - (Number(bValue) || 0);
+          if (numberDiff !== 0) return numberDiff * direction;
+        } else {
+          const textDiff = compareText(aValue, bValue);
+          if (textDiff !== 0) return textDiff * direction;
+        }
+
+        return compareInventoryResourceName(a, b);
+      });
+    }
+
+    function updateResourceSortHeaders() {
+      document.querySelectorAll('[data-resource-sort]').forEach(button => {
+        const key = button.dataset.resourceSort;
+        const sortValue = key === resourceSortKey
+          ? (resourceSortDirection === 'desc' ? 'descending' : 'ascending')
+          : 'none';
+        button.setAttribute('aria-sort', sortValue);
+        button.title = key === resourceSortKey
+          ? `Sorted ${resourceSortDirection === 'desc' ? 'descending' : 'ascending'}. Click to reverse.`
+          : 'Click to sort this column.';
+      });
+    }
+
     function getPaginatedResources(filteredResources) {
       const totalPages = Math.max(1, Math.ceil(filteredResources.length / rowsPerPage));
       if (currentPage > totalPages) currentPage = totalPages;
@@ -2052,7 +2251,8 @@
 
     function renderResources() {
       updateStats();
-      const filteredResources = getFilteredResources();
+      const filteredResources = sortResources(getFilteredResources());
+      updateResourceSortHeaders();
       const { totalPages, startIndex, pageResources } = getPaginatedResources(filteredResources);
       updatePaginationControls(filteredResources.length, totalPages, startIndex, pageResources.length);
 
@@ -2691,6 +2891,20 @@
         renderResources();
       });
       input.addEventListener('change', () => {
+        resetPagination();
+        renderResources();
+      });
+    });
+
+    document.querySelectorAll('[data-resource-sort]').forEach(button => {
+      button.addEventListener('click', () => {
+        const nextSortKey = button.dataset.resourceSort;
+        if (resourceSortKey === nextSortKey) {
+          resourceSortDirection = resourceSortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+          resourceSortKey = nextSortKey;
+          resourceSortDirection = ['capacity'].includes(nextSortKey) ? 'desc' : 'asc';
+        }
         resetPagination();
         renderResources();
       });
