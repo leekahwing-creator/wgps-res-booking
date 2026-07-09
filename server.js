@@ -352,6 +352,34 @@ function normaliseSoftwareItems(software) {
   return [];
 }
 
+function normaliseCompatibleAccessories(compatibleAccessories) {
+  if (!compatibleAccessories) return [];
+
+  if (Array.isArray(compatibleAccessories)) {
+    return Array.from(new Set(
+      compatibleAccessories
+        .map(item => normaliseAccessoryRequestType(item))
+        .filter(Boolean)
+    ));
+  }
+
+  if (typeof compatibleAccessories === "string") {
+    return normaliseCompatibleAccessories(
+      compatibleAccessories.split(/[\n,]/).map(item => item.trim())
+    );
+  }
+
+  if (compatibleAccessories.accessory) {
+    return normaliseCompatibleAccessories(toArray(compatibleAccessories.accessory));
+  }
+
+  if (compatibleAccessories.item) {
+    return normaliseCompatibleAccessories(toArray(compatibleAccessories.item));
+  }
+
+  return [];
+}
+
 function normaliseResourceStatus(status) {
   const allowedStatuses = ["Available", "Unavailable", "Maintenance", "Retired"];
   return allowedStatuses.includes(status) ? status : "Available";
@@ -528,6 +556,11 @@ function buildResourcesXml(resources, softwareCatalog) {
           software: {
             item: softwareItems
           },
+          compatibleAccessories: {
+            accessory: normaliseResourceCategory(resource.category) === "Device"
+              ? normaliseCompatibleAccessories(resource.compatibleAccessories)
+              : []
+          },
           notes: String(resource.notes || "").trim(),
           createdAt: resource.createdAt || "",
           updatedAt: resource.updatedAt || ""
@@ -664,6 +697,9 @@ function formatResourceForResponse(resource) {
     fulfilmentMode: normaliseFulfilmentMode(resource.fulfilmentMode || resource.fulfillmentMode, resource),
     deploymentRequired: resourceRequiresDeployment(resource),
     software: normaliseSoftwareItems(resource.software),
+    compatibleAccessories: normaliseResourceCategory(resource.category) === "Device"
+      ? normaliseCompatibleAccessories(resource.compatibleAccessories)
+      : [],
     notes: resource.notes || "",
     createdAt: resource.createdAt || "",
     updatedAt: resource.updatedAt || ""
@@ -4085,6 +4121,7 @@ app.post("/api/admin/resources", requireLogin, requireAdmin, (req, res) => {
       location: String(payload.location || "").trim(),
       fulfilmentMode: normaliseFulfilmentMode(payload.fulfilmentMode || payload.fulfillmentMode, { ...payload, name, category, deviceType, resourceType }),
       software: { item: normaliseSoftwareItems(payload.software) },
+      compatibleAccessories: { accessory: category === "Device" ? normaliseCompatibleAccessories(payload.compatibleAccessories) : [] },
       notes: String(payload.notes || "").trim(),
       createdAt: now,
       updatedAt: now
@@ -4157,6 +4194,7 @@ app.put("/api/admin/resources/:resourceId", requireLogin, requireAdmin, (req, re
         resourceType
       }),
       software: { item: normaliseSoftwareItems(payload.software) },
+      compatibleAccessories: { accessory: category === "Device" ? normaliseCompatibleAccessories(payload.compatibleAccessories) : [] },
       notes: String(payload.notes || "").trim(),
       updatedAt: new Date().toISOString()
     };

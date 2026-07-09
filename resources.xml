@@ -19,6 +19,11 @@
     <status>Available</status>
     <location />
     <software />
+    <compatibleAccessories>
+      <accessory>Mouse</accessory>
+      <accessory>Headset (USB-C)</accessory>
+      <accessory>Headset (3.5mm audio jack)</accessory>
+    </compatibleAccessories>
     <notes />
     <updatedAt />
   </resource>
@@ -32,6 +37,11 @@
     <status>Available</status>
     <location />
     <software />
+    <compatibleAccessories>
+      <accessory>Mouse</accessory>
+      <accessory>Headset (USB-C)</accessory>
+      <accessory>Headset (3.5mm audio jack)</accessory>
+    </compatibleAccessories>
     <notes />
     <updatedAt />
   </resource>
@@ -45,6 +55,11 @@
     <status>Available</status>
     <location />
     <software />
+    <compatibleAccessories>
+      <accessory>Mouse</accessory>
+      <accessory>Headset (USB-C)</accessory>
+      <accessory>Headset (3.5mm audio jack)</accessory>
+    </compatibleAccessories>
     <notes />
     <updatedAt />
   </resource>
@@ -58,6 +73,11 @@
     <status>Available</status>
     <location />
     <software />
+    <compatibleAccessories>
+      <accessory>Mouse</accessory>
+      <accessory>Headset (USB-C)</accessory>
+      <accessory>Headset (3.5mm audio jack)</accessory>
+    </compatibleAccessories>
     <notes />
     <updatedAt />
   </resource>
@@ -71,6 +91,10 @@
     <status>Available</status>
     <location />
     <software />
+    <compatibleAccessories>
+      <accessory>Apple Pencil</accessory>
+      <accessory>Headset (USB-C)</accessory>
+    </compatibleAccessories>
     <notes />
     <updatedAt />
   </resource>
@@ -84,6 +108,10 @@
     <status>Available</status>
     <location />
     <software />
+    <compatibleAccessories>
+      <accessory>Apple Pencil</accessory>
+      <accessory>Headset (USB-C)</accessory>
+    </compatibleAccessories>
     <notes />
     <updatedAt />
   </resource>
@@ -97,6 +125,10 @@
     <status>Available</status>
     <location />
     <software />
+    <compatibleAccessories>
+      <accessory>Apple Pencil</accessory>
+      <accessory>Headset (USB-C)</accessory>
+    </compatibleAccessories>
     <notes />
     <updatedAt />
   </resource>
@@ -110,6 +142,10 @@
     <status>Available</status>
     <location />
     <software />
+    <compatibleAccessories>
+      <accessory>Apple Pencil</accessory>
+      <accessory>Headset (3.5mm audio jack)</accessory>
+    </compatibleAccessories>
     <notes />
     <updatedAt />
   </resource>
@@ -123,6 +159,11 @@
     <status>Available</status>
     <location />
     <software />
+    <compatibleAccessories>
+      <accessory>Mouse</accessory>
+      <accessory>Apple Pencil</accessory>
+      <accessory>Headset (USB-C)</accessory>
+    </compatibleAccessories>
     <notes />
     <updatedAt />
   </resource>
@@ -136,6 +177,10 @@
     <status>Available</status>
     <location />
     <software />
+    <compatibleAccessories>
+      <accessory>Apple Pencil</accessory>
+      <accessory>Headset (USB-C)</accessory>
+    </compatibleAccessories>
     <notes />
     <updatedAt />
   </resource>
@@ -149,6 +194,10 @@
     <status>Available</status>
     <location />
     <software />
+    <compatibleAccessories>
+      <accessory>Apple Pencil</accessory>
+      <accessory>Headset (3.5mm audio jack)</accessory>
+    </compatibleAccessories>
     <notes />
     <updatedAt />
   </resource>
@@ -162,6 +211,10 @@
     <status>Available</status>
     <location />
     <software />
+    <compatibleAccessories>
+      <accessory>Apple Pencil</accessory>
+      <accessory>Headset (3.5mm audio jack)</accessory>
+    </compatibleAccessories>
     <notes />
     <updatedAt />
   </resource>
@@ -175,6 +228,10 @@
     <status>Available</status>
     <location />
     <software />
+    <compatibleAccessories>
+      <accessory>Apple Pencil</accessory>
+      <accessory>Headset (3.5mm audio jack)</accessory>
+    </compatibleAccessories>
     <notes />
     <updatedAt />
   </resource>
@@ -188,6 +245,10 @@
     <status>Available</status>
     <location />
     <software />
+    <compatibleAccessories>
+      <accessory>Apple Pencil</accessory>
+      <accessory>Headset (3.5mm audio jack)</accessory>
+    </compatibleAccessories>
     <notes />
     <updatedAt />
   </resource>

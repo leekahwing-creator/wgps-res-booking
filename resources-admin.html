@@ -1758,6 +1758,11 @@
             <label>Installed software</label>
             <div id="softwareChecklist" class="software-checklist"></div>
           </div>
+          <div class="field" id="compatibleAccessoriesField">
+            <label>Compatible accessories</label>
+            <div id="compatibleAccessoriesChecklist" class="software-checklist"></div>
+            <span class="note">Select the accessories that can physically work with this specific device resource. This will become the source of truth for booking-page filtering and allocator matching.</span>
+          </div>
           <div class="field">
             <label for="notes">Notes</label>
             <textarea id="notes" placeholder="Optional notes for Admin users"></textarea>
@@ -1847,6 +1852,12 @@
           <div class="field" id="editSoftwareField">
             <label>Installed software</label>
             <div id="editSoftwareChecklist" class="software-checklist"></div>
+          </div>
+
+          <div class="field" id="editCompatibleAccessoriesField">
+            <label>Compatible accessories</label>
+            <div id="editCompatibleAccessoriesChecklist" class="software-checklist"></div>
+            <span class="note">Select the accessories compatible with this specific device resource. Leave blank if no accessories should be offered with this resource.</span>
           </div>
 
           <div class="field">
@@ -2318,6 +2329,50 @@
       return Array.from(document.querySelectorAll(`#${containerId} input:checked`)).map(input => input.value);
     }
 
+    function getAvailableAccessoryTypesForCompatibility() {
+      return Array.from(new Set(
+        (resources || [])
+          .filter(resource => (resource.category || 'Device') === 'Accessory')
+          .filter(resource => resource.status === 'Available')
+          .map(resource => resource.deviceType)
+          .filter(Boolean)
+      )).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+    }
+
+    function renderCompatibleAccessoriesChecklist(containerId, selectedAccessories = []) {
+      const selected = new Set((selectedAccessories || []).map(item => String(item).toLowerCase()));
+      const accessoryTypes = getAvailableAccessoryTypesForCompatibility();
+      const container = document.getElementById(containerId);
+      if (!container) return;
+
+      container.innerHTML = accessoryTypes.length === 0
+        ? '<div class="note">No available accessories configured yet. Add accessories in the Accessories tab first.</div>'
+        : accessoryTypes.map(type => `
+            <label>
+              <input type="checkbox" value="${escapeHtml(type)}" ${selected.has(String(type).toLowerCase()) ? 'checked' : ''} />
+              ${escapeHtml(type)}
+            </label>
+          `).join('');
+    }
+
+    function getSelectedCompatibleAccessories(containerId) {
+      return Array.from(document.querySelectorAll(`#${containerId} input:checked`)).map(input => input.value);
+    }
+
+    function updateCompatibilityFieldVisibility(category, fieldId, checklistId) {
+      const field = document.getElementById(fieldId);
+      if (!field) return;
+
+      const isDevice = category !== 'Accessory';
+      field.style.display = isDevice ? 'flex' : 'none';
+
+      if (!isDevice && checklistId) {
+        document.querySelectorAll(`#${checklistId} input[type="checkbox"]`).forEach(input => {
+          input.checked = false;
+        });
+      }
+    }
+
     function updateSoftwareFieldVisibility(category, fieldId, checklistId) {
       const field = document.getElementById(fieldId);
       if (!field) return;
@@ -2626,7 +2681,9 @@
       document.getElementById('fulfilmentMode').value = category === 'Accessory' ? 'Collection' : 'Deployment';
       document.getElementById('notes').value = '';
       renderSoftwareChecklist('softwareChecklist', []);
+      renderCompatibleAccessoriesChecklist('compatibleAccessoriesChecklist', []);
       updateSoftwareFieldVisibility(category, 'addSoftwareField', 'softwareChecklist');
+      updateCompatibilityFieldVisibility(category, 'compatibleAccessoriesField', 'compatibleAccessoriesChecklist');
       resourceModal.classList.add('open');
       setTimeout(() => document.getElementById('resourceName').focus(), 0);
     }
@@ -2646,6 +2703,7 @@
         location: document.getElementById('resourceLocation').value.trim(),
         fulfilmentMode: document.getElementById('fulfilmentMode').value,
         software: document.getElementById('resourceCategory').value === 'Accessory' ? [] : getSelectedSoftware('softwareChecklist'),
+        compatibleAccessories: document.getElementById('resourceCategory').value === 'Accessory' ? [] : getSelectedCompatibleAccessories('compatibleAccessoriesChecklist'),
         notes: document.getElementById('notes').value.trim()
       };
     }
@@ -2686,7 +2744,9 @@
       document.getElementById('editFulfilmentMode').value = selectedResource.fulfilmentMode || (selectedResource.deploymentRequired === false ? 'Collection' : 'Deployment');
       document.getElementById('editNotes').value = selectedResource.notes || '';
       renderSoftwareChecklist('editSoftwareChecklist', selectedResource.software || []);
+      renderCompatibleAccessoriesChecklist('editCompatibleAccessoriesChecklist', selectedResource.compatibleAccessories || []);
       updateSoftwareFieldVisibility(selectedResource.category || 'Device', 'editSoftwareField', 'editSoftwareChecklist');
+      updateCompatibilityFieldVisibility(selectedResource.category || 'Device', 'editCompatibleAccessoriesField', 'editCompatibleAccessoriesChecklist');
 
       document.getElementById('drawerResourceSummary').innerHTML = `
         <span class="small-avatar">${escapeHtml(getInitial(selectedResource.name))}</span>
@@ -2729,6 +2789,7 @@
         location: document.getElementById('editResourceLocation').value.trim(),
         fulfilmentMode: document.getElementById('editFulfilmentMode').value,
         software: document.getElementById('editResourceCategory').value === 'Accessory' ? [] : getSelectedSoftware('editSoftwareChecklist'),
+        compatibleAccessories: document.getElementById('editResourceCategory').value === 'Accessory' ? [] : getSelectedCompatibleAccessories('editCompatibleAccessoriesChecklist'),
         notes: document.getElementById('editNotes').value.trim()
       };
     }
@@ -2777,6 +2838,7 @@
     document.getElementById('resourceCategory').addEventListener('change', event => {
       const category = event.target.value;
       updateSoftwareFieldVisibility(category, 'addSoftwareField', 'softwareChecklist');
+      updateCompatibilityFieldVisibility(category, 'compatibleAccessoriesField', 'compatibleAccessoriesChecklist');
       populateResourceTypeOptions('deviceType', category, category === 'Accessory' ? 'Mouse' : 'iPad');
       document.getElementById('resourceType').value = category === 'Accessory' ? 'Set' : 'Cart';
       document.getElementById('fulfilmentMode').value = category === 'Accessory' ? 'Collection' : 'Deployment';
@@ -2785,6 +2847,7 @@
     document.getElementById('editResourceCategory').addEventListener('change', event => {
       const category = event.target.value;
       updateSoftwareFieldVisibility(category, 'editSoftwareField', 'editSoftwareChecklist');
+      updateCompatibilityFieldVisibility(category, 'editCompatibleAccessoriesField', 'editCompatibleAccessoriesChecklist');
       populateResourceTypeOptions('editDeviceType', category, category === 'Accessory' ? 'Mouse' : 'iPad');
       document.getElementById('editResourceType').value = category === 'Accessory' ? 'Set' : 'Cart';
       document.getElementById('editFulfilmentMode').value = category === 'Accessory' ? 'Collection' : 'Deployment';
