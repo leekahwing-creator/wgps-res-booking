@@ -1839,76 +1839,105 @@
     }
 
 
-
-    /* Booking resource section layout correction */
-    .device-choice-grid {
-      padding-top: 6px;
-      padding-left: 2px;
-      padding-right: 2px;
-      overflow: visible;
-    }
-
-    .device-choice {
-      outline: none;
-    }
-
-    .device-choice:focus-visible {
-      outline: 3px solid rgba(15, 118, 110, 0.3);
-      outline-offset: 3px;
-    }
-
-    .device-choice.active {
-      border-color: var(--primary);
-      box-shadow: 0 12px 24px rgba(15, 118, 110, 0.11);
-    }
-
+    /* Stable two-row device quantity control */
     .quantity-card {
+      display: block !important;
+      height: auto !important;
+      min-height: 0 !important;
+      max-height: none !important;
       overflow: visible !important;
+      margin-top: 14px;
+      padding: 14px 16px;
     }
 
     .quantity-card .field {
-      display: flex !important;
+      display: grid !important;
+      grid-template-columns: minmax(250px, 1fr) minmax(300px, auto) !important;
+      grid-template-areas:
+        "label label"
+        "control quick" !important;
       align-items: center !important;
-      gap: 12px !important;
-      flex-wrap: wrap !important;
-      grid-template-columns: none !important;
+      align-content: start !important;
+      justify-content: stretch !important;
+      gap: 10px 18px !important;
+      height: auto !important;
+      min-height: 0 !important;
     }
 
     .quantity-card label {
-      flex: 0 0 190px;
-      line-height: 1.2;
-      margin: 0;
+      grid-area: label !important;
+      align-self: start !important;
+      margin: 0 !important;
+      line-height: 1.25;
+      white-space: normal;
     }
 
     .quantity-card .device-control {
-      flex: 0 0 290px;
-      max-width: 290px;
-      width: 290px;
+      grid-area: control !important;
+      display: grid !important;
+      grid-template-columns: 48px minmax(110px, 1fr) 48px !important;
+      gap: 8px !important;
+      width: 100% !important;
+      max-width: 330px !important;
+      min-width: 0 !important;
+      justify-self: start !important;
+      align-self: center !important;
     }
 
     .quantity-card .quick-qty-row {
-      flex: 1 1 280px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
-      min-width: 0;
-      overflow: visible;
-      justify-content: flex-start;
+      grid-area: quick !important;
+      display: flex !important;
+      flex-wrap: nowrap !important;
+      align-items: center !important;
+      justify-content: flex-start !important;
+      gap: 8px !important;
+      width: auto !important;
+      min-width: 0 !important;
+      max-width: 100% !important;
+      overflow: visible !important;
+      justify-self: end !important;
+      align-self: center !important;
     }
 
     .quantity-card .quick-qty-row::before {
+      content: "Quick quantity" !important;
       flex: 0 0 auto;
-      margin-right: 0;
+      margin-right: 2px;
+      white-space: nowrap;
     }
 
-    @media (max-width: 720px) {
-      .quantity-card label,
-      .quantity-card .device-control,
+    .quantity-card .quick-qty {
+      flex: 0 0 auto;
+      min-width: 38px;
+      padding: 0 10px;
+    }
+
+    @media (max-width: 760px) {
+      .quantity-card .field {
+        grid-template-columns: 1fr !important;
+        grid-template-areas:
+          "label"
+          "control"
+          "quick" !important;
+      }
+
+      .quantity-card .device-control {
+        max-width: none !important;
+      }
+
       .quantity-card .quick-qty-row {
-        flex: 1 1 100%;
-        width: 100%;
-        max-width: none;
+        justify-self: start !important;
+        flex-wrap: wrap !important;
+      }
+    }
+
+    @media (max-width: 430px) {
+      .quantity-card {
+        padding: 12px;
+      }
+
+      .quantity-card .quick-qty-row::before {
+        flex-basis: 100%;
       }
     }
 
@@ -2409,19 +2438,6 @@ document.getElementById("requesterName").textContent = user.name;
     }
 
     function normaliseAccessoryKey(value) {
-      const text = String(value || '').trim().toLowerCase();
-      if (!text) return '';
-      if (/apple\s*[-_ ]?pencil|acc\s*[-_ ]?apple\s*[-_ ]?pencil/.test(text)) return 'apple pencil';
-      if (/mouse|mice|acc\s*[-_ ]?mouse/.test(text)) return 'mouse';
-      if (/headset|headphones?|earpieces?|acc\s*[-_ ]?headset/.test(text)) {
-        if (/usb\s*[-_ ]?c|type\s*c|usb-c/.test(text)) return 'headset usb-c';
-        if (/3\.5|35mm|3\s*5\s*mm|audio\s*jack|aux|stereo\s*jack/.test(text)) return 'headset 3.5mm';
-        return 'headset';
-      }
-      return text.replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
-    }
-
-    function normaliseDeviceKey(value) {
       return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
     }
 
@@ -2437,27 +2453,12 @@ document.getElementById("requesterName").textContent = user.name;
       const selectedDeviceType = String(deviceTypeSelect?.value || '').trim();
       if (!selectedDeviceType) return accessoryTypes;
 
-      const compatibilityMap = accessoryCompatibilityByDevice || {};
-      const selectedKey = normaliseDeviceKey(selectedDeviceType);
-      const matchingMapKey = Object.keys(compatibilityMap).find(key => normaliseDeviceKey(key) === selectedKey);
-      const rawAllowed = matchingMapKey ? compatibilityMap[matchingMapKey] : compatibilityMap[selectedDeviceType];
-      const allowed = Array.isArray(rawAllowed) ? rawAllowed : [];
+      const direct = accessoryCompatibilityByDevice[selectedDeviceType];
+      const caseInsensitiveKey = Object.keys(accessoryCompatibilityByDevice || {})
+        .find(key => key.toLowerCase() === selectedDeviceType.toLowerCase());
+      const allowed = Array.isArray(direct) ? direct : (caseInsensitiveKey ? accessoryCompatibilityByDevice[caseInsensitiveKey] : []);
 
-      // If the backend has not yet exposed compatibility metadata through
-      // /api/resources/catalog, avoid falsely hiding all accessories. The server
-      // allocator remains the final guard, while the page can still submit.
-      if (!allowed.length) return accessoryTypes;
-
-      const allowedKeys = new Set(allowed.map(normaliseAccessoryKey).filter(Boolean));
-
-      return accessoryTypes.filter(type => {
-        const key = normaliseAccessoryKey(type);
-        if (allowedKeys.has(key)) return true;
-        // Backward compatibility for older metadata that stores a generic
-        // "Headset" value instead of explicit connector variants.
-        if (key.startsWith('headset') && allowedKeys.has('headset')) return true;
-        return false;
-      });
+      return Array.from(new Set((allowed || []).filter(Boolean)));
     }
 
     function isAccessoryCompatible(type) {
@@ -2465,6 +2466,7 @@ document.getElementById("requesterName").textContent = user.name;
       if (!selectedDeviceType) return true;
 
       const allowed = getAllowedAccessoriesForSelectedDevice();
+      if (!allowed.length) return false;
       const target = normaliseAccessoryKey(type);
       return allowed.some(item => normaliseAccessoryKey(item) === target);
     }
@@ -3208,7 +3210,6 @@ document.getElementById("requesterName").textContent = user.name;
           currentBookingRequestId = createBookingRequestId();
           lastGuidedTargetId = '';
           timingSectionUnlocked = false;
-          renderAccessoryOptions();
           toggleCustomLocationField();
           updateSummary();
         }, 0);
