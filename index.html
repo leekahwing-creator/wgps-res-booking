@@ -1838,6 +1838,80 @@
       }
     }
 
+
+
+    /* Booking resource section layout correction */
+    .device-choice-grid {
+      padding-top: 6px;
+      padding-left: 2px;
+      padding-right: 2px;
+      overflow: visible;
+    }
+
+    .device-choice {
+      outline: none;
+    }
+
+    .device-choice:focus-visible {
+      outline: 3px solid rgba(15, 118, 110, 0.3);
+      outline-offset: 3px;
+    }
+
+    .device-choice.active {
+      border-color: var(--primary);
+      box-shadow: 0 12px 24px rgba(15, 118, 110, 0.11);
+    }
+
+    .quantity-card {
+      overflow: visible !important;
+    }
+
+    .quantity-card .field {
+      display: flex !important;
+      align-items: center !important;
+      gap: 12px !important;
+      flex-wrap: wrap !important;
+      grid-template-columns: none !important;
+    }
+
+    .quantity-card label {
+      flex: 0 0 190px;
+      line-height: 1.2;
+      margin: 0;
+    }
+
+    .quantity-card .device-control {
+      flex: 0 0 290px;
+      max-width: 290px;
+      width: 290px;
+    }
+
+    .quantity-card .quick-qty-row {
+      flex: 1 1 280px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      min-width: 0;
+      overflow: visible;
+      justify-content: flex-start;
+    }
+
+    .quantity-card .quick-qty-row::before {
+      flex: 0 0 auto;
+      margin-right: 0;
+    }
+
+    @media (max-width: 720px) {
+      .quantity-card label,
+      .quantity-card .device-control,
+      .quantity-card .quick-qty-row {
+        flex: 1 1 100%;
+        width: 100%;
+        max-width: none;
+      }
+    }
+
   </style>
 </head>
 <body>
@@ -2335,6 +2409,19 @@ document.getElementById("requesterName").textContent = user.name;
     }
 
     function normaliseAccessoryKey(value) {
+      const text = String(value || '').trim().toLowerCase();
+      if (!text) return '';
+      if (/apple\s*[-_ ]?pencil|acc\s*[-_ ]?apple\s*[-_ ]?pencil/.test(text)) return 'apple pencil';
+      if (/mouse|mice|acc\s*[-_ ]?mouse/.test(text)) return 'mouse';
+      if (/headset|headphones?|earpieces?|acc\s*[-_ ]?headset/.test(text)) {
+        if (/usb\s*[-_ ]?c|type\s*c|usb-c/.test(text)) return 'headset usb-c';
+        if (/3\.5|35mm|3\s*5\s*mm|audio\s*jack|aux|stereo\s*jack/.test(text)) return 'headset 3.5mm';
+        return 'headset';
+      }
+      return text.replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+
+    function normaliseDeviceKey(value) {
       return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
     }
 
@@ -2350,12 +2437,27 @@ document.getElementById("requesterName").textContent = user.name;
       const selectedDeviceType = String(deviceTypeSelect?.value || '').trim();
       if (!selectedDeviceType) return accessoryTypes;
 
-      const direct = accessoryCompatibilityByDevice[selectedDeviceType];
-      const caseInsensitiveKey = Object.keys(accessoryCompatibilityByDevice || {})
-        .find(key => key.toLowerCase() === selectedDeviceType.toLowerCase());
-      const allowed = Array.isArray(direct) ? direct : (caseInsensitiveKey ? accessoryCompatibilityByDevice[caseInsensitiveKey] : []);
+      const compatibilityMap = accessoryCompatibilityByDevice || {};
+      const selectedKey = normaliseDeviceKey(selectedDeviceType);
+      const matchingMapKey = Object.keys(compatibilityMap).find(key => normaliseDeviceKey(key) === selectedKey);
+      const rawAllowed = matchingMapKey ? compatibilityMap[matchingMapKey] : compatibilityMap[selectedDeviceType];
+      const allowed = Array.isArray(rawAllowed) ? rawAllowed : [];
 
-      return Array.from(new Set((allowed || []).filter(Boolean)));
+      // If the backend has not yet exposed compatibility metadata through
+      // /api/resources/catalog, avoid falsely hiding all accessories. The server
+      // allocator remains the final guard, while the page can still submit.
+      if (!allowed.length) return accessoryTypes;
+
+      const allowedKeys = new Set(allowed.map(normaliseAccessoryKey).filter(Boolean));
+
+      return accessoryTypes.filter(type => {
+        const key = normaliseAccessoryKey(type);
+        if (allowedKeys.has(key)) return true;
+        // Backward compatibility for older metadata that stores a generic
+        // "Headset" value instead of explicit connector variants.
+        if (key.startsWith('headset') && allowedKeys.has('headset')) return true;
+        return false;
+      });
     }
 
     function isAccessoryCompatible(type) {
@@ -2363,7 +2465,6 @@ document.getElementById("requesterName").textContent = user.name;
       if (!selectedDeviceType) return true;
 
       const allowed = getAllowedAccessoriesForSelectedDevice();
-      if (!allowed.length) return false;
       const target = normaliseAccessoryKey(type);
       return allowed.some(item => normaliseAccessoryKey(item) === target);
     }
@@ -3107,6 +3208,7 @@ document.getElementById("requesterName").textContent = user.name;
           currentBookingRequestId = createBookingRequestId();
           lastGuidedTargetId = '';
           timingSectionUnlocked = false;
+          renderAccessoryOptions();
           toggleCustomLocationField();
           updateSummary();
         }, 0);
