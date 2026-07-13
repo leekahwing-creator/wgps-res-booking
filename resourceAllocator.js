@@ -335,13 +335,20 @@ function formatAdviceResource(resource) {
   };
 }
 
-/**
- * Read-only availability assessment for the booking advisor.
- * This function never writes booking files and never reserves resources.
- */
-function assessBookingAvailability(bookingRequest) {
-  const parsedResources = loadXML(getResourcesFilePath());
-  const allResources = toArray(parsedResources.resources?.resource);
+
+function timeToMinutes(value) {
+  const match = String(value || "").match(/^(\d{2}):(\d{2})$/);
+  if (!match) return null;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function minutesToTime(value) {
+  const hours = Math.floor(value / 60);
+  const minutes = value % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function assessDirectFulfilmentForRequest(allResources, bookingRequest) {
   const bookedResourceIds = getBookedResourceIds(bookingRequest);
   const additionalRequests = normaliseAdditionalResources(bookingRequest.additionalResources);
   const quantityRequired = Number(bookingRequest.devicesRequired || 0);
@@ -353,12 +360,12 @@ function assessBookingAvailability(bookingRequest) {
     .filter(resource => resourceSupportsSoftware(resource, bookingRequest.softwareRequirement))
     .filter(resource => resourceSupportsAdditionalResources(resource, additionalRequests));
 
-  const currentlyAvailableDeviceResources = compatibleDeviceResources
+  const availableDeviceResources = compatibleDeviceResources
     .filter(resource => !bookedResourceIds.has(String(resource.id)))
     .sort((a, b) => Number(b.capacity) - Number(a.capacity));
 
   const selectedDeviceResources = findBestResourceCombination(
-    currentlyAvailableDeviceResources,
+    availableDeviceResources,
     quantityRequired
   );
 
@@ -376,12 +383,12 @@ function assessBookingAvailability(bookingRequest) {
         normaliseAccessoryCompatibilityKey(request.type)
       );
 
-    const currentlyAvailableAccessoryResources = compatibleAccessoryResources
+    const availableAccessoryResources = compatibleAccessoryResources
       .filter(resource => !bookedResourceIds.has(String(resource.id)))
       .sort((a, b) => Number(b.capacity) - Number(a.capacity));
 
     const selected = findBestResourceCombination(
-      currentlyAvailableAccessoryResources,
+      availableAccessoryResources,
       Number(request.quantity)
     );
 
@@ -399,11 +406,7 @@ function assessBookingAvailability(bookingRequest) {
     };
   });
 
-  const deviceFulfilled = quantityRequired > 0 && selectedDeviceCapacity >= quantityRequired;
-  const accessoriesFulfilled = accessoryAssessments.every(item => item.fulfilled);
-  const directFulfilmentLikely = deviceFulfilled && accessoriesFulfilled;
-
-  const availableCompatibleCapacity = currentlyAvailableDeviceResources.reduce(
+  const availableCompatibleCapacity = availableDeviceResources.reduce(
     (total, resource) => total + Number(resource.capacity || 0),
     0
   );
@@ -412,6 +415,125 @@ function assessBookingAvailability(bookingRequest) {
     (total, resource) => total + Number(resource.capacity || 0),
     0
   );
+
+  const deviceFulfilled =
+    quantityRequired > 0 && selectedDeviceCapacity >= quantityRequired;
+  const accessoriesFulfilled =
+    accessoryAssessments.every(item => item.fulfilled);
+
+  return {
+    bookedResourceIds,
+    compatibleDeviceResources,
+    availableDeviceResources,
+    selectedDeviceResources,
+    selectedDeviceCapacity,
+    accessoryAssessments,
+    availableCompatibleCapacity,
+    totalCompatibleCapacity,
+    deviceFulfilled,
+    accessoriesFulfilled,
+    directFulfilmentLikely: deviceFulfilled && accessoriesFulfilled
+  };
+}
+
+function buildAlternativeTimeSuggestions(allResources, bookingRequest, maxSuggestions = 3) {
+  const startMinutes = timeToMinutes(bookingRequest.startTime);
+  const endMinutes = timeToMinutes(bookingRequest.endTime);
+  if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) return [];
+
+  const duration = endMinutes - startMinutes;
+  const dayStart = 7 * 60 + 45;
+  const dayEnd = 17 * 60 + 30;
+  const offsets = [-15, 15, -30, 30, -45, 45, -60, 60, -90, 90, -120, 120];
+  const suggestions = [];
+
+  for (const offset of offsets) {
+    const candidateStart = startMinutes + offset;
+    const candidateEnd = candidateStart + duration;
+
+    if (candidateStart < dayStart || candidateEnd > dayEnd) continue;
+
+    const candidateRequest = {
+      ...bookingRequest,
+      startTime: minutesToTime(candidateStart),
+      endTime: minutesToTime(candidateEnd)
+    };
+
+    const assessment = assessDirectFulfilmentForRequest(allResources, candidateRequest);
+    if (!assessment.directFulfilmentLikely) continue;
+
+    suggestions.push({
+      startTime: candidateRequest.startTime,
+      endTime: candidateRequest.endTime,
+      confidence: assessment.selectedDeviceResources.length <= 1 ? "High" : "Moderate",
+      likelyDeviceResources: assessment.selectedDeviceResources.map(formatAdviceResource)
+    });
+
+    if (suggestions.length >= maxSuggestions) break;
+  }
+
+  return suggestions;
+}
+
+function buildAlternativeDeviceSuggestions(allResources, bookingRequest, maxSuggestions = 2) {
+  const deviceTypes = Array.from(new Set(
+    allResources
+      .filter(resource => normaliseResourceCategory(resource) !== "Accessory")
+      .filter(resource => resource.status === "Available")
+      .map(resource => String(resource.deviceType || "").trim())
+      .filter(Boolean)
+  ));
+
+  return deviceTypes
+    .filter(deviceType => deviceType !== bookingRequest.deviceType)
+    .map(deviceType => {
+      const candidateRequest = {
+        ...bookingRequest,
+        deviceType
+      };
+      const assessment = assessDirectFulfilmentForRequest(allResources, candidateRequest);
+
+      return {
+        deviceType,
+        directFulfilmentLikely: assessment.directFulfilmentLikely,
+        availableCompatibleCapacity: assessment.availableCompatibleCapacity,
+        likelyDeviceResources: assessment.selectedDeviceResources.map(formatAdviceResource),
+        fulfilmentMode: Array.from(new Set(
+          assessment.selectedDeviceResources.map(normaliseFulfilmentMode)
+        )).join(" / ") || "Unknown"
+      };
+    })
+    .filter(item => item.directFulfilmentLikely)
+    .sort((a, b) => {
+      const aCount = a.likelyDeviceResources.length || Number.MAX_SAFE_INTEGER;
+      const bCount = b.likelyDeviceResources.length || Number.MAX_SAFE_INTEGER;
+      if (aCount !== bCount) return aCount - bCount;
+      return b.availableCompatibleCapacity - a.availableCompatibleCapacity;
+    })
+    .slice(0, maxSuggestions);
+}
+
+/**
+ * Read-only availability assessment for the booking advisor.
+ * This function never writes booking files and never reserves resources.
+ */
+function assessBookingAvailability(bookingRequest) {
+  const parsedResources = loadXML(getResourcesFilePath());
+  const allResources = toArray(parsedResources.resources?.resource);
+  const quantityRequired = Number(bookingRequest.devicesRequired || 0);
+  const coreAssessment = assessDirectFulfilmentForRequest(allResources, bookingRequest);
+  const {
+    compatibleDeviceResources,
+    availableDeviceResources: currentlyAvailableDeviceResources,
+    selectedDeviceResources,
+    selectedDeviceCapacity,
+    accessoryAssessments,
+    availableCompatibleCapacity,
+    totalCompatibleCapacity,
+    deviceFulfilled,
+    accessoriesFulfilled,
+    directFulfilmentLikely
+  } = coreAssessment;
 
   const selectedModes = Array.from(new Set(
     selectedDeviceResources.map(normaliseFulfilmentMode)
@@ -488,6 +610,53 @@ function assessBookingAvailability(bookingRequest) {
     );
   }
 
+  const alternativeQuantity =
+    !deviceFulfilled && availableCompatibleCapacity > 0 && availableCompatibleCapacity < quantityRequired
+      ? availableCompatibleCapacity
+      : null;
+
+  const alternativeTimes = directFulfilmentLikely
+    ? []
+    : buildAlternativeTimeSuggestions(allResources, bookingRequest);
+
+  const alternativeDevices = directFulfilmentLikely
+    ? []
+    : buildAlternativeDeviceSuggestions(allResources, bookingRequest);
+
+  const occupiedCompatibleCapacity = Math.max(
+    0,
+    totalCompatibleCapacity - availableCompatibleCapacity
+  );
+  const utilisationRatio = totalCompatibleCapacity > 0
+    ? occupiedCompatibleCapacity / totalCompatibleCapacity
+    : 1;
+
+  const conflictHeat = utilisationRatio >= 0.75
+    ? "High"
+    : (utilisationRatio >= 0.35 ? "Moderate" : "Low");
+
+  const fragmentationPenalty = Math.max(0, selectedDeviceResources.length - 1) * 8;
+  const accessoryPenalty = accessoryAssessments.filter(item => !item.fulfilled).length * 18;
+  const availabilityBase = directFulfilmentLikely ? 92 : (availableCompatibleCapacity > 0 ? 58 : 28);
+  const recommendationScore = Math.max(
+    0,
+    Math.min(100, Math.round(
+      availabilityBase -
+      fragmentationPenalty -
+      accessoryPenalty -
+      (utilisationRatio * 18)
+    ))
+  );
+
+  const successProbability = Math.max(
+    5,
+    Math.min(99, Math.round(
+      directFulfilmentLikely
+        ? 96 - fragmentationPenalty - (utilisationRatio * 12)
+        : 42 - accessoryPenalty - (utilisationRatio * 18)
+    ))
+  );
+
   return {
     advisoryOnly: true,
     availabilityStatus,
@@ -505,6 +674,14 @@ function assessBookingAvailability(bookingRequest) {
     collectionRequired: fulfilmentMode === "Collection" || fulfilmentMode === "Mixed",
     likelyDeviceResources: selectedDeviceResources.map(formatAdviceResource),
     accessoryAssessments,
+    recommendationScore,
+    successProbability,
+    conflictHeat,
+    structuredRecommendations: {
+      alternativeQuantity,
+      alternativeTimes,
+      alternativeDevices
+    },
     warnings: Array.from(new Set(warnings)),
     recommendations: Array.from(new Set(recommendations)),
     disclaimer: "This is a live advisory estimate. Final allocation is determined when the booking is submitted."

@@ -2018,6 +2018,50 @@
       line-height: 1.35;
     }
 
+
+    .recommendation-panel {
+      display: grid;
+      gap: 9px;
+      padding: 11px;
+      border: 1px solid #dbe4ee;
+      border-radius: 13px;
+      background: rgba(255, 255, 255, 0.86);
+    }
+
+    .recommendation-panel > strong {
+      color: #0f172a;
+      font-size: 0.86rem;
+    }
+
+    .recommendation-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+
+    .recommendation-action {
+      border: 1px solid #99f6e4;
+      border-radius: 999px;
+      background: #f0fdfa;
+      color: #115e59;
+      min-height: 34px;
+      padding: 0 11px;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .recommendation-action:hover,
+    .recommendation-action:focus-visible {
+      background: #ccfbf1;
+      border-color: var(--primary);
+    }
+
+    .recommendation-note {
+      color: var(--muted);
+      font-size: 0.78rem;
+      line-height: 1.4;
+    }
+
     @media (max-width: 620px) {
       .advice-grid {
         grid-template-columns: 1fr;
@@ -3086,6 +3130,69 @@ document.getElementById("requesterName").textContent = user.name;
       );
     }
 
+    function applyRecommendation(action, value) {
+      if (action === 'quantity') {
+        devicesRequired.value = String(value);
+        normaliseDeviceQuantityInput();
+        return;
+      }
+
+      if (action === 'time') {
+        const [suggestedStart, suggestedEnd] = String(value || '').split('|');
+        if (suggestedStart) startTime.value = suggestedStart;
+        if (suggestedEnd) endTime.value = suggestedEnd;
+        lastBookingAdviceSignature = '';
+        updateSummary();
+        return;
+      }
+
+      if (action === 'device') {
+        deviceTypeSelect.value = String(value || '');
+        clearIncompatibleAccessories();
+        renderAccessoryOptions();
+        updateDeviceChoiceCards();
+        updateSoftwareAvailability();
+        updateAccessorySelectionStyles();
+        lastBookingAdviceSignature = '';
+        updateSummary();
+      }
+    }
+
+    function renderStructuredRecommendations(advice) {
+      const structured = advice?.structuredRecommendations || {};
+      const actions = [];
+
+      if (Number(structured.alternativeQuantity) > 0) {
+        actions.push(
+          `<button type="button" class="recommendation-action" data-recommendation-action="quantity" data-recommendation-value="${Number(structured.alternativeQuantity)}">Use ${Number(structured.alternativeQuantity)} devices</button>`
+        );
+      }
+
+      (Array.isArray(structured.alternativeTimes) ? structured.alternativeTimes : [])
+        .forEach(item => {
+          actions.push(
+            `<button type="button" class="recommendation-action" data-recommendation-action="time" data-recommendation-value="${escapeHTML(item.startTime)}|${escapeHTML(item.endTime)}">Try ${escapeHTML(item.startTime)}–${escapeHTML(item.endTime)}</button>`
+          );
+        });
+
+      (Array.isArray(structured.alternativeDevices) ? structured.alternativeDevices : [])
+        .forEach(item => {
+          actions.push(
+            `<button type="button" class="recommendation-action" data-recommendation-action="device" data-recommendation-value="${escapeHTML(item.deviceType)}">Try ${escapeHTML(item.deviceType)}</button>`
+          );
+        });
+
+      if (!actions.length) return '';
+
+      return `
+        <div class="recommendation-panel">
+          <strong>Recommended alternatives</strong>
+          <div class="recommendation-actions">${actions.join('')}</div>
+          <div class="recommendation-note">Suggestions update the form only after you select them. No booking is changed or submitted automatically.</div>
+        </div>
+      `;
+    }
+
     function renderBookingAdvice(advice) {
       latestBookingAdvice = advice || null;
 
@@ -3133,7 +3240,20 @@ document.getElementById("requesterName").textContent = user.name;
             <span>Booking health</span>
             <strong>${'★'.repeat(Number(advice.healthScore || 0))}${'☆'.repeat(Math.max(0, 5 - Number(advice.healthScore || 0)))}</strong>
           </div>
+          <div class="advice-metric">
+            <span>Recommendation score</span>
+            <strong>${Number(advice.recommendationScore || 0)} / 100</strong>
+          </div>
+          <div class="advice-metric">
+            <span>Estimated success</span>
+            <strong>${Number(advice.successProbability || 0)}%</strong>
+          </div>
+          <div class="advice-metric">
+            <span>Conflict heat</span>
+            <strong>${escapeHTML(advice.conflictHeat || 'Unknown')}</strong>
+          </div>
         </div>
+        ${renderStructuredRecommendations(advice)}
         ${notes.length ? `<ul class="advice-list">${notes.map(note => `<li>${escapeHTML(note)}</li>`).join('')}</ul>` : ''}
         <div class="advice-disclaimer">${escapeHTML(advice.disclaimer || '')}</div>
       `;
@@ -3222,6 +3342,7 @@ document.getElementById("requesterName").textContent = user.name;
           <div class="review-item"><span>Allocation</span><strong>${latestBookingAdvice?.estimatedAllocationMethod || 'Automatic after submission'}</strong></div>
           <div class="review-item"><span>Booking Outlook</span><strong>${latestBookingAdvice ? `${latestBookingAdvice.availabilityStatus} · ${latestBookingAdvice.confidence}` : 'Complete timing for estimate'}</strong></div>
           <div class="review-item"><span>Likely Fulfilment</span><strong>${latestBookingAdvice?.fulfilmentMode || 'Determined after submission'}</strong></div>
+          <div class="review-item"><span>Recommendation Score</span><strong>${latestBookingAdvice ? `${Number(latestBookingAdvice.recommendationScore || 0)} / 100` : 'Pending outlook'}</strong></div>
         </div>
         <div class="fulfilment-hint"><strong>Fulfilment note:</strong> Deployment resources will be delivered to the selected location. If a collection-only resource such as an iPad Bag is allocated, the confirmation message will instruct the user to collect it from the ICT Work Room.</div>
         ${readyBanner}
@@ -3425,6 +3546,16 @@ document.getElementById("requesterName").textContent = user.name;
           checkbox.checked = !checkbox.checked;
           checkbox.dispatchEvent(new Event('change', { bubbles: true }));
         }
+      });
+
+      bookingAdviceContent.addEventListener('click', event => {
+        const button = event.target.closest('[data-recommendation-action]');
+        if (!button) return;
+
+        applyRecommendation(
+          button.dataset.recommendationAction,
+          button.dataset.recommendationValue
+        );
       });
 
       additionalResourcesList.addEventListener('keydown', event => {
