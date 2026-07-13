@@ -2068,6 +2068,155 @@
       }
     }
 
+
+    /* Release 3.3 — Interactive Optimisation */
+    .readiness-panel,
+    .timeline-preview,
+    .fulfilment-explanation {
+      margin-top: 12px;
+      padding: 13px;
+      border: 1px solid #dbe4ee;
+      border-radius: 15px;
+      background: #ffffff;
+    }
+
+    .readiness-panel.ready {
+      border-color: #86efac;
+      background: #f0fdf4;
+    }
+
+    .readiness-heading,
+    .timeline-heading,
+    .fulfilment-explanation-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 9px;
+    }
+
+    .readiness-heading span,
+    .timeline-heading span {
+      color: var(--muted);
+      font-size: 0.75rem;
+      font-weight: 900;
+    }
+
+    .readiness-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 7px;
+    }
+
+    .readiness-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      color: #64748b;
+      font-size: 0.82rem;
+      line-height: 1.35;
+    }
+
+    .readiness-item.complete {
+      color: #166534;
+      font-weight: 800;
+    }
+
+    .readiness-icon {
+      width: 20px;
+      height: 20px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      border-radius: 999px;
+      background: #f1f5f9;
+    }
+
+    .readiness-item.complete .readiness-icon {
+      background: #dcfce7;
+    }
+
+    .readiness-state {
+      margin-top: 10px;
+      padding-top: 9px;
+      border-top: 1px dashed #cbd5e1;
+      color: #334155;
+      font-size: 0.84rem;
+      font-weight: 900;
+    }
+
+    .fulfilment-explanation {
+      background: #eff6ff;
+      border-color: #bfdbfe;
+      color: #1e3a8a;
+    }
+
+    .fulfilment-explanation p {
+      margin: 0;
+      font-size: 0.84rem;
+      line-height: 1.45;
+    }
+
+    .timeline-bars {
+      display: grid;
+      gap: 8px;
+    }
+
+    .timeline-row {
+      display: grid;
+      grid-template-columns: 90px minmax(80px, 1fr) 110px;
+      gap: 9px;
+      align-items: center;
+      font-size: 0.76rem;
+    }
+
+    .timeline-label {
+      color: #334155;
+      font-weight: 900;
+    }
+
+    .timeline-track {
+      height: 9px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #e2e8f0;
+    }
+
+    .timeline-fill {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: #22c55e;
+    }
+
+    .timeline-fill.moderate {
+      background: #f59e0b;
+    }
+
+    .timeline-fill.high {
+      background: #ef4444;
+    }
+
+    .timeline-note,
+    .timeline-empty {
+      color: var(--muted);
+    }
+
+    @media (max-width: 620px) {
+      .readiness-list {
+        grid-template-columns: 1fr;
+      }
+
+      .timeline-row {
+        grid-template-columns: 82px minmax(70px, 1fr);
+      }
+
+      .timeline-note {
+        grid-column: 1 / -1;
+      }
+    }
+
   </style>
 </head>
 <body>
@@ -2353,6 +2502,7 @@
   </main>
 
   <script src="portalNavigation.js"></script>
+  <script src="bookingAdvisor.js"></script>
   <script>
 
     
@@ -3099,12 +3249,9 @@ document.getElementById("requesterName").textContent = user.name;
 
 
     function escapeHTML(value) {
-      return String(value ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+      return window.BookingAdvisor?.escapeHTML
+        ? window.BookingAdvisor.escapeHTML(value)
+        : String(value ?? '');
     }
 
     function getAdviceSignature(data) {
@@ -3254,6 +3401,9 @@ document.getElementById("requesterName").textContent = user.name;
           </div>
         </div>
         ${renderStructuredRecommendations(advice)}
+        ${window.BookingAdvisor.renderTimelinePreview(
+          window.BookingAdvisor.buildTimelineModel(advice, startTime.value, endTime.value)
+        )}
         ${notes.length ? `<ul class="advice-list">${notes.map(note => `<li>${escapeHTML(note)}</li>`).join('')}</ul>` : ''}
         <div class="advice-disclaimer">${escapeHTML(advice.disclaimer || '')}</div>
       `;
@@ -3305,6 +3455,59 @@ document.getElementById("requesterName").textContent = user.name;
       bookingAdviceTimer = window.setTimeout(requestBookingAdvice, 350);
     }
 
+
+    function getBookingReadiness() {
+      const data = getBookingData();
+      const selectedAccessories = getSelectedAdditionalResources();
+      const compatibleAccessories = new Set(
+        accessoryCompatibilityByDevice[data.deviceType] || []
+      );
+
+      const accessoriesCompatible = selectedAccessories.every(item =>
+        compatibleAccessories.has(item.type)
+      );
+
+      const softwareSupported =
+        data.softwareRequirement === 'None' || isIpadDeviceType();
+
+      return window.BookingAdvisor.buildReadinessItems({
+        deviceType: data.deviceType,
+        devicesRequired: data.devicesRequired,
+        accessoriesCompatible,
+        softwareSupported,
+        timingReady: isTimingSectionReady(),
+        locationReady: isLocationSectionReady(),
+        advice: latestBookingAdvice
+      });
+    }
+
+    function renderInteractiveOptimisation(data) {
+      const readiness = getBookingReadiness();
+      const fulfilment = window.BookingAdvisor.buildFulfilmentExplanation(
+        latestBookingAdvice,
+        data.location
+      );
+      const timeline = window.BookingAdvisor.buildTimelineModel(
+        latestBookingAdvice,
+        data.startTime,
+        data.endTime
+      );
+
+      return {
+        readiness,
+        readinessHTML: window.BookingAdvisor.renderReadinessChecklist(readiness),
+        fulfilmentHTML: `
+          <section class="fulfilment-explanation">
+            <div class="fulfilment-explanation-heading">
+              <strong>${escapeHTML(fulfilment.title)}</strong>
+            </div>
+            <p>${escapeHTML(fulfilment.message)}</p>
+          </section>
+        `,
+        timelineHTML: window.BookingAdvisor.renderTimelinePreview(timeline)
+      };
+    }
+
     function updateSummary() {
       updateSoftwareAvailability();
       const data = getBookingData();
@@ -3323,7 +3526,8 @@ document.getElementById("requesterName").textContent = user.name;
         ? `Recurring · ${Number(recurrenceCount.value)} occurrence(s)`
         : 'One-Time';
 
-      const ready = isBookingReadyToSubmit();
+      const interactive = renderInteractiveOptimisation(data);
+      const ready = interactive.readiness.formReady;
       summary.classList.toggle('ready', ready);
       const readyBanner = ready
         ? '<div class="review-ready-banner">✓ Ready to submit. Please check the details, then submit your booking request.</div>'
@@ -3344,7 +3548,9 @@ document.getElementById("requesterName").textContent = user.name;
           <div class="review-item"><span>Likely Fulfilment</span><strong>${latestBookingAdvice?.fulfilmentMode || 'Determined after submission'}</strong></div>
           <div class="review-item"><span>Recommendation Score</span><strong>${latestBookingAdvice ? `${Number(latestBookingAdvice.recommendationScore || 0)} / 100` : 'Pending outlook'}</strong></div>
         </div>
-        <div class="fulfilment-hint"><strong>Fulfilment note:</strong> Deployment resources will be delivered to the selected location. If a collection-only resource such as an iPad Bag is allocated, the confirmation message will instruct the user to collect it from the ICT Work Room.</div>
+        ${interactive.readinessHTML}
+        ${interactive.fulfilmentHTML}
+        ${interactive.timelineHTML}
         ${readyBanner}
       `;
 
