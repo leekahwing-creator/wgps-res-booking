@@ -1590,10 +1590,42 @@ app.get("/api/resources/catalog", requireLogin, (req, res) => {
         .filter(Boolean)
     )).sort((a, b) => a.localeCompare(b));
 
+    const availableAccessoryKeys = new Set(
+      resources
+        .filter(resource => resource.category === "Accessory")
+        .filter(resource => resource.status === "Available")
+        .map(resource => normaliseAccessoryCompatibilityKey(resource.deviceType))
+        .filter(Boolean)
+    );
+
+    const accessoryCompatibilityByDevice = deviceTypes.reduce((lookup, deviceType) => {
+      const compatibleKeys = new Set();
+
+      resources
+        .filter(resource => resource.category !== "Accessory")
+        .filter(resource => resource.status === "Available")
+        .filter(resource => String(resource.deviceType || "").trim().toLowerCase() === String(deviceType).trim().toLowerCase())
+        .forEach(resource => {
+          normaliseCompatibleAccessories(resource.compatibleAccessoryKeys || resource.compatibleAccessories)
+            .filter(key => availableAccessoryKeys.has(key))
+            .forEach(key => compatibleKeys.add(key));
+        });
+
+      lookup[deviceType] = Array.from(compatibleKeys)
+        .map(accessoryKeyToDisplayName)
+        .filter(displayName => accessoryTypes.some(type =>
+          normaliseAccessoryCompatibilityKey(type) === normaliseAccessoryCompatibilityKey(displayName)
+        ))
+        .sort((a, b) => a.localeCompare(b));
+
+      return lookup;
+    }, {});
+
     res.json({
       success: true,
       deviceTypes,
-      accessoryTypes
+      accessoryTypes,
+      accessoryCompatibilityByDevice
     });
   } catch (error) {
     console.error("Resource catalog retrieval error:", error);

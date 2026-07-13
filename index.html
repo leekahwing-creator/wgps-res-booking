@@ -1941,6 +1941,31 @@
       }
     }
 
+
+
+    /* Booking page regression safeguards: preserve device-card outline and compact presets */
+    #resourceSection .guided-section-body {
+      overflow: visible;
+    }
+
+    #resourceSection .device-choice-grid {
+      padding: 7px 2px 3px;
+      margin-top: -3px;
+    }
+
+    #resourceSection .device-choice.active {
+      transform: none;
+    }
+
+    .quantity-card .quick-qty-row {
+      flex-wrap: nowrap !important;
+    }
+
+    @media (max-width: 760px) {
+      .quantity-card .quick-qty-row {
+        flex-wrap: nowrap !important;
+      }
+    }
   </style>
 </head>
 <body>
@@ -2070,10 +2095,8 @@
                     <button type="button" id="increaseDevices" aria-label="Increase number of devices">+</button>
                   </div>
                   <div class="quick-qty-row" aria-label="Quick quantity shortcuts">
-                    <button type="button" class="quick-qty" data-quick-qty="1">1</button>
-                    <button type="button" class="quick-qty" data-quick-qty="8">8</button>
+                    <button type="button" class="quick-qty" data-quick-qty="10">10</button>
                     <button type="button" class="quick-qty" data-quick-qty="20">20</button>
-                    <button type="button" class="quick-qty" data-quick-qty="30">30</button>
                     <button type="button" class="quick-qty" data-quick-qty="40">40</button>
                   </div>
                 </div>
