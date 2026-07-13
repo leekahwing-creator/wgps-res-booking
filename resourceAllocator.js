@@ -513,6 +513,48 @@ function buildAlternativeDeviceSuggestions(allResources, bookingRequest, maxSugg
     .slice(0, maxSuggestions);
 }
 
+
+function buildR34Guidance(selectedResources, quantityRequired, fulfilmentMode, conflictHeat, totalCapacity, availableCapacity, accessoryAssessments, directFulfilmentLikely, deviceFulfilled, accessoriesFulfilled, softwareRequirement, recommendationScore, alternatives) {
+  const names = selectedResources.map(r => String(r.name || r.id));
+  const totalSelected = selectedResources.reduce((s,r)=>s+Number(r.capacity||0),0);
+  const preferredResource = {
+    title: names.length ? names.join(", ") : "No direct resource identified",
+    reason: !names.length ? "No currently available resource combination fully satisfies the configured request." :
+      selectedResources.length === 1 && totalSelected === Number(quantityRequired) ? "Single-resource exact-capacity match with minimal handling." :
+      selectedResources.length === 1 ? "Fulfils the request with one resource, reducing setup complexity." :
+      `Lowest-surplus compatible combination using ${selectedResources.length} resources.`
+  };
+  const occupied = Math.max(0, Number(totalCapacity||0)-Number(availableCapacity||0));
+  const conflictExplanation = {
+    level: conflictHeat,
+    summary: directFulfilmentLikely ? `${conflictHeat} contention; the request still appears fulfilable.` : "Existing bookings constrain this request.",
+    detail: `${occupied} compatible device places are already committed; ${availableCapacity} appear directly available.`
+  };
+  const accessoryCount = accessoryAssessments.reduce((n,a)=>n+(Array.isArray(a.likelyResources)?a.likelyResources.length:0),0);
+  const totalResources = selectedResources.length + accessoryCount;
+  const operationalImpact = {
+    complexity: totalResources >= 4 || fulfilmentMode === "Mixed" ? "High" : (totalResources >= 2 || fulfilmentMode === "Collection" ? "Moderate" : "Low"),
+    workload: fulfilmentMode === "Collection" ? "User collection from ICT Work Room" : (fulfilmentMode === "Mixed" ? "Mixed deployment and collection" : selectedResources.length > 1 ? `Deployment of ${selectedResources.length} device resources` : "Single-resource deployment"),
+    deviceResourceCount: selectedResources.length,
+    accessoryResourceCount: accessoryCount
+  };
+  const confidenceBreakdown = [
+    {label:"Device capacity",status:deviceFulfilled?"pass":"risk",detail:deviceFulfilled?"Sufficient compatible device capacity appears available.":"Directly available compatible capacity is insufficient."},
+    {label:"Accessory compatibility",status:accessoriesFulfilled?"pass":"risk",detail:accessoriesFulfilled?"Requested accessories appear compatible and available.":"One or more requested accessories cannot be fully matched."},
+    {label:"Software support",status:"pass",detail:String(softwareRequirement||"None")!=="None"?`${softwareRequirement} compatibility was included in the assessment.`:"No specialist software requirement was selected."},
+    {label:"Time-slot contention",status:conflictHeat==="High"?"risk":(conflictHeat==="Moderate"?"caution":"pass"),detail:`${conflictHeat} resource demand is estimated for this period.`},
+    {label:"Operational simplicity",status:selectedResources.length<=1&&fulfilmentMode!=="Mixed"?"pass":"caution",detail:selectedResources.length<=1?`Likely fulfilled with one ${String(fulfilmentMode).toLowerCase()} resource.`:`Likely fulfilled using ${selectedResources.length} device resources.`}
+  ];
+  const rankedRecommendations=[];
+  if (directFulfilmentLikely) rankedRecommendations.push({category:"Current request",title:"Keep the current booking",reason:"A direct likely fulfilment path is available.",action:null});
+  (alternatives.alternativeTimes||[]).forEach(x=>rankedRecommendations.push({category:"Alternative time",title:`${x.startTime}–${x.endTime}`,reason:`${x.confidence} confidence with compatible resources identified.`,action:{type:"time",value:`${x.startTime}|${x.endTime}`}}));
+  if (Number(alternatives.alternativeQuantity)>0) rankedRecommendations.push({category:"Alternative quantity",title:`Request ${alternatives.alternativeQuantity} devices`,reason:"Matches the compatible capacity directly available in this period.",action:{type:"quantity",value:String(alternatives.alternativeQuantity)}});
+  (alternatives.alternativeDevices||[]).forEach(x=>rankedRecommendations.push({category:"Alternative device",title:x.deviceType,reason:`${x.availableCompatibleCapacity} compatible places appear available.`,action:{type:"device",value:x.deviceType}}));
+  rankedRecommendations.splice(5);
+  rankedRecommendations.forEach((x,i)=>x.rank=i+1);
+  return {preferredResource,conflictExplanation,operationalImpact,confidenceBreakdown,rankedRecommendations,qualityLabel:recommendationScore>=85?"Excellent":recommendationScore>=70?"Good":recommendationScore>=50?"Fair":"Needs adjustment"};
+}
+
 /**
  * Read-only availability assessment for the booking advisor.
  * This function never writes booking files and never reserves resources.
@@ -657,6 +699,14 @@ function assessBookingAvailability(bookingRequest) {
     ))
   );
 
+  const r34 = buildR34Guidance(
+    selectedDeviceResources, quantityRequired, fulfilmentMode, conflictHeat,
+    totalCompatibleCapacity, availableCompatibleCapacity, accessoryAssessments,
+    directFulfilmentLikely, deviceFulfilled, accessoriesFulfilled,
+    bookingRequest.softwareRequirement, recommendationScore,
+    { alternativeQuantity, alternativeTimes, alternativeDevices }
+  );
+
   return {
     advisoryOnly: true,
     availabilityStatus,
@@ -677,6 +727,12 @@ function assessBookingAvailability(bookingRequest) {
     recommendationScore,
     successProbability,
     conflictHeat,
+    qualityLabel: r34.qualityLabel,
+    preferredResource: r34.preferredResource,
+    conflictExplanation: r34.conflictExplanation,
+    operationalImpact: r34.operationalImpact,
+    confidenceBreakdown: r34.confidenceBreakdown,
+    rankedRecommendations: r34.rankedRecommendations,
     structuredRecommendations: {
       alternativeQuantity,
       alternativeTimes,

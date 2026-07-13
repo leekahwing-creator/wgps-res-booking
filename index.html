@@ -2566,6 +2566,17 @@
       display: none !important;
     }
 
+
+    /* Release 3.4 — Smart Resource Guidance */
+    .booking-quality,.preferred-resource,.ranked-recommendations,.conflict-explanation,.r34-details{margin-top:12px;padding:13px;border:1px solid #dbe4ee;border-radius:15px;background:#fff}
+    .booking-quality-heading,.smart-guidance-heading{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:9px}.booking-quality-heading span,.smart-guidance-heading span{color:var(--muted);font-size:.76rem;font-weight:900}
+    .booking-quality-track{height:11px;border-radius:999px;overflow:hidden;background:#e2e8f0}.booking-quality-fill{height:100%;border-radius:inherit;background:linear-gradient(90deg,#f59e0b,#14b8a6)}
+    .preferred-resource{border-color:#99f6e4;background:linear-gradient(135deg,#f0fdfa,#fff)}.preferred-resource-name{color:var(--primary-dark);font-size:1rem;font-weight:900}.preferred-resource p,.conflict-explanation p{margin:6px 0 0;color:#475569;font-size:.84rem;line-height:1.45}
+    .ranked-recommendation-list,.confidence-list{display:grid;gap:8px}.ranked-recommendation{display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px;border:1px solid #e2e8f0;border-radius:13px}.recommendation-rank{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;background:var(--primary-light);color:var(--primary-dark);font-weight:900}.recommendation-copy small,.recommendation-copy strong{display:block}.recommendation-copy small{color:var(--muted);font-size:.68rem;font-weight:900;text-transform:uppercase}.recommendation-copy p{margin:3px 0 0;color:#64748b;font-size:.8rem}.recommended-current{color:#166534;font-size:.76rem;font-weight:900}
+    .confidence-item{display:grid;grid-template-columns:24px minmax(0,1fr);gap:9px;padding:9px;border-radius:12px;background:#f8fafc}.confidence-item.pass{background:#f0fdf4}.confidence-item.caution{background:#fffbeb}.confidence-item.risk{background:#fff1f2}.confidence-symbol{width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;background:#e2e8f0;font-weight:900}.confidence-item strong,.confidence-item small{display:block}.confidence-item small{margin-top:2px;color:#64748b}
+    .r34-details summary{cursor:pointer;font-weight:900;color:#334155}.r34-details-body{padding-top:10px}.operational-impact-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}.operational-impact-grid>div{padding:9px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc}.operational-impact-grid span,.operational-impact-grid strong{display:block}.operational-impact-grid span{color:var(--muted);font-size:.7rem;font-weight:900;text-transform:uppercase}.operational-impact-grid strong{margin-top:3px;font-size:.86rem}
+    @media(max-width:620px){.operational-impact-grid{grid-template-columns:1fr}.ranked-recommendation{grid-template-columns:30px minmax(0,1fr)}.ranked-recommendation .recommendation-action,.ranked-recommendation .recommended-current{grid-column:2;justify-self:start}}
+
   </style>
 </head>
 <body>
@@ -3747,7 +3758,7 @@ document.getElementById("requesterName").textContent = user.name;
           <div class="advice-primary-meta">${escapeHTML(advice.confidence || 'Unknown')} confidence · ${Number(advice.successProbability || 0)}% estimated success</div>
           <div class="advice-primary-allocation">Likely allocation: ${resourceText}</div>
         </div>
-        ${renderStructuredRecommendations(advice)}
+        ${window.BookingAdvisor.renderR34Guidance(advice)}
         <details class="advice-details">
           <summary>More details</summary>
           <div class="advice-details-body">
