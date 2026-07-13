@@ -1585,72 +1585,164 @@
     }
 
 
-    /* Compact Resource Options Refinement */
+
+    /* =========================================================
+       Booking Page UI Baseline v2.5
+       Consolidated resource controls, responsive behaviour,
+       accessibility and reduced-motion safeguards.
+       ========================================================= */
+
+    .booking-card,
+    .guided-section,
+    .guided-section-body,
+    .quantity-card,
+    .apps-card,
+    .accessory-card {
+      max-width: 100%;
+      min-width: 0;
+    }
+
+    #resourceSection .guided-section-body {
+      overflow: visible;
+    }
+
+    #resourceSection .device-choice-grid {
+      padding: 8px 2px 4px;
+      margin-top: -2px;
+    }
+
+    #resourceSection .device-choice.active {
+      transform: none;
+    }
+
     .quantity-card {
+      display: block;
       margin-top: 14px;
-      padding: 12px;
+      padding: 12px 14px;
+      height: auto;
+      min-height: 0;
+      overflow: visible;
       border-radius: 16px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
     }
 
     .quantity-card .field {
       display: grid;
-      grid-template-columns: minmax(170px, 1fr) minmax(170px, 2fr);
-      gap: 10px 14px;
+      grid-template-columns: minmax(150px, auto) auto minmax(0, 1fr);
+      grid-template-areas: "label control quick";
       align-items: center;
+      gap: 8px 10px;
+      min-height: 0;
     }
 
     .quantity-card label {
-      align-self: center;
+      grid-area: label;
+      margin: 0;
+      line-height: 1.2;
+      white-space: normal;
     }
 
     .quantity-card .device-control {
-      grid-template-columns: 48px minmax(90px, 1fr) 48px;
-      gap: 8px;
-    }
-
-    .quantity-card .quick-qty-row {
-      grid-column: 1 / -1;
+      grid-area: control;
+      display: grid;
+      grid-template-columns: 36px 64px 36px;
+      gap: 5px;
+      width: auto;
+      max-width: none;
+      min-width: 0;
+      justify-self: start;
       align-items: center;
     }
 
+    .quantity-card .device-control button {
+      width: 36px;
+      height: 36px;
+      min-height: 36px;
+      padding: 0;
+      border-radius: 11px;
+      font-size: 1.08rem;
+      line-height: 1;
+    }
+
+    .quantity-card #devicesRequired {
+      width: 64px;
+      min-width: 64px;
+      height: 36px;
+      min-height: 36px;
+      padding: 5px 7px;
+      border-radius: 11px;
+      font-size: 0.98rem;
+    }
+
+    .quantity-card .quick-qty-row {
+      grid-area: quick;
+      display: flex;
+      flex-wrap: nowrap;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 5px;
+      width: auto;
+      min-width: 0;
+      max-width: 100%;
+      overflow: visible;
+      justify-self: start;
+    }
+
     .quantity-card .quick-qty-row::before {
-      content: "Quick:";
+      content: "Quick";
+      flex: 0 0 auto;
+      margin-right: 1px;
       color: var(--muted);
-      font-size: 0.78rem;
+      font-size: 0.7rem;
       font-weight: 900;
       text-transform: uppercase;
       letter-spacing: 0.04em;
-      margin-right: 2px;
+      white-space: nowrap;
+    }
+
+    .quantity-card .quick-qty {
+      flex: 0 0 auto;
+      min-width: 36px;
+      height: 32px;
+      min-height: 32px;
+      padding: 0 8px;
+      line-height: 1;
     }
 
     .apps-card {
       margin-top: 10px;
-      padding: 12px 14px;
+      padding: 11px 13px;
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
       flex-wrap: wrap;
+      overflow: hidden;
     }
 
-    .apps-card > label:first-child,
-    .accessory-card > div > label {
+    .apps-card > label:first-child {
       margin-right: 2px;
       white-space: nowrap;
     }
 
     .apps-card .toggle-switch {
       min-height: 34px;
-      gap: 10px;
+      gap: 9px;
     }
 
     .apps-card .helper {
-      flex: 1 1 260px;
+      flex: 1 1 220px;
+    }
+
+    .apps-card.disabled-option {
+      opacity: 0.62;
     }
 
     .accessory-card.additional-resources-section {
       margin-top: 10px;
       padding: 12px 14px;
       gap: 10px;
+      overflow: hidden;
     }
 
     .accessory-card.additional-resources-section > div:first-child {
@@ -1660,157 +1752,107 @@
       flex-wrap: wrap;
     }
 
-    #additionalResourcesList {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-
-    .additional-resource-row {
-      display: inline-flex !important;
-      grid-template-columns: none !important;
-      align-items: center;
-      gap: 8px;
-      width: auto;
-      min-height: 42px;
-      padding: 9px 11px;
-      border-radius: 999px;
-    }
-
-    .additional-resource-row label {
-      gap: 8px;
+    .accessory-card > div > label {
+      margin-right: 2px;
       white-space: nowrap;
-    }
-
-    .additional-resource-row input[type="checkbox"] {
-      width: 18px;
-      height: 18px;
-      min-height: 18px;
-      flex: 0 0 auto;
-    }
-
-    .additional-resource-row input[data-accessory-quantity] {
-      display: none;
-      width: 68px;
-      min-height: 34px;
-      padding: 5px 8px;
-      font-size: 0.92rem;
-      border-radius: 999px;
-    }
-
-    .additional-resource-row.selected input[data-accessory-quantity] {
-      display: none;
-    }
-
-    .additional-resource-row.selected::after {
-      content: none;
-    }
-
-    .additional-resource-row.incompatible::after {
-      position: static;
-      content: "iPad only";
-      margin-left: 4px;
-    }
-
-    .accessory-compatibility-note {
-      display: none;
-    }
-
-    @media (max-width: 760px) {
-      .quantity-card .field {
-        grid-template-columns: 1fr;
-      }
-
-      .apps-card {
-        align-items: flex-start;
-        flex-direction: column;
-      }
-
-      #additionalResourcesList {
-        display: grid;
-        grid-template-columns: 1fr;
-      }
-
-      .additional-resource-row {
-        width: 100%;
-        justify-content: space-between;
-        border-radius: 16px;
-      }
-
-      .additional-resource-row label {
-        white-space: normal;
-      }
-    }
-
-
-    /* Booking page overflow + compatibility-driven accessory layout fix */
-    .booking-card,
-    .guided-section,
-    .guided-section-body,
-    .quantity-card,
-    .apps-card,
-    .accessory-card {
-      max-width: 100%;
-      min-width: 0;
-      overflow: hidden;
-    }
-
-    .device-choice-grid,
-    .guided-grid-2,
-    .guided-grid-3,
-    .quantity-card .field,
-    .device-control,
-    .quick-qty-row,
-    .apps-card,
-    #additionalResourcesList {
-      min-width: 0;
-    }
-
-    .quantity-card .field {
-      grid-template-columns: auto minmax(180px, 1fr) minmax(210px, auto);
-      align-items: center;
-    }
-
-    .quantity-card label {
-      white-space: normal;
-    }
-
-    .quantity-card .device-control {
-      width: 100%;
-      max-width: 260px;
-      justify-self: start;
-    }
-
-    .quantity-card .quick-qty-row {
-      grid-column: auto;
-      flex-wrap: wrap;
-      overflow: visible;
-      justify-self: start;
-      max-width: 100%;
     }
 
     #additionalResourcesList {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
+      gap: 9px;
       width: 100%;
+      min-width: 0;
     }
 
     .additional-resource-row {
-      width: 100% !important;
-      min-width: 0;
+      position: relative;
+      display: flex;
+      align-items: center;
       justify-content: flex-start;
-      border-radius: 18px;
-      padding: 14px 16px;
+      gap: 8px;
+      width: 100%;
+      min-width: 0;
+      min-height: 44px;
+      padding: 11px 13px;
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      background: #ffffff;
+      cursor: pointer;
+      transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    .additional-resource-row:hover {
+      border-color: rgba(15, 118, 110, 0.35);
+      background: #f0fdfa;
+    }
+
+    .additional-resource-row.selected {
+      border-color: var(--primary);
+      background: #ecfeff;
+      box-shadow: 0 8px 18px rgba(15, 118, 110, 0.09);
     }
 
     .additional-resource-row label {
-      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
       width: 100%;
+      min-width: 0;
+      white-space: normal;
     }
 
     .additional-resource-row label span {
       overflow-wrap: anywhere;
+    }
+
+    .additional-resource-row input[type="checkbox"] {
+      position: relative;
+      display: inline-grid;
+      place-content: center;
+      width: 18px;
+      height: 18px;
+      min-height: 18px;
+      flex: 0 0 auto;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: #ffffff;
+      accent-color: var(--primary);
+    }
+
+    .additional-resource-row input[type="checkbox"]:checked {
+      background: var(--primary);
+      border-color: var(--primary);
+    }
+
+    .additional-resource-row input[type="checkbox"]:checked::before {
+      content: "✓";
+      color: #ffffff;
+      font-size: 0.78rem;
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    .additional-resource-row input[data-accessory-quantity] {
+      display: none;
+    }
+
+    .additional-resource-row.selected::after,
+    .additional-resource-row.incompatible::after,
+    .accessory-compatibility-note {
+      content: none;
+      display: none;
+    }
+
+    .additional-resource-row.incompatible {
+      opacity: 0.5;
+      cursor: not-allowed;
+      background: #f8fafc;
+    }
+
+    .additional-resource-row.incompatible:hover {
+      border-color: #e2e8f0;
+      background: #f8fafc;
     }
 
     .accessory-empty-note {
@@ -1824,268 +1866,70 @@
       line-height: 1.4;
     }
 
+    button:focus-visible,
+    input:focus-visible,
+    select:focus-visible,
+    [role="checkbox"]:focus-visible {
+      outline: 3px solid rgba(15, 118, 110, 0.32);
+      outline-offset: 2px;
+    }
+
+    .device-choice[aria-checked="true"] {
+      border-color: var(--primary);
+      background: #ecfeff;
+      box-shadow: 0 12px 24px rgba(15, 118, 110, 0.11);
+    }
+
     @media (max-width: 980px) {
-      .quantity-card .field {
-        grid-template-columns: 1fr;
-      }
-
-      .quantity-card .device-control {
-        max-width: none;
-      }
-
       #additionalResourcesList {
         grid-template-columns: 1fr;
       }
     }
 
-
-    /* Stable two-row device quantity control */
-    .quantity-card {
-      display: block !important;
-      height: auto !important;
-      min-height: 0 !important;
-      max-height: none !important;
-      overflow: visible !important;
-      margin-top: 14px;
-      padding: 14px 16px;
-    }
-
-    .quantity-card .field {
-      display: grid !important;
-      grid-template-columns: minmax(250px, 1fr) minmax(300px, auto) !important;
-      grid-template-areas:
-        "label label"
-        "control quick" !important;
-      align-items: center !important;
-      align-content: start !important;
-      justify-content: stretch !important;
-      gap: 10px 18px !important;
-      height: auto !important;
-      min-height: 0 !important;
-    }
-
-    .quantity-card label {
-      grid-area: label !important;
-      align-self: start !important;
-      margin: 0 !important;
-      line-height: 1.25;
-      white-space: normal;
-    }
-
-    .quantity-card .device-control {
-      grid-area: control !important;
-      display: grid !important;
-      grid-template-columns: 48px minmax(110px, 1fr) 48px !important;
-      gap: 8px !important;
-      width: 100% !important;
-      max-width: 330px !important;
-      min-width: 0 !important;
-      justify-self: start !important;
-      align-self: center !important;
-    }
-
-    .quantity-card .quick-qty-row {
-      grid-area: quick !important;
-      display: flex !important;
-      flex-wrap: nowrap !important;
-      align-items: center !important;
-      justify-content: flex-start !important;
-      gap: 8px !important;
-      width: auto !important;
-      min-width: 0 !important;
-      max-width: 100% !important;
-      overflow: visible !important;
-      justify-self: end !important;
-      align-self: center !important;
-    }
-
-    .quantity-card .quick-qty-row::before {
-      content: "Quick quantity" !important;
-      flex: 0 0 auto;
-      margin-right: 2px;
-      white-space: nowrap;
-    }
-
-    .quantity-card .quick-qty {
-      flex: 0 0 auto;
-      min-width: 38px;
-      padding: 0 10px;
-    }
-
     @media (max-width: 760px) {
       .quantity-card .field {
-        grid-template-columns: 1fr !important;
-        grid-template-areas:
-          "label"
-          "control"
-          "quick" !important;
-      }
-
-      .quantity-card .device-control {
-        max-width: none !important;
-      }
-
-      .quantity-card .quick-qty-row {
-        justify-self: start !important;
-        flex-wrap: wrap !important;
-      }
-    }
-
-    @media (max-width: 430px) {
-      .quantity-card {
-        padding: 12px;
-      }
-
-      .quantity-card .quick-qty-row::before {
-        flex-basis: 100%;
-      }
-    }
-
-
-
-    /* Booking page regression safeguards: preserve device-card outline and compact presets */
-    #resourceSection .guided-section-body {
-      overflow: visible;
-    }
-
-    #resourceSection .device-choice-grid {
-      padding: 7px 2px 3px;
-      margin-top: -3px;
-    }
-
-    #resourceSection .device-choice.active {
-      transform: none;
-    }
-
-    .quantity-card .quick-qty-row {
-      flex-wrap: nowrap !important;
-    }
-
-    @media (max-width: 760px) {
-      .quantity-card .quick-qty-row {
-        flex-wrap: nowrap !important;
-      }
-    }
-
-    /* Booking UX Phase 2: compact quantity selector and responsive spacing */
-    .quantity-card {
-      padding: 12px 14px !important;
-      overflow: visible !important;
-    }
-
-    .quantity-card .field {
-      display: grid !important;
-      grid-template-columns: minmax(165px, auto) auto minmax(0, 1fr) !important;
-      grid-template-areas: "label control quick" !important;
-      align-items: center !important;
-      column-gap: 12px !important;
-      row-gap: 8px !important;
-      min-height: 0 !important;
-    }
-
-    .quantity-card label {
-      grid-area: label !important;
-      align-self: center !important;
-      margin: 0 !important;
-      line-height: 1.2 !important;
-      white-space: normal;
-    }
-
-    .quantity-card .device-control {
-      grid-area: control !important;
-      display: grid !important;
-      grid-template-columns: 38px 72px 38px !important;
-      gap: 6px !important;
-      width: auto !important;
-      max-width: none !important;
-      justify-self: start !important;
-    }
-
-    .quantity-card .device-control button {
-      width: 38px !important;
-      min-height: 38px !important;
-      height: 38px !important;
-      padding: 0 !important;
-      border-radius: 12px !important;
-      font-size: 1.15rem !important;
-      line-height: 1 !important;
-    }
-
-    .quantity-card #devicesRequired {
-      width: 72px !important;
-      min-width: 72px !important;
-      min-height: 38px !important;
-      height: 38px !important;
-      padding: 6px 8px !important;
-      border-radius: 12px !important;
-      font-size: 1rem !important;
-    }
-
-    .quantity-card .quick-qty-row {
-      grid-area: quick !important;
-      display: flex !important;
-      flex-wrap: nowrap !important;
-      align-items: center !important;
-      justify-content: flex-start !important;
-      gap: 6px !important;
-      width: auto !important;
-      max-width: 100% !important;
-      min-width: 0 !important;
-      justify-self: start !important;
-      overflow: visible !important;
-    }
-
-    .quantity-card .quick-qty-row::before {
-      content: "Quick" !important;
-      margin-right: 0 !important;
-      font-size: 0.72rem !important;
-      letter-spacing: 0.04em !important;
-      white-space: nowrap;
-    }
-
-    .quantity-card .quick-qty {
-      min-width: 38px !important;
-      min-height: 34px !important;
-      height: 34px !important;
-      padding: 0 9px !important;
-      line-height: 1 !important;
-    }
-
-    @media (max-width: 1120px) {
-      .quantity-card .field {
-        grid-template-columns: auto auto minmax(0, 1fr) !important;
-        column-gap: 10px !important;
-      }
-
-      .quantity-card label {
-        max-width: 150px;
-      }
-    }
-
-    @media (max-width: 760px) {
-      .quantity-card .field {
-        grid-template-columns: auto minmax(0, 1fr) !important;
+        grid-template-columns: auto minmax(0, 1fr);
         grid-template-areas:
           "label label"
-          "control quick" !important;
+          "control quick";
       }
 
-      .quantity-card label {
-        max-width: none;
+      .apps-card {
+        align-items: flex-start;
+        flex-direction: column;
       }
     }
 
     @media (max-width: 520px) {
+      .quantity-card {
+        padding: 11px 12px;
+      }
+
       .quantity-card .field {
-        grid-template-columns: 1fr !important;
+        grid-template-columns: 1fr;
         grid-template-areas:
           "label"
           "control"
-          "quick" !important;
+          "quick";
       }
 
       .quantity-card .quick-qty-row {
-        flex-wrap: wrap !important;
+        flex-wrap: wrap;
+      }
+
+      .additional-resource-row {
+        min-height: 46px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
       }
     }
 
@@ -2194,9 +2038,9 @@
             </div>
             <div class="guided-section-body">
               <div class="device-choice-grid" role="radiogroup" aria-label="Device type">
-                <button type="button" class="device-choice" data-device-choice="Laptop"><span class="device-icon">💻</span><strong>Laptop</strong><span>For laptop carts and class sets.</span></button>
-                <button type="button" class="device-choice" data-device-choice="iPad"><span class="device-icon">📱</span><strong>iPad</strong><span>For iPad carts or smaller iPad bags.</span></button>
-                <button type="button" class="device-choice" data-device-choice="iPad with Keyboard"><span class="device-icon">⌨️</span><strong>iPad + Keyboard</strong><span>For keyboard-enabled iPad carts.</span></button>
+                <button type="button" class="device-choice" data-device-choice="Laptop" role="radio" aria-checked="false" aria-pressed="false"><span class="device-icon">💻</span><strong>Laptop</strong><span>For laptop carts and class sets.</span></button>
+                <button type="button" class="device-choice" data-device-choice="iPad" role="radio" aria-checked="false" aria-pressed="false"><span class="device-icon">📱</span><strong>iPad</strong><span>For iPad carts or smaller iPad bags.</span></button>
+                <button type="button" class="device-choice" data-device-choice="iPad with Keyboard" role="radio" aria-checked="false" aria-pressed="false"><span class="device-icon">⌨️</span><strong>iPad + Keyboard</strong><span>For keyboard-enabled iPad carts.</span></button>
               </div>
 
               <div class="field" style="margin-top:14px;">
@@ -2466,10 +2310,12 @@ document.getElementById("requesterName").textContent = user.name;
     let continueToTimingBtn;
     let continueToReviewBtn;
     let timingSmartHint;
-    let timingSectionUnlocked = false;
-    let bookingMode = 'one-time';
-    let repeatIntervalWeeks = 1;
-    let currentBookingRequestId = createBookingRequestId();
+    const bookingUIState = {
+      timingSectionUnlocked: false,
+      bookingMode: 'one-time',
+      repeatIntervalWeeks: 1,
+      currentBookingRequestId: createBookingRequestId()
+    };
 
     function createBookingRequestId() {
       if (window.crypto && typeof window.crypto.randomUUID === 'function') {
@@ -2721,11 +2567,11 @@ document.getElementById("requesterName").textContent = user.name;
         softwareRequirement: softwareProcreate.checked ? 'Procreate' : 'None',
         devicesRequired: Number(devicesRequired.value),
         additionalResources: { resource: getSelectedAdditionalResources() },
-        bookingRequestId: currentBookingRequestId,
-        bookingMode,
-        recurrence: bookingMode === 'recurring'
+        bookingRequestId: bookingUIState.currentBookingRequestId,
+        bookingMode: bookingUIState.bookingMode,
+        recurrence: bookingUIState.bookingMode === 'recurring'
           ? {
-              intervalWeeks: repeatIntervalWeeks,
+              intervalWeeks: bookingUIState.repeatIntervalWeeks,
               occurrences: Number(recurrenceCount.value),
               dates: generateRecurringDates()
             }
@@ -2781,7 +2627,7 @@ document.getElementById("requesterName").textContent = user.name;
       const baseDate = parseLocalDate(bookingDate.value);
 
       for (let index = 0; index < occurrences; index++) {
-        const recurringDate = addDays(baseDate, index * repeatIntervalWeeks * 7);
+        const recurringDate = addDays(baseDate, index * bookingUIState.repeatIntervalWeeks * 7);
         dates.push(formatLocalDateForInput(recurringDate));
       }
 
@@ -2789,7 +2635,7 @@ document.getElementById("requesterName").textContent = user.name;
     }
 
     function updateRecurrencePreview() {
-      if (bookingMode !== 'recurring') {
+      if (bookingUIState.bookingMode !== 'recurring') {
         recurrencePreview.innerHTML = 'Recurring dates will appear here.';
         return;
       }
@@ -2823,7 +2669,7 @@ document.getElementById("requesterName").textContent = user.name;
       recurringPermissionNote.style.display = 'inline';
       bookingTypeControl?.classList.add('one-option');
 
-      if (bookingMode === 'recurring') {
+      if (bookingUIState.bookingMode === 'recurring') {
         setBookingMode('one-time');
       }
     }
@@ -2834,7 +2680,7 @@ document.getElementById("requesterName").textContent = user.name;
         mode = 'one-time';
       }
 
-      bookingMode = mode;
+      bookingUIState.bookingMode = mode;
       const isRecurring = mode === 'recurring';
 
       oneTimeBookingBtn.classList.toggle('active', !isRecurring);
@@ -2848,7 +2694,7 @@ document.getElementById("requesterName").textContent = user.name;
     }
 
     function setRepeatInterval(weeks) {
-      repeatIntervalWeeks = weeks;
+      bookingUIState.repeatIntervalWeeks = weeks;
       repeatWeeklyBtn.classList.toggle('active', weeks === 1);
       repeatFortnightlyBtn.classList.toggle('active', weeks === 2);
       repeatWeeklyBtn.setAttribute('aria-pressed', String(weeks === 1));
@@ -2874,7 +2720,7 @@ document.getElementById("requesterName").textContent = user.name;
       const data = getBookingData();
       const hasLocation = Boolean(data.location);
 
-      const timingUnlocked = Boolean(timingSectionUnlocked && hasDevice);
+      const timingUnlocked = Boolean(bookingUIState.timingSectionUnlocked && hasDevice);
       document.getElementById('timingSection')?.classList.toggle('locked', !timingUnlocked);
       document.getElementById('locationSection')?.classList.toggle('locked', !timingUnlocked || !hasDateTime);
       document.getElementById('reviewSection')?.classList.toggle('locked', !timingUnlocked || !hasDateTime || !hasLocation);
@@ -2888,7 +2734,7 @@ document.getElementById("requesterName").textContent = user.name;
       const stepReview = document.getElementById('stepReview');
       [stepChoose, stepWhen, stepWhere, stepReview].forEach(step => step?.classList.remove('active', 'complete'));
 
-      if (!hasDevice || !timingSectionUnlocked) {
+      if (!hasDevice || !bookingUIState.timingSectionUnlocked) {
         stepChoose?.classList.add('active');
       } else if (!hasDateTime) {
         stepChoose?.classList.add('complete');
@@ -2907,7 +2753,10 @@ document.getElementById("requesterName").textContent = user.name;
 
     function updateDeviceChoiceCards() {
       document.querySelectorAll('[data-device-choice]').forEach(button => {
-        button.classList.toggle('active', button.dataset.deviceChoice === deviceTypeSelect.value);
+        const selected = button.dataset.deviceChoice === deviceTypeSelect.value;
+        button.classList.toggle('active', selected);
+        button.setAttribute('aria-checked', String(selected));
+        button.setAttribute('aria-pressed', String(selected));
       });
     }
 
@@ -2934,7 +2783,7 @@ document.getElementById("requesterName").textContent = user.name;
       const data = getBookingData();
       const hasLocation = Boolean(data.location);
 
-      if (!hasDevice || !timingSectionUnlocked) return document.getElementById('resourceSection');
+      if (!hasDevice || !bookingUIState.timingSectionUnlocked) return document.getElementById('resourceSection');
       if (!hasDateTime) return document.getElementById('timingSection');
       if (!hasLocation) return document.getElementById('locationSection');
       return document.getElementById('reviewSection');
@@ -2969,9 +2818,10 @@ document.getElementById("requesterName").textContent = user.name;
       const targetTop = section.getBoundingClientRect().top + window.pageYOffset - getScrollOffset();
 
       section.classList.add('just-unlocked');
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       window.scrollTo({
         top: Math.max(0, targetTop),
-        behavior: 'smooth'
+        behavior: reduceMotion ? 'auto' : 'smooth'
       });
       focusFirstControlInSection(section);
 
@@ -3071,7 +2921,7 @@ document.getElementById("requesterName").textContent = user.name;
       const accessoryText = additionalResources.length
         ? additionalResources.map(item => `${item.quantity} ${item.type}`).join(', ')
         : 'None';
-      const bookingTypeText = bookingMode === 'recurring'
+      const bookingTypeText = bookingUIState.bookingMode === 'recurring'
         ? `Recurring · ${Number(recurrenceCount.value)} occurrence(s)`
         : 'One-Time';
 
@@ -3231,7 +3081,7 @@ document.getElementById("requesterName").textContent = user.name;
       decreaseDevices.addEventListener('click', () => adjustDeviceCount(-1));
 
       continueToTimingBtn.addEventListener('click', () => {
-        timingSectionUnlocked = true;
+        bookingUIState.timingSectionUnlocked = true;
         updateSummary();
         scheduleGuidedScroll(document.getElementById('timingSection'));
       });
@@ -3353,9 +3203,9 @@ document.getElementById("requesterName").textContent = user.name;
           endTime.value = '';
           setBookingMode('one-time');
           statusMessage.className = 'status';
-          currentBookingRequestId = createBookingRequestId();
+          bookingUIState.currentBookingRequestId = createBookingRequestId();
           lastGuidedTargetId = '';
-          timingSectionUnlocked = false;
+          bookingUIState.timingSectionUnlocked = false;
           toggleCustomLocationField();
           updateSummary();
         }, 0);
@@ -3417,7 +3267,7 @@ document.getElementById("requesterName").textContent = user.name;
             : buildAllocationMessage(savedBooking);
 
           showStatus(statusType, recurringMessage);
-          currentBookingRequestId = createBookingRequestId();
+          bookingUIState.currentBookingRequestId = createBookingRequestId();
           console.log('Booking saved with allocation:', result);
         } catch (error) {
           showStatus('error', `The booking could not be submitted. ${error.message}`);
