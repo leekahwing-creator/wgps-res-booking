@@ -2648,6 +2648,43 @@ document.getElementById("requesterName").textContent = user.name;
       });
     }
 
+    function normaliseDeviceQuantityInput() {
+      const min = Number(devicesRequired.min) || 1;
+      const max = Number(devicesRequired.max) || 100;
+      const entered = Number.parseInt(devicesRequired.value, 10);
+      const normalised = Number.isInteger(entered)
+        ? Math.min(max, Math.max(min, entered))
+        : min;
+
+      devicesRequired.value = String(normalised);
+      syncAccessoryQuantitiesToDeviceCount();
+      updateQuickQuantityStyles();
+      updateSummary();
+    }
+
+    function isHeadsetAccessory(type) {
+      return /head\s*set|headset|headphones?/i.test(String(type || ''));
+    }
+
+    function enforceExclusiveHeadsetSelection(selectedCheckbox) {
+      if (!selectedCheckbox?.checked || !isHeadsetAccessory(selectedCheckbox.value)) return;
+
+      additionalResourcesList
+        .querySelectorAll('[data-accessory-check]')
+        .forEach(checkbox => {
+          if (checkbox === selectedCheckbox || !isHeadsetAccessory(checkbox.value)) return;
+
+          checkbox.checked = false;
+          const row = checkbox.closest('.additional-resource-row');
+          const quantityInput = row?.querySelector('[data-accessory-quantity]');
+          if (quantityInput) {
+            quantityInput.disabled = true;
+            delete quantityInput.dataset.manuallyChanged;
+            quantityInput.value = devicesRequired.value || 1;
+          }
+        });
+    }
+
     function populateLocationDropdown() {
       const source = locationsDatabase.length > 0 ? locationsDatabase : fallbackLocationsDatabase;
 
@@ -3324,6 +3361,14 @@ document.getElementById("requesterName").textContent = user.name;
       increaseDevices.addEventListener('click', () => adjustDeviceCount(1));
       decreaseDevices.addEventListener('click', () => adjustDeviceCount(-1));
 
+      devicesRequired.addEventListener('input', () => {
+        syncAccessoryQuantitiesToDeviceCount();
+        updateQuickQuantityStyles();
+        updateSummary();
+      });
+      devicesRequired.addEventListener('change', normaliseDeviceQuantityInput);
+      devicesRequired.addEventListener('blur', normaliseDeviceQuantityInput);
+
       continueToTimingBtn.addEventListener('click', () => {
         bookingUIState.timingSectionUnlocked = true;
         updateSummary();
@@ -3400,8 +3445,12 @@ document.getElementById("requesterName").textContent = user.name;
         const checkbox = row.querySelector('[data-accessory-check]');
         const quantityInput = row.querySelector('[data-accessory-quantity]');
         if (event.target.matches('[data-accessory-check]')) {
+          enforceExclusiveHeadsetSelection(checkbox);
           quantityInput.disabled = !checkbox.checked;
-          if (checkbox.checked && !quantityInput.value) quantityInput.value = devicesRequired.value || 1;
+          if (checkbox.checked) {
+            quantityInput.value = devicesRequired.value || 1;
+            delete quantityInput.dataset.manuallyChanged;
+          }
         }
         if (event.target.matches('[data-accessory-quantity]')) {
           quantityInput.dataset.manuallyChanged = 'true';

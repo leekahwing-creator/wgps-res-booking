@@ -1655,6 +1655,16 @@ function validateAdditionalResourceRequests(bookingRequest) {
     }
   });
 
+  const requestedHeadsetVariants = new Set(
+    additionalRequests
+      .map(item => normaliseAccessoryCompatibilityKey(item.type))
+      .filter(key => key === "ACC-HEADSET-USB-C" || key === "ACC-HEADSET-35MM")
+  );
+
+  if (requestedHeadsetVariants.size > 1) {
+    errors.push("Only one headset connector type may be requested for a booking.");
+  }
+
   if (errors.length > 0 || additionalRequests.length === 0) {
     return errors;
   }
