@@ -2327,6 +2327,127 @@
       }
     }
 
+
+    /* Release 3.3 UX Polish */
+    .left-readiness-host {
+      margin-top: 18px;
+      margin-bottom: 4px;
+    }
+
+    .booking-progress {
+      padding: 14px;
+      border: 1px solid #cbd5e1;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #ffffff, #f8fafc);
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+    }
+
+    .booking-progress-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .booking-progress-count {
+      color: var(--muted);
+      font-size: 0.76rem;
+      font-weight: 900;
+    }
+
+    .booking-progress-track {
+      height: 9px;
+      margin-top: 10px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #e2e8f0;
+    }
+
+    .booking-progress-fill {
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--primary), #14b8a6);
+      transition: width 0.25s ease;
+    }
+
+    .booking-progress-next {
+      margin-top: 9px;
+      color: #334155;
+      font-size: 0.84rem;
+      font-weight: 800;
+      line-height: 1.35;
+    }
+
+    .booking-progress details {
+      margin-top: 8px;
+    }
+
+    .booking-progress summary {
+      cursor: pointer;
+      color: var(--primary-dark);
+      font-size: 0.78rem;
+      font-weight: 900;
+    }
+
+    .booking-progress-list {
+      display: grid;
+      gap: 6px;
+      margin-top: 9px;
+    }
+
+    .booking-progress-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      color: #64748b;
+      font-size: 0.8rem;
+    }
+
+    .booking-progress-item.complete {
+      color: #166534;
+      font-weight: 800;
+    }
+
+    .timeline-explainer {
+      margin: -2px 0 10px;
+      color: #475569;
+      font-size: 0.8rem;
+      line-height: 1.4;
+    }
+
+    .timeline-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 10px;
+      color: #64748b;
+      font-size: 0.74rem;
+      font-weight: 800;
+    }
+
+    .timeline-legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .timeline-dot {
+      width: 9px;
+      height: 9px;
+      display: inline-block;
+      border-radius: 999px;
+    }
+
+    .timeline-dot.low { background: #22c55e; }
+    .timeline-dot.moderate { background: #f59e0b; }
+    .timeline-dot.high { background: #ef4444; }
+
+    @media (max-width: 980px) {
+      .booking-progress details {
+        display: none;
+      }
+    }
+
   </style>
 </head>
 <body>
@@ -2401,14 +2522,14 @@
           </p>
         </div>
 
+        <div id="leftReadinessPanel" class="left-readiness-host" aria-live="polite"></div>
+
         <div class="guided-stepper" aria-label="Booking steps">
           <div class="step-chip active" id="stepChoose"><span class="step-number">1</span><span><strong>Choose resources</strong><br><small>Device, quantity and add-ons</small></span></div>
           <div class="step-chip" id="stepWhen"><span class="step-number">2</span><span><strong>Select timing</strong><br><small>Date, booking type and time</small></span></div>
           <div class="step-chip" id="stepWhere"><span class="step-number">3</span><span><strong>Confirm location</strong><br><small>Deployment or custom location</small></span></div>
           <div class="step-chip" id="stepReview"><span class="step-number">4</span><span><strong>Review & submit</strong><br><small>Check before submission</small></span></div>
         </div>
-
-        <div id="leftReadinessPanel" class="left-readiness-host" aria-live="polite"></div>
       </div>
 
       <div class="booking-card">
@@ -2731,7 +2852,15 @@ document.getElementById("requesterName").textContent = user.name;
       timingSectionUnlocked: false,
       bookingMode: 'one-time',
       repeatIntervalWeeks: 1,
-      currentBookingRequestId: createBookingRequestId()
+      currentBookingRequestId: createBookingRequestId(),
+      progress: {
+        device: false,
+        quantity: false,
+        resourcesReviewed: false,
+        date: false,
+        time: false,
+        location: false
+      }
     };
 
     function createBookingRequestId() {
@@ -3596,7 +3725,8 @@ document.getElementById("requesterName").textContent = user.name;
         softwareSupported,
         timingReady: isTimingSectionReady(),
         locationReady: isLocationSectionReady(),
-        advice: latestBookingAdvice
+        advice: latestBookingAdvice,
+        progress: bookingUIState.progress
       });
     }
 
@@ -3763,6 +3893,7 @@ document.getElementById("requesterName").textContent = user.name;
     }
 
     function adjustDeviceCount(change) {
+      bookingUIState.progress.quantity = true;
       const current = Number(devicesRequired.value) || 1;
       const min = Number(devicesRequired.min);
       const max = Number(devicesRequired.max);
@@ -3814,6 +3945,7 @@ document.getElementById("requesterName").textContent = user.name;
       decreaseDevices.addEventListener('click', () => adjustDeviceCount(-1));
 
       devicesRequired.addEventListener('input', () => {
+        bookingUIState.progress.quantity = true;
         syncAccessoryQuantitiesToDeviceCount();
         updateQuickQuantityStyles();
         updateSummary();
@@ -3822,6 +3954,7 @@ document.getElementById("requesterName").textContent = user.name;
       devicesRequired.addEventListener('blur', normaliseDeviceQuantityInput);
 
       continueToTimingBtn.addEventListener('click', () => {
+        bookingUIState.progress.resourcesReviewed = true;
         bookingUIState.timingSectionUnlocked = true;
         updateSummary();
         scheduleGuidedScroll(document.getElementById('timingSection'));
@@ -3834,6 +3967,7 @@ document.getElementById("requesterName").textContent = user.name;
 
       document.querySelectorAll('[data-device-choice]').forEach(button => {
         button.addEventListener('click', () => {
+          bookingUIState.progress.device = true;
           deviceTypeSelect.value = button.dataset.deviceChoice || '';
           renderAccessoryOptions();
           updateSummary();
@@ -3842,6 +3976,7 @@ document.getElementById("requesterName").textContent = user.name;
 
       document.querySelectorAll('[data-quick-qty]').forEach(button => {
         button.addEventListener('click', () => {
+          bookingUIState.progress.quantity = true;
           devicesRequired.value = button.dataset.quickQty;
           syncAccessoryQuantitiesToDeviceCount();
           updateSummary();
@@ -3849,10 +3984,12 @@ document.getElementById("requesterName").textContent = user.name;
       });
 
       deviceTypeSelect.addEventListener('change', () => {
+        bookingUIState.progress.device = Boolean(deviceTypeSelect.value);
         renderAccessoryOptions();
         updateSummary();
       });
       startTime.addEventListener('change', () => {
+        bookingUIState.progress.time = Boolean(startTime.value);
         suggestEndTimeIfEmpty();
         updateSummary();
         if (bookingDate.value && startTime.value && endTime.value && endTime.value > startTime.value) {
@@ -3860,6 +3997,7 @@ document.getElementById("requesterName").textContent = user.name;
         }
       });
       endTime.addEventListener('change', () => {
+        bookingUIState.progress.time = Boolean(startTime.value && endTime.value && endTime.value > startTime.value);
         updateSummary();
         if (bookingDate.value && startTime.value && endTime.value && endTime.value > startTime.value) {
           scheduleGuidedScroll();
@@ -3933,6 +4071,7 @@ document.getElementById("requesterName").textContent = user.name;
       });
 
       locationSelect.addEventListener('change', () => {
+        bookingUIState.progress.location = Boolean(locationSelect.value);
         toggleCustomLocationField();
         updateSummary();
         if (getBookingData().location) {
@@ -3941,6 +4080,7 @@ document.getElementById("requesterName").textContent = user.name;
       });
 
       bookingDate.addEventListener('change', () => {
+        bookingUIState.progress.date = Boolean(bookingDate.value);
         if (bookingDate.value && isWeekend(bookingDate.value)) {
           showStatus('error', 'Bookings can only be made from Monday to Friday. Please choose a weekday.');
         }
@@ -3969,6 +4109,14 @@ document.getElementById("requesterName").textContent = user.name;
           lastBookingAdviceSignature = '';
           latestBookingAdvice = null;
           bookingUIState.timingSectionUnlocked = false;
+          bookingUIState.progress = {
+            device: false,
+            quantity: false,
+            resourcesReviewed: false,
+            date: false,
+            time: false,
+            location: false
+          };
           toggleCustomLocationField();
           updateSummary();
         }, 0);

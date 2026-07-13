@@ -13,16 +13,17 @@
 
   function buildReadinessItems(context) {
     const advice = context.advice || null;
+    const progress = context.progress || {};
     const items = [
-      { label: "Device selected", ready: Boolean(context.deviceType) },
-      { label: "Quantity specified", ready: Number(context.devicesRequired || 0) > 0 },
-      { label: "Accessory selection compatible", ready: Boolean(context.accessoriesCompatible) },
-      { label: "Software requirement supported", ready: Boolean(context.softwareSupported) },
-      { label: "Valid date and time selected", ready: Boolean(context.timingReady) },
-      { label: "Deployment location confirmed", ready: Boolean(context.locationReady) },
+      { label: "Device selected", ready: Boolean(progress.device && context.deviceType) },
+      { label: "Quantity confirmed", ready: Boolean(progress.quantity && Number(context.devicesRequired || 0) > 0) },
+      { label: "Resources and add-ons reviewed", ready: Boolean(progress.resourcesReviewed) },
+      { label: "Booking date selected", ready: Boolean(progress.date) },
+      { label: "Valid time selected", ready: Boolean(progress.time && context.timingReady) },
+      { label: "Deployment location confirmed", ready: Boolean(progress.location && context.locationReady) },
       {
         label: advice ? "Availability outlook complete" : "Availability outlook pending",
-        ready: Boolean(advice && advice.directFulfilmentLikely)
+        ready: Boolean(advice)
       }
     ];
 
@@ -36,26 +37,35 @@
   }
 
   function renderReadinessChecklist(readiness) {
+    const percentage = readiness.totalCount
+      ? Math.round((readiness.completeCount / readiness.totalCount) * 100)
+      : 0;
     const nextIncomplete = readiness.items.find(item => !item.ready);
-    const stateText = readiness.fullyReady
-      ? "Ready to book"
-      : (nextIncomplete ? `${nextIncomplete.label} next` : "Review before submitting");
+    const nextText = readiness.fullyReady
+      ? "Ready to submit"
+      : (nextIncomplete ? `Next: ${nextIncomplete.label}` : "Review before submitting");
 
     return `
-      <section class="readiness-panel ${readiness.fullyReady ? "ready" : ""}" aria-label="Booking readiness">
-        <div class="readiness-heading">
-          <strong>Booking readiness</strong>
-          <span>${readiness.completeCount}/${readiness.totalCount} checks</span>
+      <section class="booking-progress" aria-label="Booking progress">
+        <div class="booking-progress-header">
+          <strong>Booking progress</strong>
+          <span class="booking-progress-count">${readiness.completeCount}/${readiness.totalCount} complete</span>
         </div>
-        <div class="readiness-list">
-          ${readiness.items.map(item => `
-            <div class="readiness-item ${item.ready ? "complete" : ""}">
-              <span class="readiness-icon" aria-hidden="true">${item.ready ? "✓" : "○"}</span>
-              <span>${escapeHTML(item.label)}</span>
-            </div>
-          `).join("")}
+        <div class="booking-progress-track" aria-hidden="true">
+          <div class="booking-progress-fill" style="width:${percentage}%"></div>
         </div>
-        <div class="readiness-state">${escapeHTML(stateText)}</div>
+        <div class="booking-progress-next">${escapeHTML(nextText)}</div>
+        <details>
+          <summary>View progress details</summary>
+          <div class="booking-progress-list">
+            ${readiness.items.map(item => `
+              <div class="booking-progress-item ${item.ready ? "complete" : ""}">
+                <span aria-hidden="true">${item.ready ? "✓" : "○"}</span>
+                <span>${escapeHTML(item.label)}</span>
+              </div>
+            `).join("")}
+          </div>
+        </details>
       </section>
     `;
   }
@@ -115,7 +125,7 @@
     const entries = [{
       label: `${selectedStart}–${selectedEnd}`,
       level: selectedLevel,
-      note: "Selected period"
+      note: advice?.conflictHeat === "High" ? "High demand" : (advice?.conflictHeat === "Moderate" ? "Moderate demand" : "Low demand")
     }];
 
     const alternatives = advice?.structuredRecommendations?.alternativeTimes || [];
@@ -123,7 +133,7 @@
       entries.push({
         label: `${item.startTime}–${item.endTime}`,
         level: item.confidence === "High" ? "low" : "moderate",
-        note: "Suggested alternative"
+        note: item.confidence === "High" ? "Lower-demand option" : "Alternative time"
       });
     });
 
@@ -134,8 +144,8 @@
     if (!model.length) {
       return `
         <section class="timeline-preview" aria-label="Resource demand timeline">
-          <div class="timeline-heading"><strong>Resource timeline</strong></div>
-          <div class="timeline-empty">Select a valid time period to preview relative demand.</div>
+          <div class="timeline-heading"><strong>How busy is this time slot?</strong></div>
+          <div class="timeline-empty">Select a valid time period to see how busy ICT resources are based on existing bookings.</div>
         </section>
       `;
     }
@@ -143,9 +153,10 @@
     return `
       <section class="timeline-preview" aria-label="Resource demand timeline">
         <div class="timeline-heading">
-          <strong>Resource timeline</strong>
-          <span>Selected period and alternatives</span>
+          <strong>How busy is this time slot?</strong>
+          <span>Based on existing bookings</span>
         </div>
+        <div class="timeline-explainer">The bar estimates ICT resource demand from existing bookings. Longer bars indicate a busier period.</div>
         <div class="timeline-bars">
           ${model.map(item => `
             <div class="timeline-row">
@@ -158,6 +169,11 @@
               <span class="timeline-note">${escapeHTML(item.note)}</span>
             </div>
           `).join("")}
+        </div>
+        <div class="timeline-legend" aria-label="Demand legend">
+          <span><i class="timeline-dot low"></i>Low demand</span>
+          <span><i class="timeline-dot moderate"></i>Moderate demand</span>
+          <span><i class="timeline-dot high"></i>High demand</span>
         </div>
       </section>
     `;
