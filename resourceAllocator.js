@@ -497,7 +497,7 @@ function assessBookingAvailability(bookingRequest) {
     estimatedAllocationMethod: directFulfilmentLikely
       ? "Automatic Allocation"
       : "May require conflict resolution or an alternative",
-    quantityRequested,
+    quantityRequested: quantityRequired,
     selectedDeviceCapacity,
     availableCompatibleCapacity,
     totalCompatibleCapacity,
