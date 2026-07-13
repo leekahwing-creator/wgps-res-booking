@@ -1621,11 +1621,43 @@ app.get("/api/resources/catalog", requireLogin, (req, res) => {
       return lookup;
     }, {});
 
+    const activeSoftwareCatalog = readSoftwareCatalogFromXML()
+      .map(formatSoftwareForResponse)
+      .filter(software => software.status === "Active");
+
+    const softwareByDevice = deviceTypes.reduce((lookup, deviceType) => {
+      const installedNames = new Set();
+
+      resources
+        .filter(resource => resource.category !== "Accessory")
+        .filter(resource => resource.status === "Available")
+        .filter(resource =>
+          String(resource.deviceType || "").trim().toLowerCase() ===
+          String(deviceType || "").trim().toLowerCase()
+        )
+        .forEach(resource => {
+          normaliseSoftwareItems(resource.software)
+            .forEach(name => installedNames.add(String(name).trim()));
+        });
+
+      lookup[deviceType] = activeSoftwareCatalog
+        .filter(software => installedNames.has(String(software.name || "").trim()))
+        .map(software => ({ id: software.id, name: software.name }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      return lookup;
+    }, {});
+
     res.json({
       success: true,
       deviceTypes,
       accessoryTypes,
-      accessoryCompatibilityByDevice
+      accessoryCompatibilityByDevice,
+      softwareCatalog: activeSoftwareCatalog.map(software => ({
+        id: software.id,
+        name: software.name
+      })),
+      softwareByDevice
     });
   } catch (error) {
     console.error("Resource catalog retrieval error:", error);

@@ -2577,6 +2577,243 @@
     .r34-details summary{cursor:pointer;font-weight:900;color:#334155}.r34-details-body{padding-top:10px}.operational-impact-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}.operational-impact-grid>div{padding:9px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc}.operational-impact-grid span,.operational-impact-grid strong{display:block}.operational-impact-grid span{color:var(--muted);font-size:.7rem;font-weight:900;text-transform:uppercase}.operational-impact-grid strong{margin-top:3px;font-size:.86rem}
     @media(max-width:620px){.operational-impact-grid{grid-template-columns:1fr}.ranked-recommendation{grid-template-columns:30px minmax(0,1fr)}.ranked-recommendation .recommendation-action,.ranked-recommendation .recommended-current{grid-column:2;justify-self:start}}
 
+
+    /* Release 3.4 HF1 — Progressive Advisor and Dynamic Software */
+    .software-selection-card {
+      display: grid;
+      gap: 10px;
+      align-items: stretch;
+    }
+
+    .software-selection-heading {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .software-options-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      width: 100%;
+    }
+
+    .software-option {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 10px 12px;
+      border: 1px solid #dbe4ee;
+      border-radius: 14px;
+      background: #ffffff;
+      color: #334155;
+      font-weight: 800;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .software-option.selected {
+      border-color: var(--primary);
+      background: #ecfeff;
+      color: var(--primary-dark);
+      box-shadow: 0 8px 18px rgba(15, 118, 110, 0.08);
+    }
+
+    .software-option-indicator {
+      width: 20px;
+      height: 20px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      border: 1px solid #cbd5e1;
+      border-radius: 999px;
+      background: #ffffff;
+    }
+
+    .software-option.selected .software-option-indicator {
+      border-color: var(--primary);
+      background: var(--primary);
+      color: #ffffff;
+    }
+
+    .software-empty-note {
+      grid-column: 1 / -1;
+      padding: 10px 12px;
+      border: 1px dashed #cbd5e1;
+      border-radius: 12px;
+      color: #64748b;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.4;
+    }
+
+    .advisor-outcome-card {
+      display: grid;
+      grid-template-columns: minmax(0, 1.25fr) minmax(180px, 0.75fr);
+      gap: 12px;
+      padding: 14px;
+      border: 1px solid #99f6e4;
+      border-radius: 15px;
+      background: linear-gradient(135deg, #f0fdfa, #ffffff);
+    }
+
+    .advisor-outcome-card[data-tone="caution"] {
+      border-color: #fde68a;
+      background: linear-gradient(135deg, #fffbeb, #ffffff);
+    }
+
+    .advisor-outcome-card[data-tone="unavailable"] {
+      border-color: #fecaca;
+      background: linear-gradient(135deg, #fff1f2, #ffffff);
+    }
+
+    .advisor-outcome-card span,
+    .advisor-recommended-setup > span,
+    .advisor-resource-match span,
+    .advisor-delivery span {
+      display: block;
+      color: #64748b;
+      font-size: 0.72rem;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .advisor-outcome-card strong {
+      display: block;
+      margin-top: 3px;
+      color: #0f172a;
+    }
+
+    .advisor-outcome-card p {
+      margin: 5px 0 0;
+      color: #475569;
+      font-size: 0.84rem;
+      line-height: 1.4;
+    }
+
+    .advisor-resource-match {
+      grid-column: 1 / -1;
+      padding-top: 10px;
+      border-top: 1px dashed #cbd5e1;
+    }
+
+    .advisor-recommended-setup {
+      margin-top: 10px;
+      padding: 11px 13px;
+      border: 1px solid #dbe4ee;
+      border-radius: 13px;
+      background: #ffffff;
+    }
+
+    .advisor-recommended-setup strong,
+    .advisor-recommended-setup small {
+      display: block;
+    }
+
+    .advisor-recommended-setup strong {
+      margin-top: 3px;
+      color: var(--primary-dark);
+    }
+
+    .advisor-recommended-setup small {
+      margin-top: 3px;
+      color: #64748b;
+      line-height: 1.35;
+    }
+
+    .advisor-suggestions {
+      margin-top: 10px;
+      padding: 11px;
+      border: 1px solid #fde68a;
+      border-radius: 13px;
+      background: #fffbeb;
+    }
+
+    .advisor-suggestion-list {
+      display: grid;
+      gap: 7px;
+    }
+
+    .advisor-suggestion {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 9px;
+      border: 1px solid #fef3c7;
+      border-radius: 11px;
+      background: #ffffff;
+    }
+
+    .advisor-suggestion small,
+    .advisor-suggestion strong {
+      display: block;
+    }
+
+    .advisor-suggestion small {
+      color: #64748b;
+      font-size: 0.68rem;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .advisor-no-change {
+      margin-top: 10px;
+      padding: 9px 11px;
+      border-radius: 11px;
+      background: #f0fdf4;
+      color: #166534;
+      font-size: 0.82rem;
+      font-weight: 900;
+    }
+
+    .advisor-technical-assessment {
+      margin-top: 10px;
+      border: 1px solid #dbe4ee;
+      border-radius: 13px;
+      background: #ffffff;
+      overflow: hidden;
+    }
+
+    .advisor-technical-assessment > summary {
+      cursor: pointer;
+      padding: 11px 13px;
+      color: #475569;
+      font-size: 0.82rem;
+      font-weight: 900;
+    }
+
+    .advisor-technical-body {
+      display: grid;
+      gap: 10px;
+      padding: 0 12px 12px;
+    }
+
+    .technical-score-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 0;
+      border-bottom: 1px solid #e2e8f0;
+      color: #475569;
+      font-size: 0.8rem;
+    }
+
+    @media (max-width: 760px) {
+      .software-options-list,
+      .advisor-outcome-card {
+        grid-template-columns: 1fr;
+      }
+
+      .advisor-resource-match {
+        grid-column: 1;
+      }
+    }
+
   </style>
 </head>
 <body>
@@ -2715,14 +2952,13 @@
                 </div>
               </div>
 
-              <div class="apps-card">
-                <label>Apps required</label>
-                <label class="toggle-switch">
-                  <input id="softwareProcreate" name="softwareRequirement" type="checkbox" value="Procreate" />
-                  <span class="toggle-slider"></span>
-                  <span class="toggle-label">Procreate</span>
-                </label>
-                <span class="helper">Optional app request.</span>
+              <div class="apps-card software-selection-card">
+                <div class="software-selection-heading">
+                  <label>Software needed</label>
+                  <span class="helper">Optional. Only software installed on compatible resources is shown.</span>
+                </div>
+                <input id="softwareRequirement" name="softwareRequirement" type="hidden" value="None" />
+                <div id="softwareOptionsList" class="software-options-list" role="radiogroup" aria-label="Software needed"></div>
               </div>
 
               <div class="accessory-card additional-resources-section" id="additionalResourcesSection" style="display:none;">
@@ -2952,7 +3188,10 @@ document.getElementById("requesterName").textContent = user.name;
     let customLocationField;
     let customLocationInput;
     let deviceTypeSelect;
-    let softwareProcreate;
+    let softwareRequirement;
+    let softwareOptionsList;
+    let softwareCatalog = [];
+    let softwareByDevice = {};
     let additionalResourcesSection;
     let additionalResourcesList;
     let oneTimeBookingBtn;
@@ -3035,7 +3274,8 @@ document.getElementById("requesterName").textContent = user.name;
       customLocationField = getRequiredElement('customLocationField');
       customLocationInput = getRequiredElement('customLocation');
       deviceTypeSelect = getRequiredElement('deviceType');
-      softwareProcreate = getRequiredElement('softwareProcreate');
+      softwareRequirement = getRequiredElement('softwareRequirement');
+      softwareOptionsList = getRequiredElement('softwareOptionsList');
       additionalResourcesSection = getRequiredElement('additionalResourcesSection');
       additionalResourcesList = getRequiredElement('additionalResourcesList');
       oneTimeBookingBtn = getRequiredElement('oneTimeBookingBtn');
@@ -3102,12 +3342,15 @@ document.getElementById("requesterName").textContent = user.name;
         if (!response.ok || !result.success) throw new Error(result.message || 'Unable to load resource catalog.');
         accessoryTypes = Array.isArray(result.accessoryTypes) ? result.accessoryTypes : [];
         accessoryCompatibilityByDevice = result.accessoryCompatibilityByDevice || result.compatibilityByDevice || {};
+        softwareCatalog = Array.isArray(result.softwareCatalog) ? result.softwareCatalog : [];
+        softwareByDevice = result.softwareByDevice || {};
       } catch (error) {
         console.warn('Unable to load accessory resource catalog.', error.message);
         accessoryTypes = [];
       }
 
       renderAccessoryOptions();
+      renderSoftwareOptions();
       updateAccessorySelectionStyles();
     }
 
@@ -3283,7 +3526,7 @@ document.getElementById("requesterName").textContent = user.name;
           ? customLocationInput.value.trim()
           : locationSelect.value,
         deviceType: deviceTypeSelect.value,
-        softwareRequirement: softwareProcreate.checked ? 'Procreate' : 'None',
+        softwareRequirement: softwareRequirement.value || 'None',
         devicesRequired: Number(devicesRequired.value),
         additionalResources: { resource: getSelectedAdditionalResources() },
         bookingRequestId: bookingUIState.currentBookingRequestId,
@@ -3595,19 +3838,81 @@ document.getElementById("requesterName").textContent = user.name;
       endTime.value = suggestedEnd;
     }
 
-    function updateSoftwareAvailability() {
-      if (!softwareProcreate) return;
-      const enabled = isIpadDeviceType();
-      if (!enabled) softwareProcreate.checked = false;
-      softwareProcreate.disabled = !enabled;
-      const appsCard = softwareProcreate.closest('.apps-card');
-      if (appsCard) appsCard.classList.toggle('disabled-option', !enabled);
-      const helper = appsCard?.querySelector('.helper');
-      if (helper) {
-        helper.textContent = enabled
-          ? 'Optional app request. Leave unticked if Procreate is not required.'
-          : 'Available only when booking iPad-type devices.';
+    function getSoftwareOptionsForSelectedDevice() {
+      const selectedDeviceType = String(deviceTypeSelect?.value || '').trim();
+      if (!selectedDeviceType) return [];
+
+      const direct = softwareByDevice[selectedDeviceType];
+      if (Array.isArray(direct)) return direct;
+
+      const matchingKey = Object.keys(softwareByDevice || {}).find(
+        key => key.toLowerCase() === selectedDeviceType.toLowerCase()
+      );
+      return matchingKey && Array.isArray(softwareByDevice[matchingKey])
+        ? softwareByDevice[matchingKey]
+        : [];
+    }
+
+    function selectedSoftwareIsSupported() {
+      const selected = String(softwareRequirement?.value || 'None');
+      if (selected === 'None') return true;
+      return getSoftwareOptionsForSelectedDevice()
+        .some(item => String(item.name || '').toLowerCase() === selected.toLowerCase());
+    }
+
+    function renderSoftwareOptions() {
+      if (!softwareOptionsList || !softwareRequirement) return;
+
+      const options = getSoftwareOptionsForSelectedDevice();
+      const selectedDeviceType = String(deviceTypeSelect?.value || '').trim();
+      const currentValue = String(softwareRequirement.value || 'None');
+
+      if (
+        currentValue !== 'None' &&
+        !options.some(item =>
+          String(item.name || '').toLowerCase() === currentValue.toLowerCase()
+        )
+      ) {
+        softwareRequirement.value = 'None';
       }
+
+      if (!selectedDeviceType) {
+        softwareOptionsList.innerHTML =
+          '<div class="software-empty-note">Select a device type to see compatible software.</div>';
+        return;
+      }
+
+      const allOptions = [
+        { id: 'NONE', name: 'No specialist software', value: 'None' },
+        ...options.map(item => ({ id: item.id, name: item.name, value: item.name }))
+      ];
+
+      softwareOptionsList.innerHTML = allOptions.map(item => {
+        const selected = String(softwareRequirement.value || 'None') === item.value;
+        return `
+          <button
+            type="button"
+            class="software-option ${selected ? 'selected' : ''}"
+            data-software-option="${escapeHTML(item.value)}"
+            role="radio"
+            aria-checked="${selected}"
+          >
+            <span class="software-option-indicator" aria-hidden="true">${selected ? '✓' : ''}</span>
+            <span>${escapeHTML(item.name)}</span>
+          </button>
+        `;
+      }).join('');
+
+      if (options.length === 0) {
+        softwareOptionsList.insertAdjacentHTML(
+          'beforeend',
+          '<div class="software-empty-note">No specialist software is currently recorded for this device type.</div>'
+        );
+      }
+    }
+
+    function updateSoftwareAvailability() {
+      renderSoftwareOptions();
     }
 
     function updateTimingSmartHint() {
@@ -3724,19 +4029,16 @@ document.getElementById("requesterName").textContent = user.name;
 
       if (!advice) {
         bookingAdviceCard.dataset.level = 'neutral';
-        bookingAdviceStatus.textContent = 'Waiting for timing';
+        bookingAdviceStatus.textContent = 'Waiting for date and time';
         bookingAdviceContent.innerHTML =
-          'Select the device, quantity, date and time to receive a live availability estimate.';
+          'Complete the booking details to check whether matching resources are available.';
         return;
       }
 
-      const level = String(advice.confidence || '').toLowerCase();
-      bookingAdviceCard.dataset.level = level === 'high'
-        ? 'high'
-        : (level === 'moderate' ? 'moderate' : 'low');
-
-      bookingAdviceStatus.textContent =
-        `${advice.availabilityStatus} · ${advice.confidence} confidence`;
+      const availability = window.BookingAdvisor.getAvailabilityPresentation(advice);
+      const delivery = window.BookingAdvisor.getDeliveryPresentation(advice);
+      bookingAdviceCard.dataset.level = availability.tone;
+      bookingAdviceStatus.textContent = availability.status;
 
       const likelyResources = Array.isArray(advice.likelyDeviceResources)
         ? advice.likelyDeviceResources
@@ -3745,45 +4047,32 @@ document.getElementById("requesterName").textContent = user.name;
         ? likelyResources.map(resource =>
             `${escapeHTML(resource.name)} (${Number(resource.capacity || 0)})`
           ).join(', ')
-        : 'No direct allocation identified';
-
-      const notes = [
-        ...(Array.isArray(advice.warnings) ? advice.warnings : []),
-        ...(Array.isArray(advice.recommendations) ? advice.recommendations : [])
-      ];
+        : 'No matching setup identified';
 
       bookingAdviceContent.innerHTML = `
-        <div class="advice-primary">
-          <div class="advice-primary-status">${escapeHTML(advice.availabilityStatus || 'Availability assessed')}</div>
-          <div class="advice-primary-meta">${escapeHTML(advice.confidence || 'Unknown')} confidence · ${Number(advice.successProbability || 0)}% estimated success</div>
-          <div class="advice-primary-allocation">Likely allocation: ${resourceText}</div>
-        </div>
-        ${window.BookingAdvisor.renderR34Guidance(advice)}
-        <details class="advice-details">
-          <summary>More details</summary>
-          <div class="advice-details-body">
-            <div class="advice-grid">
-              <div class="advice-metric">
-                <span>Fulfilment</span>
-                <strong>${escapeHTML(advice.fulfilmentMode || 'Unknown')}</strong>
-              </div>
-              <div class="advice-metric">
-                <span>Booking health</span>
-                <strong>${'★'.repeat(Number(advice.healthScore || 0))}${'☆'.repeat(Math.max(0, 5 - Number(advice.healthScore || 0)))}</strong>
-              </div>
-              <div class="advice-metric">
-                <span>Recommendation score</span>
-                <strong>${Number(advice.recommendationScore || 0)} / 100</strong>
-              </div>
-              <div class="advice-metric">
-                <span>Conflict heat</span>
-                <strong>${escapeHTML(advice.conflictHeat || 'Unknown')}</strong>
-              </div>
-            </div>
-            ${notes.length ? `<ul class="advice-list">${notes.map(note => `<li>${escapeHTML(note)}</li>`).join('')}</ul>` : ''}
+        <div class="advisor-outcome-card" data-tone="${escapeHTML(availability.tone)}">
+          <div>
+            <span>Availability</span>
+            <strong>${escapeHTML(availability.status)}</strong>
+            <p>${escapeHTML(availability.message)}</p>
           </div>
-        </details>
-        <div class="advice-disclaimer">${escapeHTML(advice.disclaimer || '')}</div>
+          <div class="advisor-delivery">
+            <span>How you will receive it</span>
+            <strong>${escapeHTML(delivery.label)}</strong>
+          </div>
+          ${likelyResources.length ? `
+            <div class="advisor-resource-match">
+              <span>Matching resource setup</span>
+              <strong>${resourceText}</strong>
+            </div>
+          ` : ''}
+        </div>
+
+        ${window.BookingAdvisor.renderR34Guidance(advice)}
+
+        <div class="advice-disclaimer">
+          Availability is checked again when the booking is submitted.
+        </div>
       `;
     }
 
@@ -3845,8 +4134,7 @@ document.getElementById("requesterName").textContent = user.name;
         compatibleAccessories.has(item.type)
       );
 
-      const softwareSupported =
-        data.softwareRequirement === 'None' || isIpadDeviceType();
+      const softwareSupported = selectedSoftwareIsSupported();
 
       const validBookingDate = Boolean(
         data.bookingDate &&
@@ -3925,7 +4213,9 @@ document.getElementById("requesterName").textContent = user.name;
       const time = data.startTime && data.endTime ? `${data.startTime}–${data.endTime}` : 'Not selected';
       const devices = data.devicesRequired || 1;
       const deviceType = data.deviceType || 'Not selected';
-      const softwareRequirement = data.softwareRequirement !== 'None' ? data.softwareRequirement : 'None';
+      const softwareRequirement = data.softwareRequirement !== 'None'
+        ? data.softwareRequirement
+        : 'No specialist software';
       const additionalResources = getSelectedAdditionalResources();
       const accessoryText = additionalResources.length
         ? additionalResources.map(item => `${item.quantity} ${item.type}`).join(', ')
@@ -3933,6 +4223,8 @@ document.getElementById("requesterName").textContent = user.name;
       const bookingTypeText = bookingUIState.bookingMode === 'recurring'
         ? `Recurring · ${Number(recurrenceCount.value)} occurrence(s)`
         : 'One-Time';
+      const availability = window.BookingAdvisor.getAvailabilityPresentation(latestBookingAdvice);
+      const delivery = window.BookingAdvisor.getDeliveryPresentation(latestBookingAdvice);
 
       const interactive = renderInteractiveOptimisation(data);
       const ready = interactive.readiness.formReady;
@@ -3945,18 +4237,15 @@ document.getElementById("requesterName").textContent = user.name;
           <div class="review-item"><span>Device</span><strong>${devices} ${deviceType}</strong></div>
           <div class="review-item"><span>Date & Time</span><strong>${date}<br>${time}</strong></div>
           <div class="review-item"><span>Location</span><strong>${location}</strong></div>
-          <div class="review-item"><span>Apps</span><strong>${softwareRequirement}</strong></div>
+          <div class="review-item"><span>Software</span><strong>${softwareRequirement}</strong></div>
           <div class="review-item"><span>Accessories</span><strong>${accessoryText}</strong></div>
-          <div class="review-item"><span>Allocation</span><strong>${latestBookingAdvice?.estimatedAllocationMethod || 'Automatic after submission'}</strong></div>
-          <div class="review-item"><span>Booking Outlook</span><strong>${latestBookingAdvice ? `${latestBookingAdvice.availabilityStatus} · ${latestBookingAdvice.confidence}` : 'Complete timing for estimate'}</strong></div>
-          <div class="review-item"><span>Likely Fulfilment</span><strong>${latestBookingAdvice?.fulfilmentMode || 'Determined after submission'}</strong></div>
-          <div class="review-item"><span>Recommendation Score</span><strong>${latestBookingAdvice ? `${Number(latestBookingAdvice.recommendationScore || 0)} / 100` : 'Pending outlook'}</strong></div>
+          <div class="review-item"><span>Resource assignment</span><strong>Assigned automatically after submission</strong></div>
+          <div class="review-item"><span>Availability</span><strong>${escapeHTML(availability.status)}</strong></div>
+          <div class="review-item"><span>How you will receive it</span><strong>${escapeHTML(delivery.label)}</strong></div>
         </div>
         <div class="review-advisory-strip">
-          <strong>Advisor summary:</strong>
-          ${latestBookingAdvice
-            ? `${escapeHTML(latestBookingAdvice.availabilityStatus)} · ${escapeHTML(latestBookingAdvice.confidence)} confidence · ${escapeHTML(latestBookingAdvice.fulfilmentMode || 'Unknown')} fulfilment`
-            : 'Complete timing to receive an availability estimate.'}
+          <strong>What to expect:</strong>
+          ${escapeHTML(window.BookingAdvisor.getUserSummary(latestBookingAdvice))}
         </div>
       `;
 
@@ -4206,6 +4495,16 @@ document.getElementById("requesterName").textContent = user.name;
         if (!window.matchMedia('(max-width: 980px)').matches) return;
         const panel = event.target.closest('.readiness-panel');
         if (panel) panel.classList.toggle('expanded');
+      });
+
+      softwareOptionsList.addEventListener('click', event => {
+        const option = event.target.closest('[data-software-option]');
+        if (!option) return;
+
+        softwareRequirement.value = option.dataset.softwareOption || 'None';
+        renderSoftwareOptions();
+        lastBookingAdviceSignature = '';
+        updateSummary();
       });
 
       bookingAdviceContent.addEventListener('click', event => {

@@ -179,6 +179,78 @@
     `;
   }
 
+  function getAvailabilityPresentation(advice) {
+    if (!advice) {
+      return {
+        status: "Availability not checked",
+        message: "Complete the date and time fields to check matching resources.",
+        tone: "neutral"
+      };
+    }
+
+    const hasAlternatives = Array.isArray(advice.rankedRecommendations)
+      && advice.rankedRecommendations.some(item => item.action);
+
+    if (advice.directFulfilmentLikely) {
+      const resourceCount = Array.isArray(advice.likelyDeviceResources)
+        ? advice.likelyDeviceResources.length
+        : 0;
+      return {
+        status: "Matching resources available",
+        message: resourceCount > 1
+          ? `Your request can currently be matched using ${resourceCount} resource sets.`
+          : "Resources matching your request are currently available.",
+        tone: advice.conflictHeat === "High" ? "caution" : "available"
+      };
+    }
+
+    if (hasAlternatives) {
+      return {
+        status: "Change recommended",
+        message: "Your current request cannot be matched directly, but suitable alternatives are available.",
+        tone: "caution"
+      };
+    }
+
+    return {
+      status: "Matching resources unavailable",
+      message: "No current resource combination fully matches this request.",
+      tone: "unavailable"
+    };
+  }
+
+  function getDeliveryPresentation(advice) {
+    const mode = String(advice?.fulfilmentMode || "Unknown");
+    if (mode === "Deployment") {
+      return {
+        label: "Delivered to your location",
+        description: "The allocated resource is expected to be prepared for delivery."
+      };
+    }
+    if (mode === "Collection") {
+      return {
+        label: "Collect from ICT Work Room",
+        description: "The allocated resource is expected to require collection."
+      };
+    }
+    if (mode === "Mixed") {
+      return {
+        label: "Delivery and collection",
+        description: "Some allocated items may be delivered while others require collection."
+      };
+    }
+    return {
+      label: "Confirmed after assignment",
+      description: "Collection or delivery instructions will be shown after assignment."
+    };
+  }
+
+  function getUserSummary(advice) {
+    const availability = getAvailabilityPresentation(advice);
+    const delivery = getDeliveryPresentation(advice);
+    return `${availability.message} ${delivery.description}`;
+  }
+
   function renderBookingConfirmation(confirmation) {
     const resources = Array.isArray(confirmation.resources)
       ? confirmation.resources.filter(Boolean)
@@ -227,18 +299,90 @@
 
 
   function renderR34Guidance(advice) {
-    const pref = advice?.preferredResource || {};
+    const preferred = advice?.preferredResource || {};
     const conflict = advice?.conflictExplanation || {};
     const impact = advice?.operationalImpact || {};
-    const confidence = Array.isArray(advice?.confidenceBreakdown) ? advice.confidenceBreakdown : [];
-    const ranked = Array.isArray(advice?.rankedRecommendations) ? advice.rankedRecommendations : [];
-    const score = Number(advice?.recommendationScore || 0);
+    const confidence = Array.isArray(advice?.confidenceBreakdown)
+      ? advice.confidenceBreakdown
+      : [];
+    const ranked = Array.isArray(advice?.rankedRecommendations)
+      ? advice.rankedRecommendations
+      : [];
+    const actionable = ranked.filter(item => item.action);
+
     return `
-      <section class="booking-quality"><div class="booking-quality-heading"><strong>Booking quality</strong><span>${escapeHTML(advice?.qualityLabel || "Not assessed")} · ${score}/100</span></div><div class="booking-quality-track"><div class="booking-quality-fill" style="width:${Math.max(0,Math.min(100,score))}%"></div></div></section>
-      <section class="preferred-resource"><div class="smart-guidance-heading"><strong>Preferred resource guidance</strong></div><div class="preferred-resource-name">${escapeHTML(pref.title||"")}</div><p>${escapeHTML(pref.reason||"")}</p></section>
-      ${ranked.length?`<section class="ranked-recommendations"><div class="smart-guidance-heading"><strong>Best options</strong><span>Ranked for this request</span></div><div class="ranked-recommendation-list">${ranked.map(item=>`<article class="ranked-recommendation"><span class="recommendation-rank">${Number(item.rank||0)}</span><div class="recommendation-copy"><small>${escapeHTML(item.category||"")}</small><strong>${escapeHTML(item.title||"")}</strong><p>${escapeHTML(item.reason||"")}</p></div>${item.action?`<button type="button" class="recommendation-action" data-recommendation-action="${escapeHTML(item.action.type)}" data-recommendation-value="${escapeHTML(item.action.value)}">Apply</button>`:'<span class="recommended-current">Recommended</span>'}</article>`).join("")}</div></section>`:""}
-      <section class="conflict-explanation" data-level="${escapeHTML(String(conflict.level||"low").toLowerCase())}"><div class="smart-guidance-heading"><strong>Why is this time busy?</strong><span>${escapeHTML(conflict.level||"Low")} demand</span></div><p><strong>${escapeHTML(conflict.summary||"")}</strong></p><p>${escapeHTML(conflict.detail||"")}</p></section>
-      <details class="r34-details"><summary>Why this recommendation?</summary><div class="r34-details-body"><div class="confidence-list">${confidence.map(item=>`<div class="confidence-item ${escapeHTML(item.status||"caution")}"><span class="confidence-symbol">${item.status==="pass"?"✓":item.status==="risk"?"!":"•"}</span><span><strong>${escapeHTML(item.label||"")}</strong><small>${escapeHTML(item.detail||"")}</small></span></div>`).join("")}</div><div class="operational-impact-grid"><div><span>Workload</span><strong>${escapeHTML(impact.workload||"")}</strong></div><div><span>Device resources</span><strong>${Number(impact.deviceResourceCount||0)}</strong></div><div><span>Accessory resources</span><strong>${Number(impact.accessoryResourceCount||0)}</strong></div></div></div></details>
+      ${preferred.title ? `
+        <section class="advisor-recommended-setup">
+          <span>Recommended setup</span>
+          <strong>${escapeHTML(preferred.title)}</strong>
+          <small>${escapeHTML(preferred.reason || "")}</small>
+        </section>
+      ` : ""}
+
+      ${actionable.length ? `
+        <section class="advisor-suggestions">
+          <div class="smart-guidance-heading">
+            <strong>Suggestions</strong>
+            <span>Optional changes</span>
+          </div>
+          <div class="advisor-suggestion-list">
+            ${actionable.slice(0, 3).map(item => `
+              <div class="advisor-suggestion">
+                <span>
+                  <small>${escapeHTML(item.category || "")}</small>
+                  <strong>${escapeHTML(item.title || "")}</strong>
+                </span>
+                <button
+                  type="button"
+                  class="recommendation-action"
+                  data-recommendation-action="${escapeHTML(item.action.type)}"
+                  data-recommendation-value="${escapeHTML(item.action.value)}"
+                >Apply</button>
+              </div>
+            `).join("")}
+          </div>
+        </section>
+      ` : `
+        <div class="advisor-no-change">✓ No change is needed for the current request.</div>
+      `}
+
+      <details class="advisor-technical-assessment">
+        <summary>View technical assessment</summary>
+        <div class="advisor-technical-body">
+          <div class="technical-score-row">
+            <span>Internal booking quality</span>
+            <strong>${escapeHTML(advice?.qualityLabel || "Not assessed")} · ${Number(advice?.recommendationScore || 0)}/100</strong>
+          </div>
+          <div class="technical-score-row">
+            <span>Assessment confidence</span>
+            <strong>${escapeHTML(advice?.confidence || "Unknown")} · ${Number(advice?.successProbability || 0)}%</strong>
+          </div>
+          <section class="conflict-explanation" data-level="${escapeHTML(String(conflict.level || "low").toLowerCase())}">
+            <div class="smart-guidance-heading">
+              <strong>Existing booking demand</strong>
+              <span>${escapeHTML(conflict.level || "Low")}</span>
+            </div>
+            <p><strong>${escapeHTML(conflict.summary || "")}</strong></p>
+            <p>${escapeHTML(conflict.detail || "")}</p>
+          </section>
+          <div class="confidence-list">
+            ${confidence.map(item => `
+              <div class="confidence-item ${escapeHTML(item.status || "caution")}">
+                <span class="confidence-symbol">${item.status === "pass" ? "✓" : item.status === "risk" ? "!" : "•"}</span>
+                <span>
+                  <strong>${escapeHTML(item.label || "")}</strong>
+                  <small>${escapeHTML(item.detail || "")}</small>
+                </span>
+              </div>
+            `).join("")}
+          </div>
+          <div class="operational-impact-grid">
+            <div><span>Workload</span><strong>${escapeHTML(impact.workload || "")}</strong></div>
+            <div><span>Device resources</span><strong>${Number(impact.deviceResourceCount || 0)}</strong></div>
+            <div><span>Accessory resources</span><strong>${Number(impact.accessoryResourceCount || 0)}</strong></div>
+          </div>
+        </div>
+      </details>
     `;
   }
 
@@ -249,6 +393,9 @@
     buildFulfilmentExplanation,
     buildTimelineModel,
     renderTimelinePreview,
+    getAvailabilityPresentation,
+    getDeliveryPresentation,
+    getUserSummary,
     renderR34Guidance,
     renderBookingConfirmation
   });
