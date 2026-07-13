@@ -2217,6 +2217,116 @@
       }
     }
 
+
+    /* Release 3.3 UX Refinement */
+    .left-readiness-host {
+      margin-top: 18px;
+    }
+
+    .left-readiness-host .readiness-panel {
+      margin-top: 0;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+    }
+
+    .timeline-host .timeline-preview {
+      margin-top: 12px;
+      border-color: #bae6fd;
+      background: linear-gradient(135deg, #f0f9ff, #ffffff);
+    }
+
+    .fulfilment-host .fulfilment-explanation {
+      margin-top: 14px;
+    }
+
+    .advice-primary {
+      display: grid;
+      gap: 6px;
+      padding: 14px;
+      border: 1px solid rgba(15, 118, 110, 0.24);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.92);
+    }
+
+    .advice-primary-status {
+      font-size: 1.05rem;
+      font-weight: 900;
+      color: #0f172a;
+    }
+
+    .advice-primary-meta {
+      color: #475569;
+      font-size: 0.86rem;
+      line-height: 1.45;
+    }
+
+    .advice-primary-allocation {
+      color: var(--primary-dark);
+      font-size: 0.9rem;
+      font-weight: 800;
+    }
+
+    .advice-details {
+      border: 1px solid #dbe4ee;
+      border-radius: 13px;
+      background: rgba(255,255,255,0.84);
+      overflow: hidden;
+    }
+
+    .advice-details summary {
+      cursor: pointer;
+      list-style: none;
+      padding: 11px 13px;
+      font-weight: 900;
+      color: #334155;
+    }
+
+    .advice-details summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .advice-details summary::after {
+      content: "▾";
+      float: right;
+      color: var(--muted);
+    }
+
+    .advice-details[open] summary::after {
+      content: "▴";
+    }
+
+    .advice-details-body {
+      padding: 0 12px 12px;
+    }
+
+    .review-advisory-strip {
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 14px;
+      background: #f8fafc;
+      border: 1px solid #dbe4ee;
+      color: #334155;
+      font-size: 0.88rem;
+      line-height: 1.45;
+    }
+
+    @media (max-width: 980px) {
+      .left-readiness-host .readiness-list {
+        display: none;
+      }
+
+      .left-readiness-host .readiness-panel {
+        cursor: pointer;
+      }
+
+      .left-readiness-host .readiness-panel.expanded .readiness-list {
+        display: grid;
+      }
+
+      .left-readiness-host .readiness-state {
+        margin-top: 8px;
+      }
+    }
+
   </style>
 </head>
 <body>
@@ -2297,6 +2407,8 @@
           <div class="step-chip" id="stepWhere"><span class="step-number">3</span><span><strong>Confirm location</strong><br><small>Deployment or custom location</small></span></div>
           <div class="step-chip" id="stepReview"><span class="step-number">4</span><span><strong>Review & submit</strong><br><small>Check before submission</small></span></div>
         </div>
+
+        <div id="leftReadinessPanel" class="left-readiness-host" aria-live="polite"></div>
       </div>
 
       <div class="booking-card">
@@ -2439,6 +2551,7 @@
                 </div>
               </div>
               <div id="timingSmartHint" class="smart-hint muted">Select a start time. The portal can suggest a sensible end time automatically.</div>
+              <div id="timingTimelineHost" class="timeline-host" aria-live="polite"></div>
               <div id="bookingAdviceCard" class="booking-advice-card" data-level="neutral" aria-live="polite">
                 <div class="advice-heading">
                   <strong>Booking outlook</strong>
@@ -2471,6 +2584,7 @@
                 <input id="customLocation" name="customLocation" type="text" placeholder="Enter custom deployment location" />
                 <span class="helper">Provide additional details for locations not listed above.</span>
               </div>
+              <div id="locationFulfilmentHost" class="fulfilment-host" aria-live="polite"></div>
               <div class="guided-section-actions">
                 <button type="button" id="continueToReviewBtn" class="section-next-button" disabled>Next: Review booking</button>
                 <span class="helper">Confirm the location before reviewing your request.</span>
@@ -2607,6 +2721,9 @@ document.getElementById("requesterName").textContent = user.name;
     let bookingAdviceCard;
     let bookingAdviceStatus;
     let bookingAdviceContent;
+    let leftReadinessPanel;
+    let timingTimelineHost;
+    let locationFulfilmentHost;
     let latestBookingAdvice = null;
     let bookingAdviceTimer = null;
     let lastBookingAdviceSignature = '';
@@ -2678,6 +2795,9 @@ document.getElementById("requesterName").textContent = user.name;
       bookingAdviceCard = getRequiredElement('bookingAdviceCard');
       bookingAdviceStatus = getRequiredElement('bookingAdviceStatus');
       bookingAdviceContent = getRequiredElement('bookingAdviceContent');
+      leftReadinessPanel = getRequiredElement('leftReadinessPanel');
+      timingTimelineHost = getRequiredElement('timingTimelineHost');
+      locationFulfilmentHost = getRequiredElement('locationFulfilmentHost');
     }
 
     async function fetchJSONList(endpoint, key) {
@@ -3374,37 +3494,36 @@ document.getElementById("requesterName").textContent = user.name;
       ];
 
       bookingAdviceContent.innerHTML = `
-        <div class="advice-grid">
-          <div class="advice-metric">
-            <span>Likely allocation</span>
-            <strong>${resourceText}</strong>
-          </div>
-          <div class="advice-metric">
-            <span>Fulfilment</span>
-            <strong>${escapeHTML(advice.fulfilmentMode || 'Unknown')}</strong>
-          </div>
-          <div class="advice-metric">
-            <span>Booking health</span>
-            <strong>${'★'.repeat(Number(advice.healthScore || 0))}${'☆'.repeat(Math.max(0, 5 - Number(advice.healthScore || 0)))}</strong>
-          </div>
-          <div class="advice-metric">
-            <span>Recommendation score</span>
-            <strong>${Number(advice.recommendationScore || 0)} / 100</strong>
-          </div>
-          <div class="advice-metric">
-            <span>Estimated success</span>
-            <strong>${Number(advice.successProbability || 0)}%</strong>
-          </div>
-          <div class="advice-metric">
-            <span>Conflict heat</span>
-            <strong>${escapeHTML(advice.conflictHeat || 'Unknown')}</strong>
-          </div>
+        <div class="advice-primary">
+          <div class="advice-primary-status">${escapeHTML(advice.availabilityStatus || 'Availability assessed')}</div>
+          <div class="advice-primary-meta">${escapeHTML(advice.confidence || 'Unknown')} confidence · ${Number(advice.successProbability || 0)}% estimated success</div>
+          <div class="advice-primary-allocation">Likely allocation: ${resourceText}</div>
         </div>
         ${renderStructuredRecommendations(advice)}
-        ${window.BookingAdvisor.renderTimelinePreview(
-          window.BookingAdvisor.buildTimelineModel(advice, startTime.value, endTime.value)
-        )}
-        ${notes.length ? `<ul class="advice-list">${notes.map(note => `<li>${escapeHTML(note)}</li>`).join('')}</ul>` : ''}
+        <details class="advice-details">
+          <summary>More details</summary>
+          <div class="advice-details-body">
+            <div class="advice-grid">
+              <div class="advice-metric">
+                <span>Fulfilment</span>
+                <strong>${escapeHTML(advice.fulfilmentMode || 'Unknown')}</strong>
+              </div>
+              <div class="advice-metric">
+                <span>Booking health</span>
+                <strong>${'★'.repeat(Number(advice.healthScore || 0))}${'☆'.repeat(Math.max(0, 5 - Number(advice.healthScore || 0)))}</strong>
+              </div>
+              <div class="advice-metric">
+                <span>Recommendation score</span>
+                <strong>${Number(advice.recommendationScore || 0)} / 100</strong>
+              </div>
+              <div class="advice-metric">
+                <span>Conflict heat</span>
+                <strong>${escapeHTML(advice.conflictHeat || 'Unknown')}</strong>
+              </div>
+            </div>
+            ${notes.length ? `<ul class="advice-list">${notes.map(note => `<li>${escapeHTML(note)}</li>`).join('')}</ul>` : ''}
+          </div>
+        </details>
         <div class="advice-disclaimer">${escapeHTML(advice.disclaimer || '')}</div>
       `;
     }
@@ -3493,19 +3612,22 @@ document.getElementById("requesterName").textContent = user.name;
         data.endTime
       );
 
-      return {
-        readiness,
-        readinessHTML: window.BookingAdvisor.renderReadinessChecklist(readiness),
-        fulfilmentHTML: `
-          <section class="fulfilment-explanation">
-            <div class="fulfilment-explanation-heading">
-              <strong>${escapeHTML(fulfilment.title)}</strong>
-            </div>
-            <p>${escapeHTML(fulfilment.message)}</p>
-          </section>
-        `,
-        timelineHTML: window.BookingAdvisor.renderTimelinePreview(timeline)
-      };
+      const readinessHTML = window.BookingAdvisor.renderReadinessChecklist(readiness);
+      const fulfilmentHTML = `
+        <section class="fulfilment-explanation">
+          <div class="fulfilment-explanation-heading">
+            <strong>${escapeHTML(fulfilment.title)}</strong>
+          </div>
+          <p>${escapeHTML(fulfilment.message)}</p>
+        </section>
+      `;
+      const timelineHTML = window.BookingAdvisor.renderTimelinePreview(timeline);
+
+      if (leftReadinessPanel) leftReadinessPanel.innerHTML = readinessHTML;
+      if (timingTimelineHost) timingTimelineHost.innerHTML = timelineHTML;
+      if (locationFulfilmentHost) locationFulfilmentHost.innerHTML = fulfilmentHTML;
+
+      return { readiness, fulfilment, timeline };
     }
 
     function updateSummary() {
@@ -3548,9 +3670,12 @@ document.getElementById("requesterName").textContent = user.name;
           <div class="review-item"><span>Likely Fulfilment</span><strong>${latestBookingAdvice?.fulfilmentMode || 'Determined after submission'}</strong></div>
           <div class="review-item"><span>Recommendation Score</span><strong>${latestBookingAdvice ? `${Number(latestBookingAdvice.recommendationScore || 0)} / 100` : 'Pending outlook'}</strong></div>
         </div>
-        ${interactive.readinessHTML}
-        ${interactive.fulfilmentHTML}
-        ${interactive.timelineHTML}
+        <div class="review-advisory-strip">
+          <strong>Advisor summary:</strong>
+          ${latestBookingAdvice
+            ? `${escapeHTML(latestBookingAdvice.availabilityStatus)} · ${escapeHTML(latestBookingAdvice.confidence)} confidence · ${escapeHTML(latestBookingAdvice.fulfilmentMode || 'Unknown')} fulfilment`
+            : 'Complete timing to receive an availability estimate.'}
+        </div>
         ${readyBanner}
       `;
 
@@ -3752,6 +3877,12 @@ document.getElementById("requesterName").textContent = user.name;
           checkbox.checked = !checkbox.checked;
           checkbox.dispatchEvent(new Event('change', { bubbles: true }));
         }
+      });
+
+      leftReadinessPanel.addEventListener('click', event => {
+        if (!window.matchMedia('(max-width: 980px)').matches) return;
+        const panel = event.target.closest('.readiness-panel');
+        if (panel) panel.classList.toggle('expanded');
       });
 
       bookingAdviceContent.addEventListener('click', event => {

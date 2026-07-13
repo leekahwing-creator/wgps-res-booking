@@ -21,7 +21,7 @@
       { label: "Valid date and time selected", ready: Boolean(context.timingReady) },
       { label: "Deployment location confirmed", ready: Boolean(context.locationReady) },
       {
-        label: advice ? "Resources likely available" : "Availability outlook completed",
+        label: advice ? "Availability outlook complete" : "Availability outlook pending",
         ready: Boolean(advice && advice.directFulfilmentLikely)
       }
     ];
@@ -36,11 +36,10 @@
   }
 
   function renderReadinessChecklist(readiness) {
+    const nextIncomplete = readiness.items.find(item => !item.ready);
     const stateText = readiness.fullyReady
       ? "Ready to book"
-      : (readiness.formReady
-        ? "Review the availability advice before submitting"
-        : "Complete the remaining steps");
+      : (nextIncomplete ? `${nextIncomplete.label} next` : "Review before submitting");
 
     return `
       <section class="readiness-panel ${readiness.fullyReady ? "ready" : ""}" aria-label="Booking readiness">
@@ -145,7 +144,7 @@
       <section class="timeline-preview" aria-label="Resource demand timeline">
         <div class="timeline-heading">
           <strong>Resource timeline</strong>
-          <span>Advisory demand view</span>
+          <span>Selected period and alternatives</span>
         </div>
         <div class="timeline-bars">
           ${model.map(item => `
