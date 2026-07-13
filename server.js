@@ -6,7 +6,7 @@ const nodemailer = require("nodemailer");
 const fs = require("fs");
 const path = require("path");
 const { XMLParser, XMLBuilder } = require("fast-xml-parser");
-const { allocateResources } = require("./resourceAllocator");
+const { allocateResources, assessBookingAvailability } = require("./resourceAllocator");
 const { resolveConflict } = require("./conflictResolver");
 const { ensureMonthlyBookingsFile } = require("./bookingFileHelper");
 
@@ -1681,6 +1681,67 @@ function validateAdditionalResourceRequests(bookingRequest) {
 
   return errors;
 }
+
+
+app.post("/api/booking-advice", requireLogin, (req, res) => {
+  try {
+    const bookingRequest = removePersonalDataFromBooking({
+      ...req.body,
+      userId: req.session.user.userId
+    });
+
+    const requiredFields = [
+      ["bookingDate", "Booking date"],
+      ["startTime", "Start time"],
+      ["endTime", "End time"],
+      ["deviceType", "Device type"]
+    ];
+
+    const missing = requiredFields
+      .filter(([key]) => !String(bookingRequest[key] || "").trim())
+      .map(([, label]) => label);
+
+    if (!Number.isInteger(Number(bookingRequest.devicesRequired)) ||
+        Number(bookingRequest.devicesRequired) <= 0) {
+      missing.push("Number of devices");
+    }
+
+    if (missing.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Complete these fields before availability can be assessed: ${missing.join(", ")}.`
+      });
+    }
+
+    if (bookingRequest.endTime <= bookingRequest.startTime) {
+      return res.status(400).json({
+        success: false,
+        message: "End time must be later than start time."
+      });
+    }
+
+    const additionalResourceErrors = validateAdditionalResourceRequests(bookingRequest);
+    if (additionalResourceErrors.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: additionalResourceErrors.join(" ")
+      });
+    }
+
+    const advice = assessBookingAvailability(bookingRequest);
+
+    return res.json({
+      success: true,
+      advice
+    });
+  } catch (error) {
+    console.error("Booking advice error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
 
 function normaliseFingerprintText(value) {
   return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");

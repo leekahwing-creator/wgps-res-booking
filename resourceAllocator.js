@@ -306,8 +306,214 @@ function allocateResources(bookingRequest) {
   };
 }
 
+
+function normaliseFulfilmentMode(resource = {}) {
+  const configured = String(resource.fulfilmentMode || resource.fulfillmentMode || "").trim();
+  if (configured === "Collection" || configured === "Deployment") return configured;
+
+  const deviceType = String(resource.deviceType || "").toLowerCase();
+  const resourceType = String(resource.resourceType || "").toLowerCase();
+  const name = String(resource.name || "").toLowerCase();
+
+  if (deviceType.includes("ipad") && (resourceType === "bag" || /\bipad\s+bag\b/.test(name))) {
+    return "Collection";
+  }
+
+  return "Deployment";
+}
+
+function formatAdviceResource(resource) {
+  return {
+    id: String(resource.id || ""),
+    name: String(resource.name || resource.id || ""),
+    deviceType: String(resource.deviceType || ""),
+    capacity: Number(resource.capacity || 0),
+    resourceType: String(resource.resourceType || ""),
+    fulfilmentMode: normaliseFulfilmentMode(resource),
+    software: normaliseSoftwareList(resource),
+    compatibleAccessoryKeys: normaliseCompatibleAccessoryKeys(resource)
+  };
+}
+
+/**
+ * Read-only availability assessment for the booking advisor.
+ * This function never writes booking files and never reserves resources.
+ */
+function assessBookingAvailability(bookingRequest) {
+  const parsedResources = loadXML(getResourcesFilePath());
+  const allResources = toArray(parsedResources.resources?.resource);
+  const bookedResourceIds = getBookedResourceIds(bookingRequest);
+  const additionalRequests = normaliseAdditionalResources(bookingRequest.additionalResources);
+  const quantityRequired = Number(bookingRequest.devicesRequired || 0);
+
+  const compatibleDeviceResources = allResources
+    .filter(resource => normaliseResourceCategory(resource) !== "Accessory")
+    .filter(resource => resource.status === "Available")
+    .filter(resource => resource.deviceType === bookingRequest.deviceType)
+    .filter(resource => resourceSupportsSoftware(resource, bookingRequest.softwareRequirement))
+    .filter(resource => resourceSupportsAdditionalResources(resource, additionalRequests));
+
+  const currentlyAvailableDeviceResources = compatibleDeviceResources
+    .filter(resource => !bookedResourceIds.has(String(resource.id)))
+    .sort((a, b) => Number(b.capacity) - Number(a.capacity));
+
+  const selectedDeviceResources = findBestResourceCombination(
+    currentlyAvailableDeviceResources,
+    quantityRequired
+  );
+
+  const selectedDeviceCapacity = selectedDeviceResources.reduce(
+    (total, resource) => total + Number(resource.capacity || 0),
+    0
+  );
+
+  const accessoryAssessments = additionalRequests.map(request => {
+    const compatibleAccessoryResources = allResources
+      .filter(resource => normaliseResourceCategory(resource) === "Accessory")
+      .filter(resource => resource.status === "Available")
+      .filter(resource =>
+        normaliseAccessoryCompatibilityKey(resource.deviceType) ===
+        normaliseAccessoryCompatibilityKey(request.type)
+      );
+
+    const currentlyAvailableAccessoryResources = compatibleAccessoryResources
+      .filter(resource => !bookedResourceIds.has(String(resource.id)))
+      .sort((a, b) => Number(b.capacity) - Number(a.capacity));
+
+    const selected = findBestResourceCombination(
+      currentlyAvailableAccessoryResources,
+      Number(request.quantity)
+    );
+
+    const capacity = selected.reduce(
+      (total, resource) => total + Number(resource.capacity || 0),
+      0
+    );
+
+    return {
+      type: request.type,
+      quantityRequested: Number(request.quantity),
+      availableCapacity: capacity,
+      fulfilled: capacity >= Number(request.quantity),
+      likelyResources: selected.map(formatAdviceResource)
+    };
+  });
+
+  const deviceFulfilled = quantityRequired > 0 && selectedDeviceCapacity >= quantityRequired;
+  const accessoriesFulfilled = accessoryAssessments.every(item => item.fulfilled);
+  const directFulfilmentLikely = deviceFulfilled && accessoriesFulfilled;
+
+  const availableCompatibleCapacity = currentlyAvailableDeviceResources.reduce(
+    (total, resource) => total + Number(resource.capacity || 0),
+    0
+  );
+
+  const totalCompatibleCapacity = compatibleDeviceResources.reduce(
+    (total, resource) => total + Number(resource.capacity || 0),
+    0
+  );
+
+  const selectedModes = Array.from(new Set(
+    selectedDeviceResources.map(normaliseFulfilmentMode)
+  ));
+
+  let fulfilmentMode = "Unknown";
+  if (selectedModes.length === 1) fulfilmentMode = selectedModes[0];
+  if (selectedModes.length > 1) fulfilmentMode = "Mixed";
+
+  let availabilityStatus = "Unable to fulfil as configured";
+  let confidence = "Low";
+  let healthScore = 1;
+
+  if (directFulfilmentLikely) {
+    if (selectedDeviceResources.length === 1 && selectedDeviceCapacity === quantityRequired) {
+      availabilityStatus = "Likely available";
+      confidence = "High";
+      healthScore = 5;
+    } else if (selectedDeviceResources.length <= 2) {
+      availabilityStatus = "Likely available";
+      confidence = "Moderate";
+      healthScore = 4;
+    } else {
+      availabilityStatus = "Available with multiple resources";
+      confidence = "Moderate";
+      healthScore = 3;
+    }
+  } else if (availableCompatibleCapacity > 0 || totalCompatibleCapacity > 0) {
+    availabilityStatus = "Limited options";
+    confidence = "Low";
+    healthScore = 2;
+  }
+
+  const warnings = [];
+  const recommendations = [];
+
+  if (!deviceFulfilled) {
+    if (availableCompatibleCapacity > 0) {
+      warnings.push(
+        `Only ${availableCompatibleCapacity} compatible ${bookingRequest.deviceType} device(s) appear directly available for this time.`
+      );
+      recommendations.push(`Consider reducing the quantity to ${availableCompatibleCapacity} or selecting another time.`);
+    } else if (totalCompatibleCapacity > 0) {
+      warnings.push("Compatible resources exist, but they appear to be occupied during the selected period.");
+      recommendations.push("Try a different time period.");
+    } else {
+      warnings.push("No resource matches the selected device, software and accessory combination.");
+      recommendations.push("Remove an optional requirement or choose another device type.");
+    }
+  }
+
+  accessoryAssessments
+    .filter(item => !item.fulfilled)
+    .forEach(item => {
+      warnings.push(
+        `${item.type}: ${item.availableCapacity} of ${item.quantityRequested} requested unit(s) appear directly available.`
+      );
+      recommendations.push(`Reduce the ${item.type} quantity or choose another time.`);
+    });
+
+  if (directFulfilmentLikely && selectedDeviceResources.length > 1) {
+    recommendations.push(
+      `The request is likely to use ${selectedDeviceResources.length} device resources.`
+    );
+  }
+
+  if (fulfilmentMode === "Collection" || fulfilmentMode === "Mixed") {
+    recommendations.push("At least one likely device resource requires collection from the ICT Work Room.");
+  }
+
+  if (String(bookingRequest.softwareRequirement || "None") !== "None") {
+    recommendations.push(
+      `${bookingRequest.softwareRequirement} support was included in the compatibility assessment.`
+    );
+  }
+
+  return {
+    advisoryOnly: true,
+    availabilityStatus,
+    confidence,
+    healthScore,
+    directFulfilmentLikely,
+    estimatedAllocationMethod: directFulfilmentLikely
+      ? "Automatic Allocation"
+      : "May require conflict resolution or an alternative",
+    quantityRequested,
+    selectedDeviceCapacity,
+    availableCompatibleCapacity,
+    totalCompatibleCapacity,
+    fulfilmentMode,
+    collectionRequired: fulfilmentMode === "Collection" || fulfilmentMode === "Mixed",
+    likelyDeviceResources: selectedDeviceResources.map(formatAdviceResource),
+    accessoryAssessments,
+    warnings: Array.from(new Set(warnings)),
+    recommendations: Array.from(new Set(recommendations)),
+    disclaimer: "This is a live advisory estimate. Final allocation is determined when the booking is submitted."
+  };
+}
+
 module.exports = {
   allocateResources,
+  assessBookingAvailability,
   resourceSupportsSoftware,
   normaliseAdditionalResources,
   normaliseResourceCategory,

@@ -1933,6 +1933,97 @@
       }
     }
 
+
+    /* Booking Intelligence v3.1 */
+    .booking-advice-card {
+      margin-top: 12px;
+      padding: 14px;
+      border: 1px solid #dbe4ee;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #f8fafc, #ffffff);
+      display: grid;
+      gap: 10px;
+    }
+
+    .booking-advice-card[data-level="high"] {
+      border-color: #86efac;
+      background: linear-gradient(135deg, #ecfdf5, #ffffff);
+    }
+
+    .booking-advice-card[data-level="moderate"] {
+      border-color: #fde68a;
+      background: linear-gradient(135deg, #fffbeb, #ffffff);
+    }
+
+    .booking-advice-card[data-level="low"] {
+      border-color: #fdba74;
+      background: linear-gradient(135deg, #fff7ed, #ffffff);
+    }
+
+    .advice-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .advice-heading strong {
+      color: #0f172a;
+    }
+
+    .advice-status {
+      padding: 6px 9px;
+      border-radius: 999px;
+      background: #e2e8f0;
+      color: #334155;
+      font-size: 0.75rem;
+      font-weight: 900;
+    }
+
+    .advice-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .advice-metric {
+      padding: 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.8);
+    }
+
+    .advice-metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-bottom: 3px;
+    }
+
+    .advice-list {
+      margin: 0;
+      padding-left: 18px;
+      color: #475569;
+      font-size: 0.86rem;
+      line-height: 1.45;
+    }
+
+    .advice-disclaimer {
+      color: var(--muted);
+      font-size: 0.76rem;
+      line-height: 1.35;
+    }
+
+    @media (max-width: 620px) {
+      .advice-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
   </style>
 </head>
 <body>
@@ -2155,6 +2246,15 @@
                 </div>
               </div>
               <div id="timingSmartHint" class="smart-hint muted">Select a start time. The portal can suggest a sensible end time automatically.</div>
+              <div id="bookingAdviceCard" class="booking-advice-card" data-level="neutral" aria-live="polite">
+                <div class="advice-heading">
+                  <strong>Booking outlook</strong>
+                  <span id="bookingAdviceStatus" class="advice-status">Waiting for timing</span>
+                </div>
+                <div id="bookingAdviceContent" class="helper">
+                  Select the device, quantity, date and time to receive a live availability estimate.
+                </div>
+              </div>
             </div>
           </section>
 
@@ -2310,6 +2410,12 @@ document.getElementById("requesterName").textContent = user.name;
     let continueToTimingBtn;
     let continueToReviewBtn;
     let timingSmartHint;
+    let bookingAdviceCard;
+    let bookingAdviceStatus;
+    let bookingAdviceContent;
+    let latestBookingAdvice = null;
+    let bookingAdviceTimer = null;
+    let lastBookingAdviceSignature = '';
     const bookingUIState = {
       timingSectionUnlocked: false,
       bookingMode: 'one-time',
@@ -2375,6 +2481,9 @@ document.getElementById("requesterName").textContent = user.name;
       continueToTimingBtn = getRequiredElement('continueToTimingBtn');
       continueToReviewBtn = getRequiredElement('continueToReviewBtn');
       timingSmartHint = getRequiredElement('timingSmartHint');
+      bookingAdviceCard = getRequiredElement('bookingAdviceCard');
+      bookingAdviceStatus = getRequiredElement('bookingAdviceStatus');
+      bookingAdviceContent = getRequiredElement('bookingAdviceContent');
     }
 
     async function fetchJSONList(endpoint, key) {
@@ -2907,6 +3016,138 @@ document.getElementById("requesterName").textContent = user.name;
       timingSmartHint.textContent = 'Please choose an end time that is later than the start time.';
     }
 
+
+    function escapeHTML(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function getAdviceSignature(data) {
+      return JSON.stringify({
+        bookingDate: data.bookingDate,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        deviceType: data.deviceType,
+        devicesRequired: data.devicesRequired,
+        softwareRequirement: data.softwareRequirement,
+        additionalResources: data.additionalResources
+      });
+    }
+
+    function canRequestBookingAdvice(data) {
+      return Boolean(
+        data.bookingDate &&
+        data.startTime &&
+        data.endTime &&
+        data.endTime > data.startTime &&
+        data.deviceType &&
+        Number(data.devicesRequired) > 0
+      );
+    }
+
+    function renderBookingAdvice(advice) {
+      latestBookingAdvice = advice || null;
+
+      if (!advice) {
+        bookingAdviceCard.dataset.level = 'neutral';
+        bookingAdviceStatus.textContent = 'Waiting for timing';
+        bookingAdviceContent.innerHTML =
+          'Select the device, quantity, date and time to receive a live availability estimate.';
+        return;
+      }
+
+      const level = String(advice.confidence || '').toLowerCase();
+      bookingAdviceCard.dataset.level = level === 'high'
+        ? 'high'
+        : (level === 'moderate' ? 'moderate' : 'low');
+
+      bookingAdviceStatus.textContent =
+        `${advice.availabilityStatus} · ${advice.confidence} confidence`;
+
+      const likelyResources = Array.isArray(advice.likelyDeviceResources)
+        ? advice.likelyDeviceResources
+        : [];
+      const resourceText = likelyResources.length
+        ? likelyResources.map(resource =>
+            `${escapeHTML(resource.name)} (${Number(resource.capacity || 0)})`
+          ).join(', ')
+        : 'No direct allocation identified';
+
+      const notes = [
+        ...(Array.isArray(advice.warnings) ? advice.warnings : []),
+        ...(Array.isArray(advice.recommendations) ? advice.recommendations : [])
+      ];
+
+      bookingAdviceContent.innerHTML = `
+        <div class="advice-grid">
+          <div class="advice-metric">
+            <span>Likely allocation</span>
+            <strong>${resourceText}</strong>
+          </div>
+          <div class="advice-metric">
+            <span>Fulfilment</span>
+            <strong>${escapeHTML(advice.fulfilmentMode || 'Unknown')}</strong>
+          </div>
+          <div class="advice-metric">
+            <span>Booking health</span>
+            <strong>${'★'.repeat(Number(advice.healthScore || 0))}${'☆'.repeat(Math.max(0, 5 - Number(advice.healthScore || 0)))}</strong>
+          </div>
+        </div>
+        ${notes.length ? `<ul class="advice-list">${notes.map(note => `<li>${escapeHTML(note)}</li>`).join('')}</ul>` : ''}
+        <div class="advice-disclaimer">${escapeHTML(advice.disclaimer || '')}</div>
+      `;
+    }
+
+    async function requestBookingAdvice() {
+      const data = getBookingData();
+
+      if (!canRequestBookingAdvice(data)) {
+        lastBookingAdviceSignature = '';
+        renderBookingAdvice(null);
+        return;
+      }
+
+      const signature = getAdviceSignature(data);
+      if (signature === lastBookingAdviceSignature) return;
+      lastBookingAdviceSignature = signature;
+
+      bookingAdviceCard.dataset.level = 'neutral';
+      bookingAdviceStatus.textContent = 'Checking availability…';
+      bookingAdviceContent.textContent =
+        'The portal is comparing your request with compatible resources and existing bookings.';
+
+      try {
+        const response = await fetch('/api/booking-advice', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+          throw new Error(result.message || 'Unable to assess this booking.');
+        }
+
+        renderBookingAdvice(result.advice);
+        updateSummary();
+      } catch (error) {
+        latestBookingAdvice = null;
+        bookingAdviceCard.dataset.level = 'low';
+        bookingAdviceStatus.textContent = 'Advice unavailable';
+        bookingAdviceContent.textContent = error.message;
+      }
+    }
+
+    function scheduleBookingAdvice() {
+      window.clearTimeout(bookingAdviceTimer);
+      bookingAdviceTimer = window.setTimeout(requestBookingAdvice, 350);
+    }
+
     function updateSummary() {
       updateSoftwareAvailability();
       const data = getBookingData();
@@ -2941,7 +3182,9 @@ document.getElementById("requesterName").textContent = user.name;
           <div class="review-item"><span>Location</span><strong>${location}</strong></div>
           <div class="review-item"><span>Apps</span><strong>${softwareRequirement}</strong></div>
           <div class="review-item"><span>Accessories</span><strong>${accessoryText}</strong></div>
-          <div class="review-item"><span>Allocation</span><strong>Automatic after submission</strong></div>
+          <div class="review-item"><span>Allocation</span><strong>${latestBookingAdvice?.estimatedAllocationMethod || 'Automatic after submission'}</strong></div>
+          <div class="review-item"><span>Booking Outlook</span><strong>${latestBookingAdvice ? `${latestBookingAdvice.availabilityStatus} · ${latestBookingAdvice.confidence}` : 'Complete timing for estimate'}</strong></div>
+          <div class="review-item"><span>Likely Fulfilment</span><strong>${latestBookingAdvice?.fulfilmentMode || 'Determined after submission'}</strong></div>
         </div>
         <div class="fulfilment-hint"><strong>Fulfilment note:</strong> Deployment resources will be delivered to the selected location. If a collection-only resource such as an iPad Bag is allocated, the confirmation message will instruct the user to collect it from the ICT Work Room.</div>
         ${readyBanner}
@@ -2952,6 +3195,7 @@ document.getElementById("requesterName").textContent = user.name;
       clearIncompatibleAccessories();
       updateAccessorySelectionStyles();
       updateGuidedVisibility();
+      scheduleBookingAdvice();
     }
 
     function showStatus(type, message) {
@@ -3205,6 +3449,8 @@ document.getElementById("requesterName").textContent = user.name;
           statusMessage.className = 'status';
           bookingUIState.currentBookingRequestId = createBookingRequestId();
           lastGuidedTargetId = '';
+          lastBookingAdviceSignature = '';
+          latestBookingAdvice = null;
           bookingUIState.timingSectionUnlocked = false;
           toggleCustomLocationField();
           updateSummary();
