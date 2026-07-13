@@ -352,6 +352,27 @@ function normaliseSoftwareItems(software) {
   return [];
 }
 
+function normaliseBookingSoftwareRequirements(booking = {}) {
+  const source = booking.softwareRequirements?.software ||
+    booking.softwareRequirements?.item ||
+    booking.softwareRequirements ||
+    booking.softwareRequirement ||
+    [];
+
+  const values = toArray(source)
+    .flatMap(item => typeof item === "string" ? item.split(",") : [item])
+    .map(item => String(item || "").trim())
+    .filter(item => item && item.toLowerCase() !== "none");
+
+  return Array.from(new Map(values.map(item => [item.toLowerCase(), item])).values())
+    .sort((a, b) => a.localeCompare(b));
+}
+
+function formatBookingSoftwareForDisplay(booking = {}) {
+  const items = normaliseBookingSoftwareRequirements(booking);
+  return items.length ? items.join(", ") : "None";
+}
+
 function normaliseAccessoryCompatibilityKey(value) {
   const text = String(value || "").trim();
   const lower = text.toLowerCase();
@@ -1062,6 +1083,10 @@ function formatBookingForManagementResponse(booking, users) {
   const requester = users.find(user => String(user.userId || "") === String(booking.userId || ""));
   return {
     ...booking,
+    softwareRequirements: {
+      software: normaliseBookingSoftwareRequirements(booking)
+    },
+    softwareRequirement: formatBookingSoftwareForDisplay(booking),
     requesterName: requester?.name || booking.importedRequesterName || "Requester",
     requesterEmail: requester?.email || booking.importedRequesterEmail || "",
     isManagedByAdmin: true
@@ -1727,10 +1752,10 @@ function validateAdditionalResourceRequests(bookingRequest) {
 
 app.post("/api/booking-advice", requireLogin, (req, res) => {
   try {
-    const bookingRequest = removePersonalDataFromBooking({
+    const bookingRequest = prepareBookingForSave(removePersonalDataFromBooking({
       ...req.body,
       userId: req.session.user.userId
-    });
+    }));
 
     const requiredFields = [
       ["bookingDate", "Booking date"],
@@ -1810,7 +1835,9 @@ function buildBookingFingerprintPayload(booking) {
     location: normaliseFingerprintText(booking.location),
     deviceType: normaliseFingerprintText(booking.deviceType),
     devicesRequired: Number(booking.devicesRequired || 0),
-    softwareRequirement: normaliseFingerprintText(booking.softwareRequirement || "None"),
+    softwareRequirements: normaliseBookingSoftwareRequirements(booking)
+      .map(normaliseFingerprintText)
+      .join("|"),
     additionalResources: getCanonicalAdditionalResources(booking.additionalResources)
   };
 }
@@ -1858,9 +1885,15 @@ function getBookingsByRequestId(bookingRequestId, userId) {
 }
 
 function prepareBookingForSave(bookingRequest) {
+  const softwareItems = normaliseBookingSoftwareRequirements(bookingRequest);
   const prepared = {
     ...bookingRequest,
     bookingRequestId: String(bookingRequest.bookingRequestId || "").trim(),
+    softwareRequirements: {
+      software: softwareItems
+    },
+    // Retained for backward compatibility with existing pages and historic exports.
+    softwareRequirement: softwareItems.length ? softwareItems.join(", ") : "None",
     additionalResources: {
       resource: normaliseAdditionalResourceRequests(bookingRequest.additionalResources)
     }
@@ -2971,6 +3004,9 @@ function mapLegacyBookingRow(row, index, users) {
   const softwareRequirement = normaliseImportValue(getImportValue(row, [
     "Software Requirement", "Software", "softwareRequirement"
   ])) || legacyResourceInference.softwareRequirement || "None";
+  const softwareRequirements = {
+    software: normaliseBookingSoftwareRequirements({ softwareRequirement })
+  };
 
   const legacyPurpose = normaliseImportValue(getImportValue(row, ["Purpose"]));
   const legacyBookingRemarks = normaliseImportValue(getImportValue(row, ["Booking Remarks", "Booking Remark", "Remarks", "Remark", "bookingRemarks"]));

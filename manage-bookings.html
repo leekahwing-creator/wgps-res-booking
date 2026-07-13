@@ -866,6 +866,28 @@
       }
     }
 
+    .software-edit-list {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      padding: 12px;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      background: #f8fafc;
+    }
+    .software-edit-list > strong { grid-column: 1 / -1; }
+    .software-edit-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      background: #fff;
+    }
+    .software-edit-option input { width: 18px; min-height: 18px; height: 18px; }
+    @media (max-width: 600px) { .software-edit-list { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -977,6 +999,7 @@
     let currentUser = null;
     let isAdminUser = false;
     let accessoryTypes = [];
+    let softwareByDevice = {};
     let allLoadedBookings = [];
 
     async function requireAuthenticatedUser() {
@@ -1060,6 +1083,54 @@
       return email ? `${name} (${email})` : name;
     }
 
+    function normaliseBookingSoftwareRequirements(booking = {}) {
+      const source = booking.softwareRequirements?.software ||
+        booking.softwareRequirements?.item ||
+        booking.softwareRequirements ||
+        booking.softwareRequirement || [];
+      const values = (Array.isArray(source) ? source : [source])
+        .flatMap(item => typeof item === 'string' ? item.split(',') : [item])
+        .map(item => String(item || '').trim())
+        .filter(item => item && item.toLowerCase() !== 'none');
+      return Array.from(new Map(values.map(item => [item.toLowerCase(), item])).values())
+        .sort((a, b) => a.localeCompare(b));
+    }
+
+    function formatBookingSoftware(booking = {}) {
+      const items = normaliseBookingSoftwareRequirements(booking);
+      return items.length ? items.join(', ') : 'No specialist software';
+    }
+
+    function getSoftwareOptionsForDevice(deviceType) {
+      const direct = softwareByDevice[deviceType];
+      if (Array.isArray(direct)) return direct;
+      const key = Object.keys(softwareByDevice).find(
+        item => item.toLowerCase() === String(deviceType || '').toLowerCase()
+      );
+      return key && Array.isArray(softwareByDevice[key]) ? softwareByDevice[key] : [];
+    }
+
+    function renderSoftwareEditControls(booking) {
+      const selected = new Set(normaliseBookingSoftwareRequirements(booking));
+      const options = getSoftwareOptionsForDevice(booking.deviceType);
+      const noSoftware = selected.size === 0;
+      return `
+        <div class="software-edit-list" data-edit-software-list>
+          <strong>Software needed</strong>
+          <label class="software-edit-option">
+            <input type="checkbox" data-edit-software value="None" ${noSoftware ? 'checked' : ''} />
+            <span>No specialist software</span>
+          </label>
+          ${options.map(item => `
+            <label class="software-edit-option">
+              <input type="checkbox" data-edit-software value="${escapeHtml(item.name)}" ${selected.has(item.name) ? 'checked' : ''} />
+              <span>${escapeHtml(item.name)}</span>
+            </label>
+          `).join('')}
+        </div>
+      `;
+    }
+
     function getFilteredBookings() {
       const query = String(nameSearch.value || '').trim().toLowerCase();
 
@@ -1070,7 +1141,7 @@
           getRequesterLabel(booking),
           booking.location,
           booking.deviceType,
-          booking.softwareRequirement,
+          formatBookingSoftware(booking),
           booking.status,
           booking.deploymentStatus,
           formatAdditionalResources(booking.additionalResources),
@@ -1170,9 +1241,11 @@
         const result = await response.json();
         if (!response.ok || !result.success) throw new Error(result.message || 'Unable to load resource catalog.');
         accessoryTypes = Array.isArray(result.accessoryTypes) ? result.accessoryTypes : [];
+        softwareByDevice = result.softwareByDevice || {};
       } catch (error) {
         console.warn('Unable to load accessory resource catalog:', error.message);
         accessoryTypes = [];
+        softwareByDevice = {};
       }
     }
 
@@ -1280,7 +1353,7 @@
               <div class="meta-box"><span>Device</span><strong>${escapeHtml(booking.deviceType || '-')}</strong></div>
               <div class="meta-box"><span>Quantity</span><strong>${booking.devicesRequired || '-'}</strong></div>
               <div class="meta-box"><span>Status</span><strong>${booking.status || '-'}</strong></div>
-              <div class="meta-box"><span>Software</span><strong>${booking.softwareRequirement || 'None'}</strong></div>
+              <div class="meta-box"><span>Software</span><strong>${escapeHtml(formatBookingSoftware(booking))}</strong></div>
               <div class="meta-box"><span>Resources</span><strong>${getResourceList(booking)}</strong></div>
               <div class="meta-box"><span>Accessories</span><strong>${formatAdditionalResources(booking.additionalResources)}</strong></div>
               <div class="meta-box"><span>Accessory Allocation</span><strong>${getAdditionalResourceAllocationList(booking)}</strong></div>
@@ -1320,6 +1393,7 @@
                     ${generateTimeOptions(booking.endTime || '')}
                   </select>
                 </div>
+                ${renderSoftwareEditControls(booking)}
                 ${renderAdditionalResourceEditControls(booking)}
               </div>
               <div class="booking-actions">
@@ -1399,6 +1473,22 @@
       }
     });
     bookingList.addEventListener('change', event => {
+      const softwareCheckbox = event.target.closest('[data-edit-software]');
+      if (softwareCheckbox) {
+        const list = softwareCheckbox.closest('[data-edit-software-list]');
+        const noneOption = list?.querySelector('[data-edit-software][value="None"]');
+        const specialistOptions = Array.from(list?.querySelectorAll('[data-edit-software]:not([value="None"])') || []);
+        if (softwareCheckbox.value === 'None' && softwareCheckbox.checked) {
+          specialistOptions.forEach(input => { input.checked = false; });
+        } else if (softwareCheckbox.value !== 'None' && softwareCheckbox.checked && noneOption) {
+          noneOption.checked = false;
+        }
+        if (noneOption && !noneOption.checked && !specialistOptions.some(input => input.checked)) {
+          noneOption.checked = true;
+        }
+        return;
+      }
+
       const checkbox = event.target.closest('[data-edit-accessory-check]');
       if (!checkbox) return;
       const row = checkbox.closest('.additional-edit-row');
@@ -1451,6 +1541,13 @@
         card.querySelectorAll('[data-edit-field]').forEach(input => {
           updatedBooking[input.dataset.editField] = input.value;
         });
+        const selectedSoftware = Array.from(card.querySelectorAll('[data-edit-software]:checked'))
+          .map(input => input.value)
+          .filter(value => value && value !== 'None');
+        updatedBooking.softwareRequirements = { software: selectedSoftware };
+        updatedBooking.softwareRequirement = selectedSoftware.length
+          ? selectedSoftware.join(', ')
+          : 'None';
         updatedBooking.additionalResources = {
           resource: Array.from(card.querySelectorAll('.additional-edit-row'))
             .map(row => {

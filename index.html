@@ -2955,10 +2955,10 @@
               <div class="apps-card software-selection-card">
                 <div class="software-selection-heading">
                   <label>Software needed</label>
-                  <span class="helper">Optional. Only software installed on compatible resources is shown.</span>
+                  <span class="helper">Optional. Select one or more. Only software installed on compatible resources is shown.</span>
                 </div>
                 <input id="softwareRequirement" name="softwareRequirement" type="hidden" value="None" />
-                <div id="softwareOptionsList" class="software-options-list" role="radiogroup" aria-label="Software needed"></div>
+                <div id="softwareOptionsList" class="software-options-list" role="group" aria-label="Software needed"></div>
               </div>
 
               <div class="accessory-card additional-resources-section" id="additionalResourcesSection" style="display:none;">
@@ -3192,6 +3192,7 @@ document.getElementById("requesterName").textContent = user.name;
     let softwareOptionsList;
     let softwareCatalog = [];
     let softwareByDevice = {};
+    let selectedSoftwareRequirements = new Set();
     let additionalResourcesSection;
     let additionalResourcesList;
     let oneTimeBookingBtn;
@@ -3526,7 +3527,12 @@ document.getElementById("requesterName").textContent = user.name;
           ? customLocationInput.value.trim()
           : locationSelect.value,
         deviceType: deviceTypeSelect.value,
-        softwareRequirement: softwareRequirement.value || 'None',
+        softwareRequirements: {
+          software: Array.from(selectedSoftwareRequirements).sort((a, b) => a.localeCompare(b))
+        },
+        softwareRequirement: selectedSoftwareRequirements.size
+          ? Array.from(selectedSoftwareRequirements).sort((a, b) => a.localeCompare(b)).join(', ')
+          : 'None',
         devicesRequired: Number(devicesRequired.value),
         additionalResources: { resource: getSelectedAdditionalResources() },
         bookingRequestId: bookingUIState.currentBookingRequestId,
@@ -3853,11 +3859,24 @@ document.getElementById("requesterName").textContent = user.name;
         : [];
     }
 
+    function getSelectedSoftwareRequirements() {
+      return Array.from(selectedSoftwareRequirements)
+        .sort((a, b) => a.localeCompare(b));
+    }
+
+    function syncSoftwareRequirementFields() {
+      const selected = getSelectedSoftwareRequirements();
+      softwareRequirement.value = selected.length ? selected.join(', ') : 'None';
+    }
+
     function selectedSoftwareIsSupported() {
-      const selected = String(softwareRequirement?.value || 'None');
-      if (selected === 'None') return true;
-      return getSoftwareOptionsForSelectedDevice()
-        .some(item => String(item.name || '').toLowerCase() === selected.toLowerCase());
+      const supportedNames = new Set(
+        getSoftwareOptionsForSelectedDevice()
+          .map(item => String(item.name || '').toLowerCase())
+      );
+      return getSelectedSoftwareRequirements().every(item =>
+        supportedNames.has(item.toLowerCase())
+      );
     }
 
     function renderSoftwareOptions() {
@@ -3865,16 +3884,16 @@ document.getElementById("requesterName").textContent = user.name;
 
       const options = getSoftwareOptionsForSelectedDevice();
       const selectedDeviceType = String(deviceTypeSelect?.value || '').trim();
-      const currentValue = String(softwareRequirement.value || 'None');
+      const supportedByLowerName = new Map(
+        options.map(item => [String(item.name || '').toLowerCase(), item.name])
+      );
 
-      if (
-        currentValue !== 'None' &&
-        !options.some(item =>
-          String(item.name || '').toLowerCase() === currentValue.toLowerCase()
-        )
-      ) {
-        softwareRequirement.value = 'None';
-      }
+      selectedSoftwareRequirements = new Set(
+        getSelectedSoftwareRequirements()
+          .filter(item => supportedByLowerName.has(item.toLowerCase()))
+          .map(item => supportedByLowerName.get(item.toLowerCase()))
+      );
+      syncSoftwareRequirementFields();
 
       if (!selectedDeviceType) {
         softwareOptionsList.innerHTML =
@@ -3882,19 +3901,22 @@ document.getElementById("requesterName").textContent = user.name;
         return;
       }
 
+      const noSoftwareSelected = selectedSoftwareRequirements.size === 0;
       const allOptions = [
         { id: 'NONE', name: 'No specialist software', value: 'None' },
         ...options.map(item => ({ id: item.id, name: item.name, value: item.name }))
       ];
 
       softwareOptionsList.innerHTML = allOptions.map(item => {
-        const selected = String(softwareRequirement.value || 'None') === item.value;
+        const selected = item.value === 'None'
+          ? noSoftwareSelected
+          : selectedSoftwareRequirements.has(item.value);
         return `
           <button
             type="button"
             class="software-option ${selected ? 'selected' : ''}"
             data-software-option="${escapeHTML(item.value)}"
-            role="radio"
+            role="checkbox"
             aria-checked="${selected}"
           >
             <span class="software-option-indicator" aria-hidden="true">${selected ? '✓' : ''}</span>
@@ -4213,8 +4235,9 @@ document.getElementById("requesterName").textContent = user.name;
       const time = data.startTime && data.endTime ? `${data.startTime}–${data.endTime}` : 'Not selected';
       const devices = data.devicesRequired || 1;
       const deviceType = data.deviceType || 'Not selected';
-      const softwareRequirement = data.softwareRequirement !== 'None'
-        ? data.softwareRequirement
+      const selectedSoftware = data.softwareRequirements?.software || [];
+      const softwareRequirement = selectedSoftware.length
+        ? selectedSoftware.join(', ')
         : 'No specialist software';
       const additionalResources = getSelectedAdditionalResources();
       const accessoryText = additionalResources.length
@@ -4486,6 +4509,8 @@ document.getElementById("requesterName").textContent = user.name;
         const createAnotherButton = event.target.closest('[data-create-another-booking]');
         if (createAnotherButton) {
           bookingUIState.confirmation = null;
+          selectedSoftwareRequirements.clear();
+          syncSoftwareRequirementFields();
           document.querySelector('.guided-stepper')?.removeAttribute('hidden');
           form.reset();
           window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -4501,7 +4526,15 @@ document.getElementById("requesterName").textContent = user.name;
         const option = event.target.closest('[data-software-option]');
         if (!option) return;
 
-        softwareRequirement.value = option.dataset.softwareOption || 'None';
+        const selectedValue = option.dataset.softwareOption || 'None';
+        if (selectedValue === 'None') {
+          selectedSoftwareRequirements.clear();
+        } else if (selectedSoftwareRequirements.has(selectedValue)) {
+          selectedSoftwareRequirements.delete(selectedValue);
+        } else {
+          selectedSoftwareRequirements.add(selectedValue);
+        }
+        syncSoftwareRequirementFields();
         renderSoftwareOptions();
         lastBookingAdviceSignature = '';
         updateSummary();

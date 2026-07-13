@@ -94,15 +94,27 @@ function normaliseSoftwareList(resource) {
     .filter(Boolean);
 }
 
+function normaliseSoftwareRequirements(requiredSoftware) {
+  const raw = requiredSoftware?.software || requiredSoftware?.item || requiredSoftware;
+  const values = toArray(raw)
+    .flatMap(item => typeof item === "string" ? item.split(",") : [item])
+    .map(item => String(item || "").trim())
+    .filter(item => item && item.toLowerCase() !== "none");
+
+  return Array.from(new Map(values.map(item => [item.toLowerCase(), item])).values());
+}
+
 function resourceSupportsSoftware(resource, requiredSoftware) {
-  const requirement = String(requiredSoftware || "None").trim();
+  const requirements = normaliseSoftwareRequirements(requiredSoftware);
+  if (requirements.length === 0) return true;
 
-  if (!requirement || requirement === "None") return true;
+  const installedSoftware = new Set(
+    normaliseSoftwareList(resource).map(item => item.toLowerCase())
+  );
 
-  const installedSoftware = normaliseSoftwareList(resource)
-    .map(item => item.toLowerCase());
-
-  return installedSoftware.includes(requirement.toLowerCase());
+  return requirements.every(requirement =>
+    installedSoftware.has(requirement.toLowerCase())
+  );
 }
 
 function normaliseAdditionalResources(additionalResources) {
@@ -261,7 +273,7 @@ function allocateResources(bookingRequest) {
     resource =>
       normaliseResourceCategory(resource) !== "Accessory" &&
       resource.deviceType === bookingRequest.deviceType &&
-      resourceSupportsSoftware(resource, bookingRequest.softwareRequirement) &&
+      resourceSupportsSoftware(resource, bookingRequest.softwareRequirements || bookingRequest.softwareRequirement) &&
       resourceSupportsAdditionalResources(resource, additionalRequests),
     Number(bookingRequest.devicesRequired)
   );
@@ -357,7 +369,7 @@ function assessDirectFulfilmentForRequest(allResources, bookingRequest) {
     .filter(resource => normaliseResourceCategory(resource) !== "Accessory")
     .filter(resource => resource.status === "Available")
     .filter(resource => resource.deviceType === bookingRequest.deviceType)
-    .filter(resource => resourceSupportsSoftware(resource, bookingRequest.softwareRequirement))
+    .filter(resource => resourceSupportsSoftware(resource, bookingRequest.softwareRequirements || bookingRequest.softwareRequirement))
     .filter(resource => resourceSupportsAdditionalResources(resource, additionalRequests));
 
   const availableDeviceResources = compatibleDeviceResources
@@ -541,7 +553,7 @@ function buildR34Guidance(selectedResources, quantityRequired, fulfilmentMode, c
   const confidenceBreakdown = [
     {label:"Device capacity",status:deviceFulfilled?"pass":"risk",detail:deviceFulfilled?"Sufficient compatible device capacity appears available.":"Directly available compatible capacity is insufficient."},
     {label:"Accessory compatibility",status:accessoriesFulfilled?"pass":"risk",detail:accessoriesFulfilled?"Requested accessories appear compatible and available.":"One or more requested accessories cannot be fully matched."},
-    {label:"Software support",status:"pass",detail:String(softwareRequirement||"None")!=="None"?`${softwareRequirement} compatibility was included in the assessment.`:"No specialist software requirement was selected."},
+    {label:"Software support",status:"pass",detail:normaliseSoftwareRequirements(softwareRequirement).length?`${normaliseSoftwareRequirements(softwareRequirement).join(", ")} compatibility was included in the assessment.`:"No specialist software requirement was selected."},
     {label:"Time-slot contention",status:conflictHeat==="High"?"risk":(conflictHeat==="Moderate"?"caution":"pass"),detail:`${conflictHeat} resource demand is estimated for this period.`},
     {label:"Operational simplicity",status:selectedResources.length<=1&&fulfilmentMode!=="Mixed"?"pass":"caution",detail:selectedResources.length<=1?`Likely fulfilled with one ${String(fulfilmentMode).toLowerCase()} resource.`:`Likely fulfilled using ${selectedResources.length} device resources.`}
   ];
@@ -646,9 +658,12 @@ function assessBookingAvailability(bookingRequest) {
     recommendations.push("At least one likely device resource requires collection from the ICT Work Room.");
   }
 
-  if (String(bookingRequest.softwareRequirement || "None") !== "None") {
+  const requestedSoftware = normaliseSoftwareRequirements(
+    bookingRequest.softwareRequirements || bookingRequest.softwareRequirement
+  );
+  if (requestedSoftware.length > 0) {
     recommendations.push(
-      `${bookingRequest.softwareRequirement} support was included in the compatibility assessment.`
+      `${requestedSoftware.join(", ")} support was included in the compatibility assessment.`
     );
   }
 
@@ -703,7 +718,7 @@ function assessBookingAvailability(bookingRequest) {
     selectedDeviceResources, quantityRequired, fulfilmentMode, conflictHeat,
     totalCompatibleCapacity, availableCompatibleCapacity, accessoryAssessments,
     directFulfilmentLikely, deviceFulfilled, accessoriesFulfilled,
-    bookingRequest.softwareRequirement, recommendationScore,
+    bookingRequest.softwareRequirements || bookingRequest.softwareRequirement, recommendationScore,
     { alternativeQuantity, alternativeTimes, alternativeDevices }
   );
 
@@ -748,6 +763,7 @@ module.exports = {
   allocateResources,
   assessBookingAvailability,
   resourceSupportsSoftware,
+  normaliseSoftwareRequirements,
   normaliseAdditionalResources,
   normaliseResourceCategory,
   collectResourceIdsFromAllocation,
