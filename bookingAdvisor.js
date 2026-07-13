@@ -179,12 +179,59 @@
     `;
   }
 
+  function renderBookingConfirmation(confirmation) {
+    const resources = Array.isArray(confirmation.resources)
+      ? confirmation.resources.filter(Boolean)
+      : [];
+    const resourceText = resources.length
+      ? resources.join(", ")
+      : "Allocation details available in My Bookings";
+
+    const fulfilmentText = confirmation.fulfilmentMode === "Collection"
+      ? "Collection from ICT Work Room"
+      : (confirmation.location
+        ? `${confirmation.fulfilmentMode} to ${confirmation.location}`
+        : confirmation.fulfilmentMode);
+
+    return `
+      <section class="booking-confirmation-panel" aria-label="Booking confirmation">
+        <div class="booking-confirmation-heading">
+          <span class="booking-confirmation-icon" aria-hidden="true">✓</span>
+          <span>${escapeHTML(confirmation.title || "Booking confirmed")}</span>
+        </div>
+        <div class="booking-confirmation-grid">
+          <div class="booking-confirmation-row">
+            <span>Allocated resources</span>
+            <strong>${escapeHTML(resourceText)}</strong>
+          </div>
+          <div class="booking-confirmation-row">
+            <span>Allocated capacity</span>
+            <strong>${Number(confirmation.capacity || 0)} devices</strong>
+          </div>
+          <div class="booking-confirmation-row">
+            <span>Fulfilment</span>
+            <strong>${escapeHTML(fulfilmentText || "Confirmed")}</strong>
+          </div>
+          <div class="booking-confirmation-row">
+            <span>Allocation method</span>
+            <strong>${escapeHTML(confirmation.allocationMethod || "Automatic Allocation")}</strong>
+          </div>
+        </div>
+        <div class="booking-confirmation-actions">
+          <a href="manage-bookings.html">View My Bookings</a>
+          <button type="button" data-create-another-booking>Create another booking</button>
+        </div>
+      </section>
+    `;
+  }
+
   window.BookingAdvisor = Object.freeze({
     escapeHTML,
     buildReadinessItems,
     renderReadinessChecklist,
     buildFulfilmentExplanation,
     buildTimelineModel,
-    renderTimelinePreview
+    renderTimelinePreview,
+    renderBookingConfirmation
   });
 })();

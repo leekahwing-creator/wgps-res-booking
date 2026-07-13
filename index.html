@@ -2448,6 +2448,124 @@
       }
     }
 
+
+    /* Release 3.3 UX Polish HF1 */
+    .guided-stepper {
+      gap: 7px;
+      margin-top: 14px;
+    }
+
+    .step-chip {
+      grid-template-columns: 26px minmax(0, 1fr);
+      gap: 9px;
+      padding: 8px 10px;
+      border-radius: 13px;
+    }
+
+    .step-chip .step-number {
+      width: 26px;
+      height: 26px;
+      font-size: 0.82rem;
+    }
+
+    .step-chip strong {
+      font-size: 0.86rem;
+    }
+
+    .step-chip small {
+      display: none;
+    }
+
+    .booking-confirmation-panel {
+      padding: 15px;
+      border: 1px solid #86efac;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #ecfdf5, #ffffff);
+      box-shadow: 0 12px 28px rgba(22, 101, 52, 0.1);
+    }
+
+    .booking-confirmation-heading {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      color: #166534;
+      font-weight: 900;
+      font-size: 1rem;
+    }
+
+    .booking-confirmation-icon {
+      width: 28px;
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      background: #22c55e;
+      color: #ffffff;
+      flex: 0 0 auto;
+    }
+
+    .booking-confirmation-grid {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .booking-confirmation-row {
+      display: grid;
+      gap: 2px;
+    }
+
+    .booking-confirmation-row span {
+      color: #64748b;
+      font-size: 0.72rem;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .booking-confirmation-row strong {
+      color: #14532d;
+      font-size: 0.86rem;
+      overflow-wrap: anywhere;
+    }
+
+    .booking-confirmation-actions {
+      display: grid;
+      gap: 7px;
+      margin-top: 13px;
+    }
+
+    .booking-confirmation-actions a,
+    .booking-confirmation-actions button {
+      min-height: 38px;
+      border-radius: 12px;
+      padding: 0 12px;
+      font-weight: 900;
+      text-align: center;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .booking-confirmation-actions a {
+      border: 0;
+      background: var(--primary);
+      color: #ffffff;
+    }
+
+    .booking-confirmation-actions button {
+      border: 1px solid #a7f3d0;
+      background: #ffffff;
+      color: #166534;
+    }
+
+    .guided-stepper[hidden] {
+      display: none !important;
+    }
+
   </style>
 </head>
 <body>
@@ -2853,6 +2971,7 @@ document.getElementById("requesterName").textContent = user.name;
       bookingMode: 'one-time',
       repeatIntervalWeeks: 1,
       currentBookingRequestId: createBookingRequestId(),
+      confirmation: null,
       progress: {
         device: false,
         quantity: false,
@@ -3718,6 +3837,20 @@ document.getElementById("requesterName").textContent = user.name;
       const softwareSupported =
         data.softwareRequirement === 'None' || isIpadDeviceType();
 
+      const validBookingDate = Boolean(
+        data.bookingDate &&
+        data.bookingDate >= getNextAvailableBookingDate() &&
+        !isWeekend(data.bookingDate)
+      );
+
+      const effectiveProgress = {
+        ...bookingUIState.progress,
+        date: Boolean(
+          bookingUIState.progress.date ||
+          (bookingUIState.timingSectionUnlocked && validBookingDate)
+        )
+      };
+
       return window.BookingAdvisor.buildReadinessItems({
         deviceType: data.deviceType,
         devicesRequired: data.devicesRequired,
@@ -3726,11 +3859,23 @@ document.getElementById("requesterName").textContent = user.name;
         timingReady: isTimingSectionReady(),
         locationReady: isLocationSectionReady(),
         advice: latestBookingAdvice,
-        progress: bookingUIState.progress
+        progress: effectiveProgress
       });
     }
 
     function renderInteractiveOptimisation(data) {
+      if (bookingUIState.confirmation) {
+        if (leftReadinessPanel) {
+          leftReadinessPanel.innerHTML =
+            window.BookingAdvisor.renderBookingConfirmation(bookingUIState.confirmation);
+        }
+        return {
+          readiness: getBookingReadiness(),
+          fulfilment: null,
+          timeline: []
+        };
+      }
+
       const readiness = getBookingReadiness();
       const fulfilment = window.BookingAdvisor.buildFulfilmentExplanation(
         latestBookingAdvice,
@@ -3781,10 +3926,6 @@ document.getElementById("requesterName").textContent = user.name;
       const interactive = renderInteractiveOptimisation(data);
       const ready = interactive.readiness.formReady;
       summary.classList.toggle('ready', ready);
-      const readyBanner = ready
-        ? '<div class="review-ready-banner">✓ Ready to submit. Please check the details, then submit your booking request.</div>'
-        : '';
-
       summary.innerHTML = `
         <strong>${ready ? 'Booking Summary · Ready' : 'Booking Summary'}</strong>
         <div class="review-grid">
@@ -3806,7 +3947,6 @@ document.getElementById("requesterName").textContent = user.name;
             ? `${escapeHTML(latestBookingAdvice.availabilityStatus)} · ${escapeHTML(latestBookingAdvice.confidence)} confidence · ${escapeHTML(latestBookingAdvice.fulfilmentMode || 'Unknown')} fulfilment`
             : 'Complete timing to receive an availability estimate.'}
         </div>
-        ${readyBanner}
       `;
 
       updateDeviceChoiceCards();
@@ -3911,6 +4051,31 @@ document.getElementById("requesterName").textContent = user.name;
       }
 
       return resources.join(', ');
+    }
+
+    function buildConfirmationData(savedBooking, savedBookings) {
+      const allocation = savedBooking?.allocation || {};
+      const resourceIds = allocation?.resources?.resourceId || [];
+      const resources = (Array.isArray(resourceIds) ? resourceIds : [resourceIds])
+        .filter(Boolean);
+
+      const fulfilmentMode =
+        String(savedBooking?.fulfilmentMode || savedBooking?.fulfillmentMode || '').trim() ||
+        (String(savedBooking?.deploymentRequired).toLowerCase() === 'false'
+          ? 'Collection'
+          : 'Deployment');
+
+      return {
+        title: savedBookings.length > 1
+          ? `${savedBookings.length} bookings confirmed`
+          : 'Booking confirmed',
+        resources,
+        capacity: Number(allocation.totalAllocatedCapacity || 0),
+        allocationMethod: String(allocation.allocationMethod || 'Automatic Allocation'),
+        fulfilmentMode,
+        location: String(savedBooking?.location || ''),
+        occurrences: savedBookings.length
+      };
     }
 
     function buildAllocationMessage(savedBooking) {
@@ -4018,6 +4183,15 @@ document.getElementById("requesterName").textContent = user.name;
       });
 
       leftReadinessPanel.addEventListener('click', event => {
+        const createAnotherButton = event.target.closest('[data-create-another-booking]');
+        if (createAnotherButton) {
+          bookingUIState.confirmation = null;
+          document.querySelector('.guided-stepper')?.removeAttribute('hidden');
+          form.reset();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+        }
+
         if (!window.matchMedia('(max-width: 980px)').matches) return;
         const panel = event.target.closest('.readiness-panel');
         if (panel) panel.classList.toggle('expanded');
@@ -4109,6 +4283,8 @@ document.getElementById("requesterName").textContent = user.name;
           lastBookingAdviceSignature = '';
           latestBookingAdvice = null;
           bookingUIState.timingSectionUnlocked = false;
+          bookingUIState.confirmation = null;
+          document.querySelector('.guided-stepper')?.removeAttribute('hidden');
           bookingUIState.progress = {
             device: false,
             quantity: false,
@@ -4172,12 +4348,20 @@ document.getElementById("requesterName").textContent = user.name;
             booking.status === 'Confirmed' || booking.status === 'Confirmed with Reallocation'
           );
 
-          const statusType = allConfirmed ? 'success' : 'warning';
           const recurringMessage = savedBookings.length > 1
             ? `${savedBookings.length} booking occurrences processed. First allocation: ${buildAllocationMessage(savedBooking)}`
             : buildAllocationMessage(savedBooking);
 
-          showStatus(statusType, recurringMessage);
+          if (allConfirmed) {
+            bookingUIState.confirmation = buildConfirmationData(savedBooking, savedBookings);
+            document.querySelector('.guided-stepper')?.setAttribute('hidden', '');
+            statusMessage.className = 'status';
+            statusMessage.textContent = '';
+            renderInteractiveOptimisation(getBookingData());
+          } else {
+            showStatus('warning', recurringMessage);
+          }
+
           bookingUIState.currentBookingRequestId = createBookingRequestId();
           console.log('Booking saved with allocation:', result);
         } catch (error) {
