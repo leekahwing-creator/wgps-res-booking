@@ -488,6 +488,29 @@ function resourceRequiresDeployment(resource = {}) {
   return normaliseFulfilmentMode(resource.fulfilmentMode || resource.fulfillmentMode, resource) !== "Collection";
 }
 
+function buildResourceLookup() {
+  const resources = readResourcesFromXML().map(formatResourceForResponse);
+  return new Map(resources.map(resource => [String(resource.id || ""), resource]));
+}
+
+function getDEManagedAllocatedResourceIds(booking = {}, resourceById = buildResourceLookup()) {
+  return getAllocatedResourceIds(booking).filter(resourceId => {
+    const resource = resourceById.get(String(resourceId || ""));
+    return resource ? resourceRequiresDeployment(resource) : true;
+  });
+}
+
+function getUserCollectedAllocatedResourceIds(booking = {}, resourceById = buildResourceLookup()) {
+  return getAllocatedResourceIds(booking).filter(resourceId => {
+    const resource = resourceById.get(String(resourceId || ""));
+    return resource ? !resourceRequiresDeployment(resource) : false;
+  });
+}
+
+function bookingHasDEManagedResources(booking = {}, resourceById = buildResourceLookup()) {
+  return getDEManagedAllocatedResourceIds(booking, resourceById).length > 0;
+}
+
 function bookingRequiresDeployment(booking = {}) {
   if (booking.deploymentRequired === false) return false;
   if (String(booking.deploymentRequired || "").toLowerCase() === "false") return false;
@@ -1208,10 +1231,11 @@ function buildDeploymentProvenance(bookings = []) {
   const activeBookings = bookings
     .filter(booking => booking.status !== "Deleted" && booking.status !== "Cancelled")
     .filter(booking => bookingRequiresDeployment(booking))
+    .filter(booking => bookingHasDEManagedResources(booking, resourceById))
     .sort((a, b) => `${a.startTime || ""} ${a.endTime || ""} ${a.location || ""}`.localeCompare(`${b.startTime || ""} ${b.endTime || ""} ${b.location || ""}`));
   const bookingsByResource = new Map();
   activeBookings.forEach(booking => {
-    getAllocatedResourceIds(booking).forEach(resourceId => {
+    getDEManagedAllocatedResourceIds(booking, resourceById).forEach(resourceId => {
       if (!bookingsByResource.has(resourceId)) bookingsByResource.set(resourceId, []);
       bookingsByResource.get(resourceId).push(booking);
     });
@@ -1275,6 +1299,7 @@ function buildOperationalBundle(bookings, anchorBooking) {
   const active = bookings
     .filter(booking => booking.status !== "Deleted" && booking.status !== "Cancelled")
     .filter(booking => bookingRequiresDeployment(booking))
+    .filter(booking => bookingHasDEManagedResources(booking, resourceById))
     .sort((a, b) =>
       `${a.startTime || ""} ${a.endTime || ""} ${a.location || ""}`
         .localeCompare(`${b.startTime || ""} ${b.endTime || ""} ${b.location || ""}`)
@@ -1286,13 +1311,13 @@ function buildOperationalBundle(bookings, anchorBooking) {
   const resourceBookings = new Map();
 
   active.forEach(booking => {
-    getAllocatedResourceIds(booking).forEach(resourceId => {
+    getDEManagedAllocatedResourceIds(booking, resourceById).forEach(resourceId => {
       if (!resourceBookings.has(resourceId)) resourceBookings.set(resourceId, []);
       resourceBookings.get(resourceId).push(booking);
     });
   });
 
-  const anchorResourceIds = getAllocatedResourceIds(anchorBooking);
+  const anchorResourceIds = getDEManagedAllocatedResourceIds(anchorBooking, resourceById);
   const anchorPickupLocations = new Set();
 
   anchorResourceIds.forEach(resourceId => {
@@ -1509,6 +1534,27 @@ function formatDeploymentBookingForResponse(booking, users, provenanceByBookingI
   const deployedByName = booking.deployedByName || getUserDisplayNameById(users, booking.deployedByUserId);
   const bookingId = String(booking["@_id"] || booking.bookingId || "");
   const resourceMovements = provenanceByBookingId.get(bookingId) || [];
+  const resourceById = buildResourceLookup();
+  const deManagedResourceIds = getDEManagedAllocatedResourceIds(booking, resourceById);
+  const userCollectedResourceIds = getUserCollectedAllocatedResourceIds(booking, resourceById);
+  const deManagedResources = deManagedResourceIds.map(resourceId => {
+    const resource = resourceById.get(resourceId) || {};
+    return {
+      resourceId,
+      resourceName: resource.name || resourceId,
+      category: resource.category || "",
+      fulfilmentMode: resource.fulfilmentMode || "Deployment"
+    };
+  });
+  const userCollectedResources = userCollectedResourceIds.map(resourceId => {
+    const resource = resourceById.get(resourceId) || {};
+    return {
+      resourceId,
+      resourceName: resource.name || resourceId,
+      category: resource.category || "",
+      fulfilmentMode: resource.fulfilmentMode || "Collection"
+    };
+  });
   const pickupLocations = Array.from(new Set(resourceMovements.map(item => item.pickupLocation).filter(Boolean)));
   return {
     ...booking,
@@ -1517,6 +1563,10 @@ function formatDeploymentBookingForResponse(booking, users, provenanceByBookingI
     claimedByName: claimedByName || "",
     deployedByName: deployedByName || "",
     resourceMovements,
+    deManagedResources,
+    userCollectedResources,
+    deManagedResourceIds,
+    userCollectedResourceIds,
     pickupLocations,
     pickupLocationSummary: pickupLocations.length ? pickupLocations.join(" + ") : "ICT Room",
     destinationLocation: String(booking.location || ""),
@@ -4300,10 +4350,12 @@ app.get("/api/de/bookings", requireLogin, requireDEOrAdmin, (req, res) => {
     }
 
     const bookingsFile = getDateBookingsFile(bookingDate);
+    const resourceById = buildResourceLookup();
     const bookings = readBookingsFromFile(bookingsFile)
       .filter(booking => booking.bookingDate === bookingDate)
       .filter(booking => booking.status !== "Deleted" && booking.status !== "Cancelled")
       .filter(booking => bookingRequiresDeployment(booking))
+      .filter(booking => bookingHasDEManagedResources(booking, resourceById))
       .sort((a, b) => `${a.startTime || ""} ${a.location || ""}`.localeCompare(`${b.startTime || ""} ${b.location || ""}`));
 
     const users = getUsersFromXML();
@@ -4349,6 +4401,14 @@ app.put("/api/de/bookings/:bookingId/claim", requireLogin, requireDEOrAdmin, (re
       return res.status(409).json({
         success: false,
         message: "This job is no longer pending and cannot be claimed."
+      });
+    }
+
+    const resourceById = buildResourceLookup();
+    if (!bookingHasDEManagedResources(booking, resourceById)) {
+      return res.status(409).json({
+        success: false,
+        message: "This booking is collection-only and does not require DE deployment."
       });
     }
 

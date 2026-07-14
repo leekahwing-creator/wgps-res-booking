@@ -1070,6 +1070,18 @@
       }
     }
 
+    /* DE R2.1 HF1 — Collection-only filtering */
+    .collection-note {
+      padding: 8px;
+      border-radius: 10px;
+      background: #f8fafc;
+      border: 1px dashed #cbd5e1;
+    }
+
+    .collection-note strong {
+      color: #475569;
+      font-weight: 700;
+    }
   </style>
 </head>
 <body>
@@ -1320,9 +1332,18 @@ return currentUser;
     });
 
     function getResourceList(booking) {
-      const resourceIds = booking.allocation?.resources?.resourceId || [];
-      const resources = Array.isArray(resourceIds) ? resourceIds : [resourceIds];
-      return resources.length ? resources.join(', ') : 'No allocation recorded';
+      const managed = Array.isArray(booking.deManagedResources)
+        ? booking.deManagedResources
+        : [];
+
+      if (managed.length) {
+        return managed
+          .map(resource => resource.resourceName || resource.resourceId)
+          .filter(Boolean)
+          .join(', ');
+      }
+
+      return 'No DE-managed allocation recorded';
     }
 
 
@@ -1339,15 +1360,30 @@ return currentUser;
     }
 
     function getAdditionalResourceAllocationList(booking) {
+      const managedIds = new Set(
+        (Array.isArray(booking.deManagedResourceIds)
+          ? booking.deManagedResourceIds
+          : [])
+          .map(String)
+      );
+
       const allocations = booking.allocation?.additionalResources?.resource || [];
       const items = Array.isArray(allocations) ? allocations : [allocations];
+
       const labels = items
         .filter(item => item?.type)
         .map(item => {
           const resourceIds = item.resources?.resourceId || [];
-          const resources = Array.isArray(resourceIds) ? resourceIds : [resourceIds];
-          return `${item.type}: ${resources.filter(Boolean).join(', ') || 'No allocation'}`;
-        });
+          const resources = (Array.isArray(resourceIds) ? resourceIds : [resourceIds])
+            .filter(Boolean)
+            .filter(resourceId => managedIds.has(String(resourceId)));
+
+          return resources.length
+            ? `${item.type}: ${resources.join(', ')}`
+            : '';
+        })
+        .filter(Boolean);
+
       return labels.length ? labels.join(' | ') : 'None';
     }
 
@@ -1518,6 +1554,14 @@ return currentUser;
             <div class="meta-row"><span>Resources</span><strong>${escapeHtml(getResourceList(booking))}</strong></div>
             <div class="meta-row"><span>Accessories</span><strong>${escapeHtml(formatAdditionalResources(booking.additionalResources))}</strong></div>
             <div class="meta-row"><span>Accessory Allocation</span><strong>${escapeHtml(getAdditionalResourceAllocationList(booking))}</strong></div>
+            ${Array.isArray(booking.userCollectedResources) && booking.userCollectedResources.length
+              ? `<div class="meta-row collection-note"><span>User collection</span><strong>${escapeHtml(
+                  booking.userCollectedResources
+                    .map(resource => resource.resourceName || resource.resourceId)
+                    .filter(Boolean)
+                    .join(', ')
+                )} — handled by the requester at ICT Room</strong></div>`
+              : ''}
             <div class="meta-row"><span>Booking</span><strong>${escapeHtml(booking.status || '-')}</strong></div>
             ${booking.claimedByName ? `<div class="meta-row"><span>Claimed by</span><strong>${escapeHtml(booking.claimedByName)}</strong></div>` : ''}
             ${booking.claimedAt ? `<div class="meta-row"><span>Claimed at</span><strong>${escapeHtml(formatDateTime(booking.claimedAt))}</strong></div>` : ''}
