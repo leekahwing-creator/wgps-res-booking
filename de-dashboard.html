@@ -835,6 +835,117 @@
       .dashboard-grid { padding-top:14px; }
     }
 
+
+    /* DE R2.0 Cycle 1 HF1 — Multi-stop operational route */
+    .current-job-itinerary {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .itinerary-leg {
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      padding: 11px;
+      border: 1px solid #dbe4ee;
+      border-radius: 14px;
+      background: #ffffff;
+    }
+
+    .itinerary-leg.completed {
+      border-color: #86efac;
+      background: #f0fdf4;
+    }
+
+    .itinerary-order {
+      width: 30px;
+      height: 30px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      background: var(--primary-light);
+      color: var(--primary-dark);
+      font-weight: 900;
+    }
+
+    .itinerary-leg.completed .itinerary-order {
+      background: #22c55e;
+      color: #ffffff;
+    }
+
+    .itinerary-copy small,
+    .itinerary-copy strong,
+    .itinerary-copy span {
+      display: block;
+    }
+
+    .itinerary-copy small {
+      color: var(--muted);
+      font-size: 0.68rem;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .itinerary-copy strong {
+      margin-top: 2px;
+      color: #0f172a;
+    }
+
+    .itinerary-copy span {
+      margin-top: 4px;
+      color: #475569;
+      font-size: 0.8rem;
+      line-height: 1.35;
+    }
+
+    .route-priority {
+      color: var(--primary-dark);
+      font-weight: 900;
+    }
+
+    .collection-manifest {
+      margin-top: 12px;
+      padding: 11px;
+      border: 1px solid #bae6fd;
+      border-radius: 14px;
+      background: #f0f9ff;
+    }
+
+    .collection-manifest > strong {
+      display: block;
+      margin-bottom: 7px;
+    }
+
+    .manifest-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .manifest-chip {
+      padding: 6px 8px;
+      border-radius: 999px;
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      color: #334155;
+      font-size: 0.76rem;
+      font-weight: 800;
+    }
+
+    @media (max-width: 640px) {
+      .itinerary-leg {
+        grid-template-columns: 32px minmax(0, 1fr);
+      }
+
+      .itinerary-leg .btn {
+        grid-column: 2;
+        justify-self: start;
+      }
+    }
+
   </style>
 </head>
 <body>
@@ -1090,17 +1201,103 @@ return currentUser;
       return `${warning}<div class="movement-strip"><div class="movement-stop"><span>Collect from</span><strong>${escapeHtml(pickup)}</strong></div><div class="movement-arrow" aria-hidden="true">→</div><div class="movement-stop"><span>Deliver to</span><strong>${escapeHtml(destination)}</strong></div></div>`;
     }
 
+    function normaliseBundleLegs(bundle) {
+      const source = bundle?.legs?.leg || bundle?.legs || [];
+      return (Array.isArray(source) ? source : [source]).filter(Boolean);
+    }
+
+    function normaliseBundleResources(value) {
+      const source = value?.resource || value || [];
+      return (Array.isArray(source) ? source : [source]).filter(Boolean);
+    }
+
     function renderCurrentJob(bookings) {
       const claimedByMe = bookings
-        .filter(booking => (booking.deploymentStatus || 'Pending Deployment') === 'Claimed')
         .filter(booking => String(booking.claimedByUserId || '') === String(currentUser.userId))
-        .sort((a,b) => `${a.startTime || ''} ${a.location || ''}`.localeCompare(`${b.startTime || ''} ${b.location || ''}`));
+        .filter(booking => booking.operationalBundle?.status === 'Active')
+        .sort((a, b) => `${a.startTime || ''} ${a.location || ''}`.localeCompare(`${b.startTime || ''} ${b.location || ''}`));
+
       const active = claimedByMe[0];
-      if (!active) { currentJobWorkspace.hidden = true; currentJobWorkspace.innerHTML = ''; return; }
-      const movements = getResourceMovements(active);
-      const resourcesHtml = movements.length ? movements.map(item => `<div class="current-job-resource"><strong>${escapeHtml(item.resourceName || item.resourceId)}</strong><small>Collect from ${escapeHtml(item.pickupLocation || 'ICT Room')}</small></div>`).join('') : `<div class="current-job-resource"><strong>${escapeHtml(getResourceList(active))}</strong><small>Collect from ${escapeHtml(active.pickupLocationSummary || 'ICT Room')}</small></div>`;
+      if (!active) {
+        currentJobWorkspace.hidden = true;
+        currentJobWorkspace.innerHTML = '';
+        return;
+      }
+
+      const bundle = active.operationalBundle;
+      const legs = normaliseBundleLegs(bundle);
+      const manifest = normaliseBundleResources(bundle.resourcesToCollect);
+
       currentJobWorkspace.hidden = false;
-      currentJobWorkspace.innerHTML = `<div class="current-job-heading"><div><span>Current job</span><h2>${escapeHtml(active.deviceType || 'ICT resource deployment')}</h2></div><div class="current-job-time">${escapeHtml(active.startTime || '-')}–${escapeHtml(active.endTime || '-')}</div></div><div class="route-panel"><div class="route-stop"><span>Collect from</span><strong>${escapeHtml(active.pickupLocationSummary || 'ICT Room')}</strong></div><div class="route-arrow" aria-hidden="true">→</div><div class="route-stop"><span>Deliver to</span><strong>${escapeHtml(active.destinationLocation || active.location || '-')}</strong></div></div>${active.multiplePickupLocations ? `<div class="multi-pickup-warning" style="margin-top:12px;">This job requires collection from multiple locations.</div>` : ''}<div class="current-job-resource-list">${resourcesHtml}</div><div class="current-job-actions"><button class="btn btn-success" data-current-job-action="complete" data-booking-id="${escapeHtml(getJobId(active))}" data-booking-date="${escapeHtml(active.bookingDate)}">Mark Deployed</button><button class="btn btn-secondary" data-current-job-action="release" data-booking-id="${escapeHtml(getJobId(active))}" data-booking-date="${escapeHtml(active.bookingDate)}">Release Job</button><button class="btn btn-warning" data-current-job-action="fail" data-booking-id="${escapeHtml(getJobId(active))}" data-booking-date="${escapeHtml(active.bookingDate)}">Unable to Deploy</button></div>`;
+      currentJobWorkspace.innerHTML = `
+        <div class="current-job-heading">
+          <div>
+            <span>Current operational job</span>
+            <h2>Collect once, complete ${legs.length} stop${legs.length === 1 ? '' : 's'}</h2>
+          </div>
+          <div class="current-job-time">${escapeHtml(active.startTime || '-')} onward</div>
+        </div>
+
+        <div class="route-stop">
+          <span>Collect everything from</span>
+          <strong>${escapeHtml(bundle.pickupLocation || active.pickupLocationSummary || 'ICT Room')}</strong>
+        </div>
+
+        <div class="collection-manifest">
+          <strong>Resources to collect</strong>
+          <div class="manifest-list">
+            ${manifest.map(item => `
+              <span class="manifest-chip">${escapeHtml(item.resourceName || item.resourceId)}</span>
+            `).join('')}
+          </div>
+        </div>
+
+        <div class="current-job-itinerary">
+          ${legs.map(leg => {
+            const completed = leg.status === 'Completed';
+            const resources = normaliseBundleResources(leg.resources);
+            const resourceNames = resources
+              .map(item => item.resourceName || item.resourceId)
+              .filter(Boolean)
+              .join(', ');
+            const devicePriority = String(leg.containsDevice) === 'true' || leg.containsDevice === true;
+
+            return `
+              <article class="itinerary-leg ${completed ? 'completed' : ''}">
+                <span class="itinerary-order">${completed ? '✓' : escapeHtml(leg.routeOrder || '')}</span>
+                <div class="itinerary-copy">
+                  <small>${escapeHtml(leg.type || 'Deployment')} · Required ${escapeHtml(leg.requiredTime || '-')}</small>
+                  <strong>${escapeHtml(leg.destination || '-')}</strong>
+                  <span>${escapeHtml(resourceNames || 'No resources listed')}</span>
+                  ${devicePriority && !completed
+                    ? '<span class="route-priority">Device-priority stop</span>'
+                    : ''}
+                </div>
+                ${completed
+                  ? '<span class="btn btn-success" aria-label="Completed">Completed</span>'
+                  : `<button
+                      class="btn btn-success"
+                      data-bundle-leg-action="complete"
+                      data-booking-id="${escapeHtml(getJobId(active))}"
+                      data-booking-date="${escapeHtml(active.bookingDate)}"
+                      data-leg-id="${escapeHtml(leg.legId)}"
+                    >Mark stop complete</button>`}
+              </article>
+            `;
+          }).join('')}
+        </div>
+
+        <div class="current-job-actions">
+          <button class="btn btn-secondary"
+            data-current-job-action="release"
+            data-booking-id="${escapeHtml(getJobId(active))}"
+            data-booking-date="${escapeHtml(active.bookingDate)}">Release full route</button>
+          <button class="btn btn-warning"
+            data-current-job-action="fail"
+            data-booking-id="${escapeHtml(getJobId(active))}"
+            data-booking-date="${escapeHtml(active.bookingDate)}">Unable to complete route</button>
+        </div>
+      `;
     }
 
     function renderJobCard(booking) {
@@ -1218,14 +1415,64 @@ return currentUser;
 
       showStatus('success', result.message || 'Deployment job updated.');
       await loadBookings({ silent: true });
+
+      if (action === 'claim' && !currentJobWorkspace.hidden) {
+        window.setTimeout(() => {
+          currentJobWorkspace.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start'
+          });
+        }, 80);
+      }
+    }
+
+    async function completeBundleLeg(button) {
+      const response = await fetch(
+        `/api/de/bookings/${encodeURIComponent(button.dataset.bookingId)}/bundle-legs/${encodeURIComponent(button.dataset.legId)}/complete`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bookingDate: button.dataset.bookingDate })
+        }
+      );
+
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Unable to complete route stop.');
+      }
+
+      showStatus('success', result.message || 'Route stop completed.');
+      await loadBookings({ silent: true });
     }
 
     currentJobWorkspace.addEventListener('click', async event => {
+      const legButton = event.target.closest('button[data-bundle-leg-action]');
+      if (legButton) {
+        try {
+          await completeBundleLeg(legButton);
+        } catch (error) {
+          showStatus('error', error.message);
+          await loadBookings({ silent: true }).catch(() => {});
+        }
+        return;
+      }
+
       const button = event.target.closest('button[data-current-job-action]');
       if (!button) return;
-      const mockCard = { dataset: { bookingId: button.dataset.bookingId, bookingDate: button.dataset.bookingDate } };
-      try { await updateJob(mockCard, button.dataset.currentJobAction); }
-      catch (error) { showStatus('error', error.message); await loadBookings({ silent: true }).catch(() => {}); }
+
+      const mockCard = {
+        dataset: {
+          bookingId: button.dataset.bookingId,
+          bookingDate: button.dataset.bookingDate
+        }
+      };
+
+      try {
+        await updateJob(mockCard, button.dataset.currentJobAction);
+      } catch (error) {
+        showStatus('error', error.message);
+        await loadBookings({ silent: true }).catch(() => {});
+      }
     });
 
     document.querySelector('.dashboard-grid').addEventListener('click', async event => {

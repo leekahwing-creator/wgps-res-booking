@@ -1246,6 +1246,236 @@ function buildDeploymentProvenance(bookings = []) {
   return provenanceByBookingId;
 }
 
+
+function getResourceCategoryPriority(resource = {}) {
+  return normaliseResourceCategory(resource.category) === "Accessory" ? 2 : 1;
+}
+
+function getMovementTypePriority(type) {
+  return String(type || "") === "Deployment" ? 1 : 2;
+}
+
+function normaliseOperationalBundleLegs(bundle = {}) {
+  return toArray(bundle?.legs?.leg || bundle?.legs)
+    .filter(Boolean)
+    .map(leg => ({
+      ...leg,
+      resources: {
+        resource: toArray(leg?.resources?.resource || leg?.resources)
+      },
+      linkedBookingIds: {
+        bookingId: toArray(leg?.linkedBookingIds?.bookingId || leg?.linkedBookingIds)
+      }
+    }));
+}
+
+function buildOperationalBundle(bookings, anchorBooking) {
+  const resources = readResourcesFromXML().map(formatResourceForResponse);
+  const resourceById = new Map(resources.map(resource => [String(resource.id || ""), resource]));
+  const active = bookings
+    .filter(booking => booking.status !== "Deleted" && booking.status !== "Cancelled")
+    .filter(booking => bookingRequiresDeployment(booking))
+    .sort((a, b) =>
+      `${a.startTime || ""} ${a.endTime || ""} ${a.location || ""}`
+        .localeCompare(`${b.startTime || ""} ${b.endTime || ""} ${b.location || ""}`)
+    );
+
+  const anchorId = String(anchorBooking["@_id"] || "");
+  const anchorStart = timeToMinutes(anchorBooking.startTime);
+  const HANDOVER_GAP_MINUTES = 30;
+  const resourceBookings = new Map();
+
+  active.forEach(booking => {
+    getAllocatedResourceIds(booking).forEach(resourceId => {
+      if (!resourceBookings.has(resourceId)) resourceBookings.set(resourceId, []);
+      resourceBookings.get(resourceId).push(booking);
+    });
+  });
+
+  const anchorResourceIds = getAllocatedResourceIds(anchorBooking);
+  const anchorPickupLocations = new Set();
+
+  anchorResourceIds.forEach(resourceId => {
+    const sequence = resourceBookings.get(resourceId) || [];
+    const anchorIndex = sequence.findIndex(booking => String(booking["@_id"]) === anchorId);
+    const resource = resourceById.get(resourceId) || {};
+    const home = getResourceHomeLocation(resource);
+
+    if (anchorIndex <= 0) {
+      anchorPickupLocations.add(home);
+      return;
+    }
+
+    const previous = sequence[anchorIndex - 1];
+    const previousEnd = timeToMinutes(previous.endTime);
+    const gap = previousEnd !== null && anchorStart !== null ? anchorStart - previousEnd : null;
+    anchorPickupLocations.add(
+      gap !== null && gap >= 0 && gap <= HANDOVER_GAP_MINUTES
+        ? String(previous.location || home)
+        : home
+    );
+  });
+
+  // Prefer a shared classroom pickup over the ICT Room when one exists.
+  const pickupLocation =
+    Array.from(anchorPickupLocations).find(location => location && location !== "ICT Room") ||
+    Array.from(anchorPickupLocations)[0] ||
+    "ICT Room";
+
+  const candidateResources = [];
+
+  resourceBookings.forEach((sequence, resourceId) => {
+    const resource = resourceById.get(resourceId) || {};
+    const homeLocation = getResourceHomeLocation(resource);
+
+    // Find the latest booking before the anchor start.
+    let previousIndex = -1;
+    sequence.forEach((booking, index) => {
+      const end = timeToMinutes(booking.endTime);
+      if (end !== null && anchorStart !== null && end <= anchorStart) previousIndex = index;
+    });
+
+    if (previousIndex < 0) {
+      // Include resources used by the anchor itself when collected from home.
+      if (anchorResourceIds.includes(resourceId) && pickupLocation === homeLocation) {
+        candidateResources.push({
+          resourceId,
+          resourceName: resource.name || resourceId,
+          category: normaliseResourceCategory(resource.category),
+          homeLocation,
+          previousBooking: null,
+          nextBooking: anchorBooking
+        });
+      }
+      return;
+    }
+
+    const previous = sequence[previousIndex];
+    if (String(previous.location || "") !== String(pickupLocation)) return;
+
+    const next = sequence[previousIndex + 1] || null;
+    candidateResources.push({
+      resourceId,
+      resourceName: resource.name || resourceId,
+      category: normaliseResourceCategory(resource.category),
+      homeLocation,
+      previousBooking: previous,
+      nextBooking: next
+    });
+  });
+
+  // Ensure all anchor resources are included.
+  anchorResourceIds.forEach(resourceId => {
+    if (candidateResources.some(item => item.resourceId === resourceId)) return;
+    const resource = resourceById.get(resourceId) || {};
+    candidateResources.push({
+      resourceId,
+      resourceName: resource.name || resourceId,
+      category: normaliseResourceCategory(resource.category),
+      homeLocation: getResourceHomeLocation(resource),
+      previousBooking: null,
+      nextBooking: anchorBooking
+    });
+  });
+
+  const grouped = new Map();
+
+  candidateResources.forEach(item => {
+    const next = item.nextBooking;
+    const previousEnd = item.previousBooking ? timeToMinutes(item.previousBooking.endTime) : null;
+    const nextStart = next ? timeToMinutes(next.startTime) : null;
+    const gap = previousEnd !== null && nextStart !== null ? nextStart - previousEnd : null;
+    const canDirectTransfer =
+      next &&
+      gap !== null &&
+      gap >= 0 &&
+      gap <= HANDOVER_GAP_MINUTES;
+
+    const type = canDirectTransfer ? "Deployment" : "Return";
+    const destination = canDirectTransfer
+      ? String(next.location || item.homeLocation)
+      : item.homeLocation;
+    const requiredTime = canDirectTransfer
+      ? String(next.startTime || anchorBooking.startTime || "")
+      : String(item.previousBooking?.endTime || anchorBooking.startTime || "");
+    const linkedBookingId = canDirectTransfer ? String(next["@_id"] || "") : "";
+    const containsDevice = item.category !== "Accessory";
+    const key = `${requiredTime}|${type}|${destination}`;
+
+    if (!grouped.has(key)) {
+      grouped.set(key, {
+        legId: `LEG-${grouped.size + 1}`,
+        destination,
+        type,
+        requiredTime,
+        status: "Pending",
+        containsDevice,
+        resources: { resource: [] },
+        linkedBookingIds: { bookingId: [] }
+      });
+    }
+
+    const leg = grouped.get(key);
+    leg.containsDevice = leg.containsDevice || containsDevice;
+    leg.resources.resource.push({
+      resourceId: item.resourceId,
+      resourceName: item.resourceName,
+      category: item.category
+    });
+    if (linkedBookingId && !leg.linkedBookingIds.bookingId.includes(linkedBookingId)) {
+      leg.linkedBookingIds.bookingId.push(linkedBookingId);
+    }
+  });
+
+  const legs = Array.from(grouped.values())
+    .sort((a, b) => {
+      const timeCompare = String(a.requiredTime).localeCompare(String(b.requiredTime));
+      if (timeCompare !== 0) return timeCompare;
+      const deviceCompare = Number(!a.containsDevice) - Number(!b.containsDevice);
+      if (deviceCompare !== 0) return deviceCompare;
+      const typeCompare = getMovementTypePriority(a.type) - getMovementTypePriority(b.type);
+      if (typeCompare !== 0) return typeCompare;
+      return String(a.destination).localeCompare(String(b.destination));
+    })
+    .map((leg, index) => ({
+      ...leg,
+      legId: `LEG-${index + 1}`,
+      routeOrder: index + 1
+    }));
+
+  return {
+    bundleId: `BUNDLE-${Date.now()}-${anchorId}`,
+    status: "Active",
+    anchorBookingId: anchorId,
+    pickupLocation,
+    claimedAt: new Date().toISOString(),
+    resourcesToCollect: {
+      resource: candidateResources.map(item => ({
+        resourceId: item.resourceId,
+        resourceName: item.resourceName,
+        category: item.category
+      }))
+    },
+    legs: { leg: legs }
+  };
+}
+
+function getBundleLinkedBookingIds(bundle = {}) {
+  return Array.from(new Set(
+    normaliseOperationalBundleLegs(bundle)
+      .flatMap(leg => toArray(leg.linkedBookingIds?.bookingId))
+      .map(String)
+      .filter(Boolean)
+  ));
+}
+
+function findActiveOperationalBundleBooking(bookings, userId) {
+  return bookings.find(booking =>
+    String(booking.claimedByUserId || "") === String(userId || "") &&
+    String(booking.operationalBundle?.status || "") === "Active"
+  );
+}
+
 function formatDeploymentBookingForResponse(booking, users, provenanceByBookingId = new Map()) {
   const requesterName = getUserDisplayNameById(users, booking.userId) || "Requester";
   const claimedByName = booking.claimedByName || getUserDisplayNameById(users, booking.claimedByUserId);
@@ -1264,7 +1494,21 @@ function formatDeploymentBookingForResponse(booking, users, provenanceByBookingI
     pickupLocationSummary: pickupLocations.length ? pickupLocations.join(" + ") : "ICT Room",
     destinationLocation: String(booking.location || ""),
     multiplePickupLocations: pickupLocations.length > 1,
-    movementComplexity: pickupLocations.length > 1 ? "Multiple pickup locations" : "Single pickup location"
+    movementComplexity: pickupLocations.length > 1 ? "Multiple pickup locations" : "Single pickup location",
+    operationalBundle: booking.operationalBundle
+      ? {
+          ...booking.operationalBundle,
+          resourcesToCollect: {
+            resource: toArray(
+              booking.operationalBundle?.resourcesToCollect?.resource ||
+              booking.operationalBundle?.resourcesToCollect
+            )
+          },
+          legs: {
+            leg: normaliseOperationalBundleLegs(booking.operationalBundle)
+          }
+        }
+      : null
   };
 }
 
@@ -4058,34 +4302,82 @@ app.put("/api/de/bookings/:bookingId/claim", requireLogin, requireDEOrAdmin, (re
   try {
     const bookingId = req.params.bookingId;
     const bookingDate = req.body.bookingDate || req.query.date;
+    const bookingsFile = getDateBookingsFile(bookingDate);
+    const bookings = readBookingsFromFile(bookingsFile);
+    const booking = findBookingById(bookings, bookingId);
 
-    const updatedBooking = updateDeploymentBooking(bookingDate, bookingId, booking => {
-      const currentStatus = normaliseDeploymentStatus(booking);
+    if (!booking) {
+      return res.status(404).json({ success: false, message: "Booking not found." });
+    }
 
-      if (currentStatus !== "Pending Deployment") {
-        const error = new Error("This job is no longer pending and cannot be claimed.");
+    const existingBundle = findActiveOperationalBundleBooking(bookings, req.session.user.userId);
+    if (existingBundle) {
+      return res.status(409).json({
+        success: false,
+        message: "Complete or release your current operational job before claiming another."
+      });
+    }
+
+    if (normaliseDeploymentStatus(booking) !== "Pending Deployment") {
+      return res.status(409).json({
+        success: false,
+        message: "This job is no longer pending and cannot be claimed."
+      });
+    }
+
+    const bundle = buildOperationalBundle(bookings, booking);
+    const linkedBookingIds = getBundleLinkedBookingIds(bundle);
+    const now = new Date().toISOString();
+
+    linkedBookingIds.forEach(linkedId => {
+      const linkedBooking = findBookingById(bookings, linkedId);
+      if (!linkedBooking) return;
+
+      const linkedStatus = normaliseDeploymentStatus(linkedBooking);
+      const claimedByOther =
+        linkedStatus === "Claimed" &&
+        String(linkedBooking.claimedByUserId || "") !== String(req.session.user.userId);
+
+      if (claimedByOther || !["Pending Deployment", "Claimed"].includes(linkedStatus)) {
+        const error = new Error("Part of this operational route is no longer available to claim.");
         error.statusCode = 409;
         throw error;
       }
-
-      booking.deploymentStatus = "Claimed";
-      booking.claimedByUserId = req.session.user.userId;
-      booking.claimedByName = req.session.user.name;
-      booking.claimedAt = new Date().toISOString();
-      booking.deployedByUserId = "";
-      booking.deployedByName = "";
-      booking.deployedAt = "";
-      booking.deploymentRemarks = booking.deploymentRemarks || "";
     });
 
+    linkedBookingIds.forEach(linkedId => {
+      const linkedBooking = findBookingById(bookings, linkedId);
+      if (!linkedBooking) return;
+      linkedBooking.deploymentStatus = "Claimed";
+      linkedBooking.claimedByUserId = req.session.user.userId;
+      linkedBooking.claimedByName = req.session.user.name;
+      linkedBooking.claimedAt = linkedBooking.claimedAt || now;
+    });
+
+    booking.deploymentStatus = "Claimed";
+    booking.claimedByUserId = req.session.user.userId;
+    booking.claimedByName = req.session.user.name;
+    booking.claimedAt = now;
+    booking.operationalBundle = bundle;
+    booking.deployedByUserId = "";
+    booking.deployedByName = "";
+    booking.deployedAt = "";
+    booking.deploymentRemarks = booking.deploymentRemarks || "";
+
+    writeBookingsToFile(bookingsFile, bookings);
+
+    const provenance = buildDeploymentProvenance(bookings);
     res.json({
       success: true,
-      message: "Deployment job claimed.",
-      booking: formatDeploymentBookingForResponse(updatedBooking, getUsersFromXML())
+      message: `Operational route claimed with ${normaliseOperationalBundleLegs(bundle).length} stop(s).`,
+      booking: formatDeploymentBookingForResponse(
+        booking,
+        getUsersFromXML(),
+        provenance
+      )
     });
   } catch (error) {
     console.error("DE claim job error:", error);
-
     res.status(error.statusCode || 500).json({
       success: false,
       message: error.message
@@ -4097,38 +4389,147 @@ app.put("/api/de/bookings/:bookingId/release", requireLogin, requireDEOrAdmin, (
   try {
     const bookingId = req.params.bookingId;
     const bookingDate = req.body.bookingDate || req.query.date;
+    const bookingsFile = getDateBookingsFile(bookingDate);
+    const bookings = readBookingsFromFile(bookingsFile);
+    const booking = findBookingById(bookings, bookingId);
 
-    const updatedBooking = updateDeploymentBooking(bookingDate, bookingId, booking => {
-      const currentStatus = normaliseDeploymentStatus(booking);
-      const isClaimant = String(booking.claimedByUserId || "") === String(req.session.user.userId);
-      const isAdmin = req.session.user.role === "Admin";
+    if (!booking) {
+      return res.status(404).json({ success: false, message: "Booking not found." });
+    }
 
-      if (currentStatus !== "Claimed") {
-        const error = new Error("Only claimed jobs can be released.");
-        error.statusCode = 409;
-        throw error;
+    const isClaimant = String(booking.claimedByUserId || "") === String(req.session.user.userId);
+    const isAdmin = req.session.user.role === "Admin";
+    if (!isClaimant && !isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: "Only the claimant or an Admin can release this job."
+      });
+    }
+
+    const linkedIds = booking.operationalBundle
+      ? getBundleLinkedBookingIds(booking.operationalBundle)
+      : [String(bookingId)];
+
+    linkedIds.forEach(linkedId => {
+      const linked = findBookingById(bookings, linkedId);
+      if (!linked) return;
+      if (normaliseDeploymentStatus(linked) === "Claimed") {
+        linked.deploymentStatus = "Pending Deployment";
+        linked.claimedByUserId = "";
+        linked.claimedByName = "";
+        linked.claimedAt = "";
       }
-
-      if (!isClaimant && !isAdmin) {
-        const error = new Error("Only the claimant or an Admin can release this job.");
-        error.statusCode = 403;
-        throw error;
-      }
-
-      booking.deploymentStatus = "Pending Deployment";
-      booking.claimedByUserId = "";
-      booking.claimedByName = "";
-      booking.claimedAt = "";
     });
+
+    booking.deploymentStatus = "Pending Deployment";
+    booking.claimedByUserId = "";
+    booking.claimedByName = "";
+    booking.claimedAt = "";
+    delete booking.operationalBundle;
+
+    writeBookingsToFile(bookingsFile, bookings);
 
     res.json({
       success: true,
-      message: "Deployment job released.",
-      booking: formatDeploymentBookingForResponse(updatedBooking, getUsersFromXML())
+      message: "Operational route released.",
+      booking: formatDeploymentBookingForResponse(booking, getUsersFromXML())
     });
   } catch (error) {
     console.error("DE release job error:", error);
+    res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
 
+app.put("/api/de/bookings/:bookingId/bundle-legs/:legId/complete", requireLogin, requireDEOrAdmin, (req, res) => {
+  try {
+    const bookingId = req.params.bookingId;
+    const legId = req.params.legId;
+    const bookingDate = req.body.bookingDate || req.query.date;
+    const remarks = String(req.body.remarks || "").trim();
+    const bookingsFile = getDateBookingsFile(bookingDate);
+    const bookings = readBookingsFromFile(bookingsFile);
+    const anchorBooking = findBookingById(bookings, bookingId);
+
+    if (!anchorBooking || !anchorBooking.operationalBundle) {
+      return res.status(404).json({
+        success: false,
+        message: "Active operational route not found."
+      });
+    }
+
+    const isClaimant =
+      String(anchorBooking.claimedByUserId || "") === String(req.session.user.userId);
+    const isAdmin = req.session.user.role === "Admin";
+    if (!isClaimant && !isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: "Only the claimant or an Admin can complete this route stop."
+      });
+    }
+
+    const legs = normaliseOperationalBundleLegs(anchorBooking.operationalBundle);
+    const leg = legs.find(item => String(item.legId) === String(legId));
+    if (!leg) {
+      return res.status(404).json({ success: false, message: "Route stop not found." });
+    }
+
+    if (leg.status === "Completed") {
+      return res.json({
+        success: true,
+        message: "This route stop was already completed.",
+        booking: formatDeploymentBookingForResponse(anchorBooking, getUsersFromXML())
+      });
+    }
+
+    leg.status = "Completed";
+    leg.completedAt = new Date().toISOString();
+    leg.completedByUserId = req.session.user.userId;
+    leg.completedByName = req.session.user.name;
+    leg.remarks = remarks;
+
+    if (leg.type === "Deployment") {
+      toArray(leg.linkedBookingIds?.bookingId).forEach(linkedId => {
+        const linked = findBookingById(bookings, linkedId);
+        if (!linked) return;
+        linked.deploymentStatus = "Deployed";
+        linked.deployedByUserId = req.session.user.userId;
+        linked.deployedByName = req.session.user.name;
+        linked.deployedAt = new Date().toISOString();
+        linked.deploymentRemarks = remarks;
+      });
+    }
+
+    anchorBooking.operationalBundle.legs = { leg: legs };
+
+    const allCompleted = legs.every(item => item.status === "Completed");
+    if (allCompleted) {
+      anchorBooking.operationalBundle.status = "Completed";
+      anchorBooking.operationalBundle.completedAt = new Date().toISOString();
+      anchorBooking.deploymentStatus = "Deployed";
+      anchorBooking.deployedByUserId = req.session.user.userId;
+      anchorBooking.deployedByName = req.session.user.name;
+      anchorBooking.deployedAt = new Date().toISOString();
+    }
+
+    writeBookingsToFile(bookingsFile, bookings);
+
+    const provenance = buildDeploymentProvenance(bookings);
+    res.json({
+      success: true,
+      message: allCompleted
+        ? "Operational route completed."
+        : `Stop ${leg.routeOrder} marked complete.`,
+      booking: formatDeploymentBookingForResponse(
+        anchorBooking,
+        getUsersFromXML(),
+        provenance
+      )
+    });
+  } catch (error) {
+    console.error("DE complete route stop error:", error);
     res.status(error.statusCode || 500).json({
       success: false,
       message: error.message
