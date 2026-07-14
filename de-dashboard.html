@@ -1497,6 +1497,9 @@
       }
     }
 
+    /* DE Dashboard R2.2 HF1 — Floating Operations Drawers */
+    body.drawer-open{overflow:hidden}.floating-drawer-tabs{position:fixed;right:0;top:42%;z-index:85;display:grid;gap:8px;transform:translateY(-50%)}.floating-drawer-tab{width:46px;min-height:126px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:9px 6px;border:1px solid #99f6e4;border-right:0;border-radius:15px 0 0 15px;background:#fff;color:var(--primary-dark);box-shadow:-8px 12px 24px rgba(15,23,42,.13);cursor:pointer;font-weight:900}.floating-drawer-tab span:last-child{writing-mode:vertical-rl;transform:rotate(180deg);font-size:.72rem;letter-spacing:.04em;text-transform:uppercase}.floating-tab-icon{font-size:1.1rem}.floating-drawer-tab[aria-expanded=true]{background:var(--primary);color:#fff}.drawer-overlay{position:fixed;inset:0;z-index:90;background:rgba(15,23,42,.38);opacity:0;transition:opacity .22s}.drawer-overlay.open{opacity:1}.drawer-overlay[hidden],.side-drawer[hidden]{display:none!important}.side-drawer{position:fixed;top:0;right:0;z-index:95;width:min(440px,92vw);height:100dvh;display:grid;grid-template-rows:auto minmax(0,1fr);border-left:1px solid var(--border);background:#fff;box-shadow:-22px 0 50px rgba(15,23,42,.2);transform:translateX(100%);transition:transform .22s}.side-drawer.open{transform:translateX(0)}.side-drawer-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px;border-bottom:1px solid var(--border);background:linear-gradient(135deg,#ecfeff,#fff)}.side-drawer-header span{color:var(--primary-dark);font-size:.7rem;font-weight:900;text-transform:uppercase}.side-drawer-header h2{margin:3px 0 0;font-size:1.15rem}.side-drawer-body{min-height:0;overflow:auto;padding:14px;background:#f8fafc}.drawer-section,.drawer-disclosure{border:1px solid var(--border);border-radius:15px;background:#fff}.drawer-section{padding:12px}.drawer-disclosure{margin-top:10px;overflow:hidden}.drawer-disclosure>summary{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px;cursor:pointer;font-weight:900;list-style:none}.drawer-disclosure>summary::-webkit-details-marker{display:none}.drawer-disclosure[open]>summary{border-bottom:1px solid var(--border)}.drawer-timeline{padding:12px}.drawer-resource-status-list{display:grid;gap:7px;padding:10px}.drawer-resource-status-item{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;color:inherit;text-align:left;cursor:pointer}.drawer-resource-status-item strong,.drawer-resource-status-item small{display:block}.drawer-resource-status-item small{margin-top:3px;color:var(--muted);font-size:.74rem}.drawer-search-wrap{display:grid;gap:7px;margin-bottom:12px}.journey-detail-heading{margin:14px 0 10px}.journey-detail-heading span{color:var(--muted);font-size:.7rem;font-weight:900;text-transform:uppercase}.journey-detail-heading h3{margin:3px 0 0}.journey-detail-body{max-height:none;padding:0;overflow:visible;background:transparent}.side-drawer .operations-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.side-drawer .timeline-event{grid-template-columns:48px 16px minmax(0,1fr)}@media(max-width:640px){.floating-drawer-tabs{top:auto;bottom:96px;transform:none}.floating-drawer-tab{width:42px;min-height:112px}.side-drawer{width:min(92vw,440px)}.side-drawer-header{padding:13px}.side-drawer-body{padding:11px}}
+
   </style>
 </head>
 <body>
@@ -1585,36 +1588,6 @@
 
       <section id="currentJobWorkspace" class="current-job-workspace" hidden aria-live="polite"></section>
 
-      <section class="operations-overview" aria-label="Daily operational overview">
-        <div class="operations-overview-header">
-          <div>
-            <h2>Daily Operations</h2>
-            <p>Chronological resource movements based on the selected booking date.</p>
-          </div>
-          <button id="toggleJourneyPanelBtn" class="btn btn-secondary" type="button">Resource Journeys</button>
-        </div>
-
-        <div id="operationsSummary" class="operations-summary"></div>
-
-        <div class="operations-layout">
-          <section class="timeline-panel">
-            <div class="section-heading">
-              <h3>Operational Timeline</h3>
-              <span id="timelineDateLabel"></span>
-            </div>
-            <div id="operationalTimeline" class="operational-timeline"></div>
-          </section>
-
-          <section id="resourceJourneyPanel" class="resource-journey-panel">
-            <div class="section-heading">
-              <h3>Resource Journeys</h3>
-              <span>Expected locations</span>
-            </div>
-            <div id="resourceJourneyList" class="resource-journey-list"></div>
-          </section>
-        </div>
-      </section>
-
       <div class="job-tabs" role="tablist" aria-label="Deployment job categories">
         <button class="job-tab active" type="button" role="tab" aria-selected="true" data-job-tab="Active">
           Active <span id="activeCount" class="count-pill">0</span>
@@ -1682,19 +1655,28 @@
       </div>
     </section>
   </main>
-
-  <dialog id="resourceJourneyDialog" class="journey-dialog">
-    <div class="journey-dialog-header">
-      <div>
-        <span>Resource journey</span>
-        <h2 id="journeyDialogTitle">Resource</h2>
-      </div>
-      <button id="closeJourneyDialogBtn" class="btn btn-secondary" type="button">Close</button>
+  <div id="drawerOverlay" class="drawer-overlay" hidden></div>
+  <div class="floating-drawer-tabs" aria-label="Operational information drawers">
+    <button id="operationsDrawerTab" class="floating-drawer-tab" type="button" aria-expanded="false" aria-controls="operationsDrawer"><span class="floating-tab-icon">☷</span><span>Operations</span></button>
+    <button id="journeysDrawerTab" class="floating-drawer-tab" type="button" aria-expanded="false" aria-controls="journeysDrawer"><span class="floating-tab-icon">↝</span><span>Journeys</span></button>
+  </div>
+  <aside id="operationsDrawer" class="side-drawer" role="dialog" aria-modal="true" aria-labelledby="operationsDrawerTitle" hidden>
+    <div class="side-drawer-header"><div><span>Operations Centre</span><h2 id="operationsDrawerTitle">Daily Operations</h2></div><button id="closeOperationsDrawerBtn" class="btn btn-secondary" type="button">Close</button></div>
+    <div class="side-drawer-body">
+      <section class="drawer-section"><div class="section-heading"><h3>Today's Summary</h3><span id="operationsSummaryDate"></span></div><div id="operationsSummary" class="operations-summary"></div></section>
+      <details class="drawer-disclosure" open><summary><span>Operational Timeline</span><small id="timelineDateLabel"></small></summary><div id="operationalTimeline" class="operational-timeline drawer-timeline"></div></details>
+      <details class="drawer-disclosure"><summary><span>Overdue Resources</span><small id="overdueResourceCount">0</small></summary><div id="overdueResourceList" class="drawer-resource-status-list"></div></details>
+      <details class="drawer-disclosure"><summary><span>Awaiting Return</span><small id="awaitingReturnCount">0</small></summary><div id="awaitingReturnList" class="drawer-resource-status-list"></div></details>
     </div>
-    <div id="journeyDialogBody" class="journey-dialog-body"></div>
-  </dialog>
-
-  <script src="portalNavigation.js"></script>
+  </aside>
+  <aside id="journeysDrawer" class="side-drawer" role="dialog" aria-modal="true" aria-labelledby="journeysDrawerTitle" hidden>
+    <div class="side-drawer-header"><div><span>Resource Journeys</span><h2 id="journeysDrawerTitle">Expected Locations</h2></div><button id="closeJourneysDrawerBtn" class="btn btn-secondary" type="button">Close</button></div>
+    <div class="side-drawer-body">
+      <div id="journeyListView"><div class="drawer-search-wrap"><label for="journeySearchInput">Find a resource</label><input id="journeySearchInput" type="search" placeholder="Search by resource name or location" /></div><div id="resourceJourneyList" class="resource-journey-list"></div></div>
+      <div id="journeyDetailView" hidden><button id="backToJourneyListBtn" class="btn btn-secondary" type="button">← All resources</button><div class="journey-detail-heading"><span>Resource journey</span><h3 id="journeyDialogTitle">Resource</h3></div><div id="journeyDialogBody" class="journey-dialog-body journey-detail-body"></div></div>
+    </div>
+  </aside>
+<script src="portalNavigation.js"></script>
   <script>
 
     
@@ -1707,13 +1689,25 @@
     const operationsSummary = document.getElementById('operationsSummary');
     const operationalTimeline = document.getElementById('operationalTimeline');
     const timelineDateLabel = document.getElementById('timelineDateLabel');
-    const resourceJourneyPanel = document.getElementById('resourceJourneyPanel');
+    const operationsSummaryDate = document.getElementById('operationsSummaryDate');
     const resourceJourneyList = document.getElementById('resourceJourneyList');
-    const toggleJourneyPanelBtn = document.getElementById('toggleJourneyPanelBtn');
-    const resourceJourneyDialog = document.getElementById('resourceJourneyDialog');
+    const drawerOverlay = document.getElementById('drawerOverlay');
+    const operationsDrawerTab = document.getElementById('operationsDrawerTab');
+    const journeysDrawerTab = document.getElementById('journeysDrawerTab');
+    const operationsDrawer = document.getElementById('operationsDrawer');
+    const journeysDrawer = document.getElementById('journeysDrawer');
+    const closeOperationsDrawerBtn = document.getElementById('closeOperationsDrawerBtn');
+    const closeJourneysDrawerBtn = document.getElementById('closeJourneysDrawerBtn');
+    const journeySearchInput = document.getElementById('journeySearchInput');
+    const journeyListView = document.getElementById('journeyListView');
+    const journeyDetailView = document.getElementById('journeyDetailView');
+    const backToJourneyListBtn = document.getElementById('backToJourneyListBtn');
     const journeyDialogTitle = document.getElementById('journeyDialogTitle');
     const journeyDialogBody = document.getElementById('journeyDialogBody');
-    const closeJourneyDialogBtn = document.getElementById('closeJourneyDialogBtn');
+    const overdueResourceList = document.getElementById('overdueResourceList');
+    const awaitingReturnList = document.getElementById('awaitingReturnList');
+    const overdueResourceCount = document.getElementById('overdueResourceCount');
+    const awaitingReturnCount = document.getElementById('awaitingReturnCount');
     const lanes = {
       'Pending Deployment': document.getElementById('pendingLane'),
       'Claimed': document.getElementById('claimedLane'),
@@ -1738,6 +1732,8 @@
     let latestOperationalTimeline = [];
     let latestResourceJourneys = [];
     let latestOperationalSummary = {};
+    let activeDrawer = null;
+    let lastDrawerTrigger = null;
 
     function parseLocalDate(dateString) {
       const [year, month, day] = dateString.split('-').map(Number);
@@ -2126,6 +2122,7 @@ return currentUser;
 
     function renderOperationalTimeline(events = []) {
       timelineDateLabel.textContent = deploymentDate.value || '';
+      operationsSummaryDate.textContent = deploymentDate.value || '';
 
       if (!events.length) {
         operationalTimeline.innerHTML =
@@ -2196,40 +2193,45 @@ return currentUser;
       `).join('');
     }
 
-    function openResourceJourney(resourceId) {
-      const journey = latestResourceJourneys.find(
-        item => String(item.resourceId) === String(resourceId)
-      );
-      if (!journey) return;
-
-      journeyDialogTitle.textContent = journey.resourceName || journey.resourceId;
-      journeyDialogBody.innerHTML = `
-        <div class="journey-current-location">
-          <span>Current expected location</span>
-          <strong>${escapeHtml(journey.currentExpectedLocation || journey.homeLocation || 'ICT Room')}</strong>
+    function renderJourneyStatusList(target, journeys, emptyMessage) {
+      target.innerHTML = journeys.length ? journeys.map(journey => `
+        <button type="button" class="drawer-resource-status-item" data-resource-journey="${escapeHtml(journey.resourceId)}">
+          <span><strong>${escapeHtml(journey.resourceName)}</strong><small>${escapeHtml(journey.currentExpectedLocation || journey.homeLocation || 'ICT Room')}</small></span>
           <span class="operational-badge ${getStatusClass(journey.operationalStatus)}">${escapeHtml(journey.operationalStatus)}</span>
-        </div>
-        <div class="journey-step-list">
-          ${(Array.isArray(journey.steps) ? journey.steps : []).map((step, index) => `
-            <div class="journey-step ${getStatusClass(step.status)}">
-              <span class="journey-step-number">${index === 0 ? 'H' : index}</span>
-              <div>
-                <small>${escapeHtml(step.time || 'Start')} · ${escapeHtml(step.type || 'Ready')}</small>
-                <strong>${escapeHtml(step.fromLocation ? `${step.fromLocation} → ${step.location}` : step.location || '-')}</strong>
-                ${step.note ? `<p>${escapeHtml(step.note)}</p>` : ''}
-              </div>
-              <span class="operational-badge ${getStatusClass(step.status)}">${escapeHtml(step.status || '')}</span>
-            </div>
-          `).join('')}
-        </div>
-      `;
-
-      if (typeof resourceJourneyDialog.showModal === 'function') {
-        resourceJourneyDialog.showModal();
-      } else {
-        resourceJourneyDialog.setAttribute('open', '');
-      }
+        </button>`).join('') : `<div class="empty-state">${escapeHtml(emptyMessage)}</div>`;
     }
+
+    function renderOperationsStatusGroups() {
+      const overdue = latestResourceJourneys.filter(j => j.operationalStatus === 'Overdue');
+      const awaiting = latestResourceJourneys.filter(j => j.operationalStatus === 'Awaiting Return');
+      overdueResourceCount.textContent = overdue.length; awaitingReturnCount.textContent = awaiting.length;
+      renderJourneyStatusList(overdueResourceList, overdue, 'No overdue resources.');
+      renderJourneyStatusList(awaitingReturnList, awaiting, 'No resources awaiting return.');
+    }
+
+    function setJourneyListFilter(value = '') {
+      const q = String(value).trim().toLowerCase();
+      const filtered = !q ? latestResourceJourneys : latestResourceJourneys.filter(j => [j.resourceName,j.resourceId,j.currentExpectedLocation,j.homeLocation,j.operationalStatus,j.nextStep?.location].join(' ').toLowerCase().includes(q));
+      renderResourceJourneys(filtered);
+    }
+
+    function openResourceJourney(resourceId) {
+      const journey = latestResourceJourneys.find(item => String(item.resourceId) === String(resourceId));
+      if (!journey) return;
+      if (activeDrawer !== 'journeys') openDrawer('journeys', journeysDrawerTab);
+      journeyListView.hidden = true; journeyDetailView.hidden = false;
+      journeyDialogTitle.textContent = journey.resourceName || journey.resourceId;
+      journeyDialogBody.innerHTML = `<div class="journey-current-location"><span>Current expected location</span><strong>${escapeHtml(journey.currentExpectedLocation || journey.homeLocation || 'ICT Room')}</strong><span class="operational-badge ${getStatusClass(journey.operationalStatus)}">${escapeHtml(journey.operationalStatus)}</span></div><div class="journey-step-list">${(journey.steps || []).map((step,index)=>`<div class="journey-step ${getStatusClass(step.status)}"><span class="journey-step-number">${index===0?'H':index}</span><div><small>${escapeHtml(step.time || 'Start')} · ${escapeHtml(step.type || 'Ready')}</small><strong>${escapeHtml(step.fromLocation ? `${step.fromLocation} → ${step.location}` : step.location || '-')}</strong>${step.note?`<p>${escapeHtml(step.note)}</p>`:''}</div><span class="operational-badge ${getStatusClass(step.status)}">${escapeHtml(step.status || '')}</span></div>`).join('')}</div>`;
+    }
+
+    function resetJourneyDrawerView() { journeyDetailView.hidden = true; journeyListView.hidden = false; setJourneyListFilter(journeySearchInput.value); }
+    function getDrawerElements(name) { return name === 'operations' ? {drawer:operationsDrawer,trigger:operationsDrawerTab} : {drawer:journeysDrawer,trigger:journeysDrawerTab}; }
+    function openDrawer(name, trigger) {
+      if (activeDrawer === name) return closeDrawer();
+      if (activeDrawer) closeDrawer({restoreFocus:false});
+      const x=getDrawerElements(name); activeDrawer=name; lastDrawerTrigger=trigger||x.trigger; x.drawer.hidden=false; drawerOverlay.hidden=false; document.body.classList.add('drawer-open'); x.trigger.setAttribute('aria-expanded','true'); if(name==='journeys') resetJourneyDrawerView(); requestAnimationFrame(()=>{x.drawer.classList.add('open');drawerOverlay.classList.add('open')}); setTimeout(()=>x.drawer.querySelector('button,input')?.focus(),80);
+    }
+    function closeDrawer({restoreFocus=true}={}) { if(!activeDrawer)return; const x=getDrawerElements(activeDrawer), f=lastDrawerTrigger||x.trigger; x.drawer.classList.remove('open');drawerOverlay.classList.remove('open');x.trigger.setAttribute('aria-expanded','false');document.body.classList.remove('drawer-open');setTimeout(()=>{x.drawer.hidden=true;drawerOverlay.hidden=true},220);activeDrawer=null;lastDrawerTrigger=null;if(restoreFocus)setTimeout(()=>f?.focus(),230); }
 
     function renderBookings(bookings) {
       latestBookings = Array.isArray(bookings) ? bookings : [];
@@ -2313,6 +2315,7 @@ return currentUser;
       renderOperationsSummary(latestOperationalSummary);
       renderOperationalTimeline(latestOperationalTimeline);
       renderResourceJourneys(latestResourceJourneys);
+      renderOperationsStatusGroups();
       renderBookings(result.bookings || []);
       lastUpdated.textContent = `Last updated: ${new Date().toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
     }
@@ -2432,26 +2435,15 @@ return currentUser;
       });
     });
 
-    toggleJourneyPanelBtn.addEventListener('click', () => {
-      resourceJourneyPanel.classList.toggle('journey-panel-collapsed');
-      toggleJourneyPanelBtn.textContent = resourceJourneyPanel.classList.contains('journey-panel-collapsed')
-        ? 'Show Resource Journeys'
-        : 'Hide Resource Journeys';
-    });
-
-    document.addEventListener('click', event => {
-      const trigger = event.target.closest('[data-resource-journey]');
-      if (!trigger) return;
-      openResourceJourney(trigger.dataset.resourceJourney);
-    });
-
-    closeJourneyDialogBtn.addEventListener('click', () => {
-      if (typeof resourceJourneyDialog.close === 'function') {
-        resourceJourneyDialog.close();
-      } else {
-        resourceJourneyDialog.removeAttribute('open');
-      }
-    });
+    operationsDrawerTab.addEventListener('click', () => openDrawer('operations', operationsDrawerTab));
+    journeysDrawerTab.addEventListener('click', () => openDrawer('journeys', journeysDrawerTab));
+    closeOperationsDrawerBtn.addEventListener('click', () => closeDrawer());
+    closeJourneysDrawerBtn.addEventListener('click', () => closeDrawer());
+    drawerOverlay.addEventListener('click', () => closeDrawer());
+    journeySearchInput.addEventListener('input', () => setJourneyListFilter(journeySearchInput.value));
+    backToJourneyListBtn.addEventListener('click', resetJourneyDrawerView);
+    document.addEventListener('click', event => { const trigger=event.target.closest('[data-resource-journey]'); if(trigger) openResourceJourney(trigger.dataset.resourceJourney); });
+    document.addEventListener('keydown', event => { if(event.key==='Escape' && activeDrawer) closeDrawer(); });
 
     document.getElementById('todayBtn').addEventListener('click', async () => {
       deploymentDate.value = formatLocalDateForInput(new Date());
