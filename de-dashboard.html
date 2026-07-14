@@ -803,6 +803,38 @@
       }
     }
 
+
+    /* DE Dashboard R2.0 Cycle 1 — Provenance and Active Job Workspace */
+    .current-job-workspace { position: sticky; top: 10px; z-index: 35; margin: 18px 24px 0; padding: 16px; border: 2px solid #14b8a6; border-radius: 20px; background: linear-gradient(135deg, #ecfeff, #ffffff); box-shadow: 0 18px 42px rgba(15, 118, 110, 0.18); }
+    .current-job-workspace[hidden] { display: none !important; }
+    .current-job-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+    .current-job-heading span { display:block; color:var(--primary-dark); font-size:.72rem; font-weight:900; text-transform:uppercase; letter-spacing:.06em; }
+    .current-job-heading h2 { margin:2px 0 0; font-size:1.15rem; }
+    .current-job-time { padding:8px 10px; border-radius:12px; background:var(--primary); color:#fff; font-weight:900; white-space:nowrap; }
+    .route-panel { display:grid; grid-template-columns:minmax(0,1fr) 34px minmax(0,1fr); gap:10px; align-items:stretch; }
+    .route-stop { padding:12px; border:1px solid #cbd5e1; border-radius:15px; background:#fff; }
+    .route-stop span { display:block; color:var(--muted); font-size:.7rem; font-weight:900; text-transform:uppercase; letter-spacing:.04em; }
+    .route-stop strong { display:block; margin-top:5px; color:#0f172a; font-size:1.02rem; overflow-wrap:anywhere; }
+    .route-arrow { display:flex; align-items:center; justify-content:center; color:var(--primary); font-size:1.5rem; font-weight:900; }
+    .current-job-resource-list { display:grid; gap:7px; margin-top:12px; }
+    .current-job-resource { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; align-items:center; padding:9px 11px; border-radius:12px; background:#f8fafc; border:1px solid #e2e8f0; font-size:.84rem; }
+    .current-job-resource small { color:var(--muted); font-weight:800; }
+    .current-job-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+    .movement-strip { display:grid; grid-template-columns:minmax(0,1fr) 26px minmax(0,1fr); gap:8px; align-items:center; margin:10px 0 12px; padding:10px; border:1px solid #bae6fd; border-radius:14px; background:#f0f9ff; }
+    .movement-stop span { display:block; color:#64748b; font-size:.68rem; font-weight:900; text-transform:uppercase; }
+    .movement-stop strong { display:block; margin-top:3px; color:#0f172a; overflow-wrap:anywhere; }
+    .movement-arrow { text-align:center; color:var(--primary); font-weight:900; font-size:1.15rem; }
+    .multi-pickup-warning { margin:0 0 10px; padding:9px 10px; border-radius:11px; background:#fff7ed; color:#9a3412; font-size:.8rem; font-weight:900; }
+    .claimed-by-other { opacity:.72; }
+    @media (max-width:640px) {
+      .current-job-workspace { top:6px; margin:12px 12px 0; padding:13px; }
+      .current-job-heading { align-items:flex-start; }
+      .route-panel { grid-template-columns:1fr; }
+      .route-arrow { transform:rotate(90deg); min-height:20px; }
+      .current-job-resource { grid-template-columns:1fr; }
+      .dashboard-grid { padding-top:14px; }
+    }
+
   </style>
 </head>
 <body>
@@ -889,6 +921,8 @@
 
       <div id="statusMessage" class="status" role="status" aria-live="polite"></div>
 
+      <section id="currentJobWorkspace" class="current-job-workspace" hidden aria-live="polite"></section>
+
       <div class="dashboard-grid">
         <section class="lane">
           <div class="lane-header"><h2>Pending Deployment</h2><span id="pendingCount" class="count-pill">0</span></div>
@@ -922,6 +956,7 @@
     const deploymentDate = document.getElementById('deploymentDate');
     const statusMessage = document.getElementById('statusMessage');
     const lastUpdated = document.getElementById('lastUpdated');
+    const currentJobWorkspace = document.getElementById('currentJobWorkspace');
     const lanes = {
       'Pending Deployment': document.getElementById('pendingLane'),
       'Claimed': document.getElementById('claimedLane'),
@@ -937,6 +972,7 @@
 
     let currentUser = null;
     let refreshTimer = null;
+    let latestBookings = [];
 
     function parseLocalDate(dateString) {
       const [year, month, day] = dateString.split('-').map(Number);
@@ -1041,6 +1077,32 @@ return currentUser;
       }[char]));
     }
 
+    function getResourceMovements(booking) {
+      return Array.isArray(booking.resourceMovements) ? booking.resourceMovements : [];
+    }
+
+    function renderMovementStrip(booking) {
+      const pickup = booking.pickupLocationSummary || 'ICT Room';
+      const destination = booking.destinationLocation || booking.location || '-';
+      const warning = booking.multiplePickupLocations
+        ? `<div class="multi-pickup-warning">Extra legwork: resources must be collected from ${escapeHtml((booking.pickupLocations || []).join(' and '))}.</div>`
+        : '';
+      return `${warning}<div class="movement-strip"><div class="movement-stop"><span>Collect from</span><strong>${escapeHtml(pickup)}</strong></div><div class="movement-arrow" aria-hidden="true">→</div><div class="movement-stop"><span>Deliver to</span><strong>${escapeHtml(destination)}</strong></div></div>`;
+    }
+
+    function renderCurrentJob(bookings) {
+      const claimedByMe = bookings
+        .filter(booking => (booking.deploymentStatus || 'Pending Deployment') === 'Claimed')
+        .filter(booking => String(booking.claimedByUserId || '') === String(currentUser.userId))
+        .sort((a,b) => `${a.startTime || ''} ${a.location || ''}`.localeCompare(`${b.startTime || ''} ${b.location || ''}`));
+      const active = claimedByMe[0];
+      if (!active) { currentJobWorkspace.hidden = true; currentJobWorkspace.innerHTML = ''; return; }
+      const movements = getResourceMovements(active);
+      const resourcesHtml = movements.length ? movements.map(item => `<div class="current-job-resource"><strong>${escapeHtml(item.resourceName || item.resourceId)}</strong><small>Collect from ${escapeHtml(item.pickupLocation || 'ICT Room')}</small></div>`).join('') : `<div class="current-job-resource"><strong>${escapeHtml(getResourceList(active))}</strong><small>Collect from ${escapeHtml(active.pickupLocationSummary || 'ICT Room')}</small></div>`;
+      currentJobWorkspace.hidden = false;
+      currentJobWorkspace.innerHTML = `<div class="current-job-heading"><div><span>Current job</span><h2>${escapeHtml(active.deviceType || 'ICT resource deployment')}</h2></div><div class="current-job-time">${escapeHtml(active.startTime || '-')}–${escapeHtml(active.endTime || '-')}</div></div><div class="route-panel"><div class="route-stop"><span>Collect from</span><strong>${escapeHtml(active.pickupLocationSummary || 'ICT Room')}</strong></div><div class="route-arrow" aria-hidden="true">→</div><div class="route-stop"><span>Deliver to</span><strong>${escapeHtml(active.destinationLocation || active.location || '-')}</strong></div></div>${active.multiplePickupLocations ? `<div class="multi-pickup-warning" style="margin-top:12px;">This job requires collection from multiple locations.</div>` : ''}<div class="current-job-resource-list">${resourcesHtml}</div><div class="current-job-actions"><button class="btn btn-success" data-current-job-action="complete" data-booking-id="${escapeHtml(getJobId(active))}" data-booking-date="${escapeHtml(active.bookingDate)}">Mark Deployed</button><button class="btn btn-secondary" data-current-job-action="release" data-booking-id="${escapeHtml(getJobId(active))}" data-booking-date="${escapeHtml(active.bookingDate)}">Release Job</button><button class="btn btn-warning" data-current-job-action="fail" data-booking-id="${escapeHtml(getJobId(active))}" data-booking-date="${escapeHtml(active.bookingDate)}">Unable to Deploy</button></div>`;
+    }
+
     function renderJobCard(booking) {
       const status = booking.deploymentStatus || 'Pending Deployment';
       const jobId = getJobId(booking);
@@ -1056,10 +1118,13 @@ return currentUser;
           : '';
       }
 
+      const claimedByOther = status === 'Claimed' && !isClaimedByMe && currentUser.role !== 'Admin';
+
       return `
-        <article class="job-card" data-booking-id="${escapeHtml(jobId)}" data-booking-date="${escapeHtml(booking.bookingDate)}">
+        <article class="job-card ${claimedByOther ? 'claimed-by-other' : ''}" data-booking-id="${escapeHtml(jobId)}" data-booking-date="${escapeHtml(booking.bookingDate)}">
           <h3 class="job-title">${escapeHtml(booking.startTime || '-')}–${escapeHtml(booking.endTime || '-')} · ${escapeHtml(booking.location || '-')}</h3>
           <div class="job-subtitle">Requested by ${escapeHtml(booking.requesterName || 'Requester')}</div>
+          ${renderMovementStrip(booking)}
           <div class="meta-grid">
             <div class="meta-row"><span>Device</span><strong>${escapeHtml(booking.deviceType || '-')}</strong></div>
             <div class="meta-row"><span>Quantity</span><strong>${escapeHtml(booking.devicesRequired || '-')}</strong></div>
@@ -1080,6 +1145,9 @@ return currentUser;
     }
 
     function renderBookings(bookings) {
+      latestBookings = Array.isArray(bookings) ? bookings : [];
+      renderCurrentJob(latestBookings);
+
       const grouped = {
         'Pending Deployment': [],
         'Claimed': [],
@@ -1151,6 +1219,14 @@ return currentUser;
       showStatus('success', result.message || 'Deployment job updated.');
       await loadBookings({ silent: true });
     }
+
+    currentJobWorkspace.addEventListener('click', async event => {
+      const button = event.target.closest('button[data-current-job-action]');
+      if (!button) return;
+      const mockCard = { dataset: { bookingId: button.dataset.bookingId, bookingDate: button.dataset.bookingDate } };
+      try { await updateJob(mockCard, button.dataset.currentJobAction); }
+      catch (error) { showStatus('error', error.message); await loadBookings({ silent: true }).catch(() => {}); }
+    });
 
     document.querySelector('.dashboard-grid').addEventListener('click', async event => {
       const button = event.target.closest('button[data-action]');

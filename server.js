@@ -1174,17 +1174,97 @@ function findBookingById(bookings, bookingId) {
   return bookings.find(booking => String(booking["@_id"]) === String(bookingId));
 }
 
-function formatDeploymentBookingForResponse(booking, users) {
+function normaliseResourceIdList(value) {
+  return toArray(value)
+    .map(item => String(item || "").trim())
+    .filter(Boolean);
+}
+
+function getAllocatedResourceIds(booking = {}) {
+  const ids = [
+    ...normaliseResourceIdList(booking.allocation?.resources?.resourceId)
+  ];
+
+  toArray(booking.allocation?.additionalResources?.resource).forEach(item => {
+    ids.push(...normaliseResourceIdList(item?.resources?.resourceId));
+  });
+
+  return Array.from(new Set(ids));
+}
+
+function timeToMinutes(value) {
+  const match = String(value || "").match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function getResourceHomeLocation(resource = {}) {
+  return String(resource.location || "").trim() || "ICT Room";
+}
+
+function buildDeploymentProvenance(bookings = []) {
+  const resources = readResourcesFromXML().map(formatResourceForResponse);
+  const resourceById = new Map(resources.map(resource => [String(resource.id || ""), resource]));
+  const activeBookings = bookings
+    .filter(booking => booking.status !== "Deleted" && booking.status !== "Cancelled")
+    .filter(booking => bookingRequiresDeployment(booking))
+    .sort((a, b) => `${a.startTime || ""} ${a.endTime || ""} ${a.location || ""}`.localeCompare(`${b.startTime || ""} ${b.endTime || ""} ${b.location || ""}`));
+  const bookingsByResource = new Map();
+  activeBookings.forEach(booking => {
+    getAllocatedResourceIds(booking).forEach(resourceId => {
+      if (!bookingsByResource.has(resourceId)) bookingsByResource.set(resourceId, []);
+      bookingsByResource.get(resourceId).push(booking);
+    });
+  });
+  const provenanceByBookingId = new Map();
+  const DIRECT_HANDOVER_GAP_MINUTES = 30;
+  bookingsByResource.forEach((resourceBookings, resourceId) => {
+    const resource = resourceById.get(resourceId) || {};
+    const homeLocation = getResourceHomeLocation(resource);
+    resourceBookings.forEach((booking, index) => {
+      const previous = index > 0 ? resourceBookings[index - 1] : null;
+      const previousEnd = previous ? timeToMinutes(previous.endTime) : null;
+      const currentStart = timeToMinutes(booking.startTime);
+      const gapMinutes = previousEnd !== null && currentStart !== null ? currentStart - previousEnd : null;
+      const directHandover = previous && gapMinutes !== null && gapMinutes >= 0 && gapMinutes <= DIRECT_HANDOVER_GAP_MINUTES && normaliseDeploymentStatus(previous) !== "Unable to Deploy";
+      const pickupLocation = directHandover ? String(previous.location || homeLocation) : homeLocation;
+      const bookingId = String(booking["@_id"] || booking.bookingId || "");
+      if (!provenanceByBookingId.has(bookingId)) provenanceByBookingId.set(bookingId, []);
+      provenanceByBookingId.get(bookingId).push({
+        resourceId,
+        resourceName: resource.name || resourceId,
+        pickupLocation,
+        destinationLocation: String(booking.location || ""),
+        homeLocation,
+        source: directHandover ? "Previous booking location" : "Resource home location",
+        previousBookingLocation: previous?.location || "",
+        previousBookingEndTime: previous?.endTime || "",
+        gapMinutes: gapMinutes === null ? "" : gapMinutes
+      });
+    });
+  });
+  return provenanceByBookingId;
+}
+
+function formatDeploymentBookingForResponse(booking, users, provenanceByBookingId = new Map()) {
   const requesterName = getUserDisplayNameById(users, booking.userId) || "Requester";
   const claimedByName = booking.claimedByName || getUserDisplayNameById(users, booking.claimedByUserId);
   const deployedByName = booking.deployedByName || getUserDisplayNameById(users, booking.deployedByUserId);
-
+  const bookingId = String(booking["@_id"] || booking.bookingId || "");
+  const resourceMovements = provenanceByBookingId.get(bookingId) || [];
+  const pickupLocations = Array.from(new Set(resourceMovements.map(item => item.pickupLocation).filter(Boolean)));
   return {
     ...booking,
     requesterName,
     deploymentStatus: normaliseDeploymentStatus(booking),
     claimedByName: claimedByName || "",
-    deployedByName: deployedByName || ""
+    deployedByName: deployedByName || "",
+    resourceMovements,
+    pickupLocations,
+    pickupLocationSummary: pickupLocations.length ? pickupLocations.join(" + ") : "ICT Room",
+    destinationLocation: String(booking.location || ""),
+    multiplePickupLocations: pickupLocations.length > 1,
+    movementComplexity: pickupLocations.length > 1 ? "Multiple pickup locations" : "Single pickup location"
   };
 }
 
@@ -3956,10 +4036,13 @@ app.get("/api/de/bookings", requireLogin, requireDEOrAdmin, (req, res) => {
       .sort((a, b) => `${a.startTime || ""} ${a.location || ""}`.localeCompare(`${b.startTime || ""} ${b.location || ""}`));
 
     const users = getUsersFromXML();
+    const provenanceByBookingId = buildDeploymentProvenance(bookings);
 
     res.json({
       success: true,
-      bookings: bookings.map(booking => formatDeploymentBookingForResponse(booking, users))
+      bookings: bookings.map(booking =>
+        formatDeploymentBookingForResponse(booking, users, provenanceByBookingId)
+      )
     });
   } catch (error) {
     console.error("DE bookings retrieval error:", error);
