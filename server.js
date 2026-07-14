@@ -1392,22 +1392,32 @@ function buildOperationalBundle(bookings, anchorBooking) {
       gap <= HANDOVER_GAP_MINUTES;
 
     const type = canDirectTransfer ? "Deployment" : "Return";
+    const movementClass = canDirectTransfer
+      ? (item.previousBooking ? "Direct Transfer" : "Deployment")
+      : "Recovery Return";
     const destination = canDirectTransfer
       ? String(next.location || item.homeLocation)
       : item.homeLocation;
     const requiredTime = canDirectTransfer
       ? String(next.startTime || anchorBooking.startTime || "")
-      : String(item.previousBooking?.endTime || anchorBooking.startTime || "");
+      : "";
+    const returnReason = !canDirectTransfer
+      ? (next
+          ? `Return during the gap before the next booking at ${String(next.startTime || "a later time")}.`
+          : "No further booking is scheduled for this resource on the selected date.")
+      : "";
     const linkedBookingId = canDirectTransfer ? String(next["@_id"] || "") : "";
     const containsDevice = item.category !== "Accessory";
-    const key = `${requiredTime}|${type}|${destination}`;
+    const key = `${movementClass}|${requiredTime}|${destination}`;
 
     if (!grouped.has(key)) {
       grouped.set(key, {
         legId: `LEG-${grouped.size + 1}`,
         destination,
         type,
+        movementClass,
         requiredTime,
+        returnReason,
         status: "Pending",
         containsDevice,
         resources: { resource: [] },
@@ -1427,14 +1437,31 @@ function buildOperationalBundle(bookings, anchorBooking) {
     }
   });
 
+  const routeClassPriority = movementClass => {
+    if (movementClass === "Deployment") return 1;
+    if (movementClass === "Direct Transfer") return 2;
+    return 3;
+  };
+
   const legs = Array.from(grouped.values())
     .sort((a, b) => {
-      const timeCompare = String(a.requiredTime).localeCompare(String(b.requiredTime));
+      const classCompare =
+        routeClassPriority(a.movementClass) -
+        routeClassPriority(b.movementClass);
+      if (classCompare !== 0) return classCompare;
+
+      const timeCompare = String(a.requiredTime || "99:99")
+        .localeCompare(String(b.requiredTime || "99:99"));
       if (timeCompare !== 0) return timeCompare;
+
       const deviceCompare = Number(!a.containsDevice) - Number(!b.containsDevice);
       if (deviceCompare !== 0) return deviceCompare;
-      const typeCompare = getMovementTypePriority(a.type) - getMovementTypePriority(b.type);
+
+      const typeCompare =
+        getMovementTypePriority(a.type) -
+        getMovementTypePriority(b.type);
       if (typeCompare !== 0) return typeCompare;
+
       return String(a.destination).localeCompare(String(b.destination));
     })
     .map((leg, index) => ({

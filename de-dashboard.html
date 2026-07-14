@@ -946,6 +946,130 @@
       }
     }
 
+
+    /* DE Dashboard R2.1 — Lifecycle Tabs and Routing Intelligence */
+    .job-tabs {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      padding: 20px 24px 0;
+    }
+
+    .job-tab {
+      min-height: 46px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 14px 14px 0 0;
+      background: #f8fafc;
+      color: #475569;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .job-tab.active {
+      border-color: var(--primary);
+      background: var(--primary);
+      color: #ffffff;
+    }
+
+    .job-tab.active .count-pill {
+      background: #ffffff;
+      color: var(--primary-dark);
+    }
+
+    .lifecycle-grid {
+      display: block;
+      padding-top: 12px;
+    }
+
+    .lifecycle-panel {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: #f8fafc;
+      overflow: hidden;
+    }
+
+    .lifecycle-panel[hidden] {
+      display: none !important;
+    }
+
+    .panel-heading {
+      padding: 15px 17px;
+      border-bottom: 1px solid var(--border);
+      background: #ffffff;
+    }
+
+    .panel-heading h2 {
+      margin: 0;
+      font-size: 1.05rem;
+    }
+
+    .panel-heading p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 0.82rem;
+      line-height: 1.4;
+    }
+
+    .active-lanes {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      padding: 14px;
+    }
+
+    .active-lanes .lane {
+      min-height: 220px;
+    }
+
+    .lane-header h3 {
+      margin: 0;
+      font-size: 0.95rem;
+    }
+
+    .lifecycle-list {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      padding: 14px;
+    }
+
+    .route-context {
+      color: #64748b;
+      font-style: italic;
+    }
+
+    .expired-badge {
+      display: inline-flex;
+      margin-left: 7px;
+      padding: 3px 7px;
+      border-radius: 999px;
+      background: #fee2e2;
+      color: #991b1b;
+      font-size: 0.7rem;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    @media (max-width: 760px) {
+      .job-tabs {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        padding: 14px 18px 0;
+      }
+
+      .job-tab {
+        border-radius: 13px;
+      }
+
+      .active-lanes,
+      .lifecycle-list {
+        grid-template-columns: 1fr;
+      }
+    }
+
   </style>
 </head>
 <body>
@@ -1034,25 +1158,69 @@
 
       <section id="currentJobWorkspace" class="current-job-workspace" hidden aria-live="polite"></section>
 
-      <div class="dashboard-grid">
-        <section class="lane">
-          <div class="lane-header"><h2>Pending Deployment</h2><span id="pendingCount" class="count-pill">0</span></div>
-          <div id="pendingLane" class="lane-body"></div>
+      <div class="job-tabs" role="tablist" aria-label="Deployment job categories">
+        <button class="job-tab active" type="button" role="tab" aria-selected="true" data-job-tab="Active">
+          Active <span id="activeCount" class="count-pill">0</span>
+        </button>
+        <button class="job-tab" type="button" role="tab" aria-selected="false" data-job-tab="Expired">
+          Expired <span id="expiredCount" class="count-pill">0</span>
+        </button>
+        <button class="job-tab" type="button" role="tab" aria-selected="false" data-job-tab="Completed">
+          Completed <span id="completedCount" class="count-pill">0</span>
+        </button>
+        <button class="job-tab" type="button" role="tab" aria-selected="false" data-job-tab="Exceptions">
+          Exceptions <span id="exceptionsCount" class="count-pill">0</span>
+        </button>
+      </div>
+
+      <div class="dashboard-grid lifecycle-grid">
+        <section id="activePanel" class="lifecycle-panel" data-job-panel="Active">
+          <div class="panel-heading">
+            <div>
+              <h2>Active Jobs</h2>
+              <p>Pending and claimed work that is still within its booking window.</p>
+            </div>
+          </div>
+          <div class="active-lanes">
+            <section class="lane">
+              <div class="lane-header"><h3>Pending Deployment</h3><span id="pendingCount" class="count-pill">0</span></div>
+              <div id="pendingLane" class="lane-body"></div>
+            </section>
+            <section class="lane">
+              <div class="lane-header"><h3>Claimed</h3><span id="claimedCount" class="count-pill">0</span></div>
+              <div id="claimedLane" class="lane-body"></div>
+            </section>
+          </div>
         </section>
 
-        <section class="lane">
-          <div class="lane-header"><h2>Claimed</h2><span id="claimedCount" class="count-pill">0</span></div>
-          <div id="claimedLane" class="lane-body"></div>
+        <section id="expiredPanel" class="lifecycle-panel" data-job-panel="Expired" hidden>
+          <div class="panel-heading">
+            <div>
+              <h2>Expired Jobs</h2>
+              <p>The booking end time has passed without completed deployment.</p>
+            </div>
+          </div>
+          <div id="expiredLane" class="lane-body lifecycle-list"></div>
         </section>
 
-        <section class="lane">
-          <div class="lane-header"><h2>Deployed</h2><span id="deployedCount" class="count-pill">0</span></div>
-          <div id="deployedLane" class="lane-body"></div>
+        <section id="completedPanel" class="lifecycle-panel" data-job-panel="Completed" hidden>
+          <div class="panel-heading">
+            <div>
+              <h2>Completed Jobs</h2>
+              <p>Successfully completed deployments and operational routes.</p>
+            </div>
+          </div>
+          <div id="completedLane" class="lane-body lifecycle-list"></div>
         </section>
 
-        <section class="lane">
-          <div class="lane-header"><h2>Unable to Deploy</h2><span id="unableCount" class="count-pill">0</span></div>
-          <div id="unableLane" class="lane-body"></div>
+        <section id="exceptionsPanel" class="lifecycle-panel" data-job-panel="Exceptions" hidden>
+          <div class="panel-heading">
+            <div>
+              <h2>Exception Jobs</h2>
+              <p>Jobs marked unable to deploy or requiring follow-up.</p>
+            </div>
+          </div>
+          <div id="exceptionsLane" class="lane-body lifecycle-list"></div>
         </section>
       </div>
     </section>
@@ -1071,15 +1239,20 @@
     const lanes = {
       'Pending Deployment': document.getElementById('pendingLane'),
       'Claimed': document.getElementById('claimedLane'),
-      'Deployed': document.getElementById('deployedLane'),
-      'Unable to Deploy': document.getElementById('unableLane')
+      'Expired': document.getElementById('expiredLane'),
+      'Completed': document.getElementById('completedLane'),
+      'Exceptions': document.getElementById('exceptionsLane')
     };
     const counts = {
       'Pending Deployment': document.getElementById('pendingCount'),
       'Claimed': document.getElementById('claimedCount'),
-      'Deployed': document.getElementById('deployedCount'),
-      'Unable to Deploy': document.getElementById('unableCount')
+      'Active': document.getElementById('activeCount'),
+      'Expired': document.getElementById('expiredCount'),
+      'Completed': document.getElementById('completedCount'),
+      'Exceptions': document.getElementById('exceptionsCount')
     };
+    const jobTabs = Array.from(document.querySelectorAll('[data-job-tab]'));
+    const jobPanels = Array.from(document.querySelectorAll('[data-job-panel]'));
 
     let currentUser = null;
     let refreshTimer = null;
@@ -1266,10 +1439,19 @@ return currentUser;
               <article class="itinerary-leg ${completed ? 'completed' : ''}">
                 <span class="itinerary-order">${completed ? '✓' : escapeHtml(leg.routeOrder || '')}</span>
                 <div class="itinerary-copy">
-                  <small>${escapeHtml(leg.type || 'Deployment')} · Required ${escapeHtml(leg.requiredTime || '-')}</small>
+                  <small>${
+                    escapeHtml(leg.movementClass || leg.type || 'Deployment')
+                  }${
+                    leg.requiredTime
+                      ? ` · Required ${escapeHtml(leg.requiredTime)}`
+                      : ''
+                  }</small>
                   <strong>${escapeHtml(leg.destination || '-')}</strong>
                   <span>${escapeHtml(resourceNames || 'No resources listed')}</span>
-                  ${devicePriority && !completed
+                  ${leg.returnReason && !completed
+                    ? `<span class="route-context">${escapeHtml(leg.returnReason)}</span>`
+                    : ''}
+                  ${devicePriority && !completed && leg.movementClass !== 'Recovery Return'
                     ? '<span class="route-priority">Device-priority stop</span>'
                     : ''}
                 </div>
@@ -1307,7 +1489,9 @@ return currentUser;
       const canUpdateClaimedJob = isClaimedByMe || currentUser.role === 'Admin';
 
       let actions = '';
-      if (status === 'Pending Deployment') {
+      if (booking.lifecycleLabel === 'Expired') {
+        actions = '';
+      } else if (status === 'Pending Deployment') {
         actions = `<button class="btn btn-primary" data-action="claim">Claim Job</button>`;
       } else if (status === 'Claimed') {
         actions = canUpdateClaimedJob
@@ -1320,7 +1504,12 @@ return currentUser;
       return `
         <article class="job-card ${claimedByOther ? 'claimed-by-other' : ''}" data-booking-id="${escapeHtml(jobId)}" data-booking-date="${escapeHtml(booking.bookingDate)}">
           <h3 class="job-title">${escapeHtml(booking.startTime || '-')}–${escapeHtml(booking.endTime || '-')} · ${escapeHtml(booking.location || '-')}</h3>
-          <div class="job-subtitle">Requested by ${escapeHtml(booking.requesterName || 'Requester')}</div>
+          <div class="job-subtitle">
+            Requested by ${escapeHtml(booking.requesterName || 'Requester')}
+            ${booking.lifecycleLabel === 'Expired'
+              ? '<span class="expired-badge">Expired</span>'
+              : ''}
+          </div>
           ${renderMovementStrip(booking)}
           <div class="meta-grid">
             <div class="meta-row"><span>Device</span><strong>${escapeHtml(booking.deviceType || '-')}</strong></div>
@@ -1341,6 +1530,62 @@ return currentUser;
       `;
     }
 
+    function getSelectedDateRelation() {
+      const selected = parseLocalDate(deploymentDate.value);
+      const today = new Date();
+      const selectedKey = formatLocalDateForInput(selected);
+      const todayKey = formatLocalDateForInput(today);
+
+      if (selectedKey < todayKey) return 'past';
+      if (selectedKey > todayKey) return 'future';
+      return 'today';
+    }
+
+    function hasBookingWindowExpired(booking) {
+      const relation = getSelectedDateRelation();
+      if (relation === 'past') return true;
+      if (relation === 'future') return false;
+
+      const endMinutes = (() => {
+        const match = String(booking.endTime || '').match(/^(\d{1,2}):(\d{2})$/);
+        return match ? Number(match[1]) * 60 + Number(match[2]) : null;
+      })();
+
+      if (endMinutes === null) return false;
+
+      const now = new Date();
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      return currentMinutes > endMinutes;
+    }
+
+    function classifyBookingLifecycle(booking) {
+      const status = booking.deploymentStatus || 'Pending Deployment';
+
+      if (status === 'Deployed') return 'Completed';
+      if (status === 'Unable to Deploy') return 'Exceptions';
+
+      if (
+        (status === 'Pending Deployment' || status === 'Claimed') &&
+        hasBookingWindowExpired(booking)
+      ) {
+        return 'Expired';
+      }
+
+      return 'Active';
+    }
+
+    function setActiveJobTab(tabName) {
+      jobTabs.forEach(button => {
+        const active = button.dataset.jobTab === tabName;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-selected', String(active));
+      });
+
+      jobPanels.forEach(panel => {
+        panel.hidden = panel.dataset.jobPanel !== tabName;
+      });
+    }
+
     function renderBookings(bookings) {
       latestBookings = Array.isArray(bookings) ? bookings : [];
       renderCurrentJob(latestBookings);
@@ -1348,22 +1593,57 @@ return currentUser;
       const grouped = {
         'Pending Deployment': [],
         'Claimed': [],
-        'Deployed': [],
-        'Unable to Deploy': []
+        'Expired': [],
+        'Completed': [],
+        'Exceptions': []
       };
 
-      bookings.forEach(booking => {
+      latestBookings.forEach(booking => {
+        const lifecycle = classifyBookingLifecycle(booking);
         const status = booking.deploymentStatus || 'Pending Deployment';
-        if (!grouped[status]) grouped[status] = grouped['Pending Deployment'];
-        grouped[status].push(booking);
+
+        if (lifecycle === 'Active') {
+          grouped[status === 'Claimed' ? 'Claimed' : 'Pending Deployment'].push(booking);
+        } else {
+          grouped[lifecycle].push(booking);
+        }
       });
 
-      Object.keys(lanes).forEach(status => {
-        counts[status].textContent = grouped[status].length;
-        lanes[status].innerHTML = grouped[status].length
-          ? grouped[status].map(renderJobCard).join('')
-          : `<div class="empty-state">No ${status.toLowerCase()} jobs.</div>`;
-      });
+      const byStartTime = (a, b) =>
+        `${a.startTime || ''} ${a.location || ''}`
+          .localeCompare(`${b.startTime || ''} ${b.location || ''}`);
+
+      Object.values(grouped).forEach(items => items.sort(byStartTime));
+
+      counts['Pending Deployment'].textContent = grouped['Pending Deployment'].length;
+      counts['Claimed'].textContent = grouped['Claimed'].length;
+      counts['Active'].textContent =
+        grouped['Pending Deployment'].length + grouped['Claimed'].length;
+      counts['Expired'].textContent = grouped['Expired'].length;
+      counts['Completed'].textContent = grouped['Completed'].length;
+      counts['Exceptions'].textContent = grouped['Exceptions'].length;
+
+      lanes['Pending Deployment'].innerHTML = grouped['Pending Deployment'].length
+        ? grouped['Pending Deployment'].map(renderJobCard).join('')
+        : '<div class="empty-state">No pending deployment jobs.</div>';
+
+      lanes['Claimed'].innerHTML = grouped['Claimed'].length
+        ? grouped['Claimed'].map(renderJobCard).join('')
+        : '<div class="empty-state">No claimed jobs.</div>';
+
+      lanes['Expired'].innerHTML = grouped['Expired'].length
+        ? grouped['Expired'].map(booking =>
+            renderJobCard({ ...booking, lifecycleLabel: 'Expired' })
+          ).join('')
+        : '<div class="empty-state">No expired jobs.</div>';
+
+      lanes['Completed'].innerHTML = grouped['Completed'].length
+        ? grouped['Completed'].map(renderJobCard).join('')
+        : '<div class="empty-state">No completed jobs.</div>';
+
+      lanes['Exceptions'].innerHTML = grouped['Exceptions'].length
+        ? grouped['Exceptions'].map(renderJobCard).join('')
+        : '<div class="empty-state">No exception jobs.</div>';
     }
 
     async function loadBookings({ silent = false } = {}) {
@@ -1488,6 +1768,12 @@ return currentUser;
         showStatus('error', error.message);
         await loadBookings({ silent: true }).catch(() => {});
       }
+    });
+
+    jobTabs.forEach(button => {
+      button.addEventListener('click', () => {
+        setActiveJobTab(button.dataset.jobTab);
+      });
     });
 
     document.getElementById('todayBtn').addEventListener('click', async () => {
