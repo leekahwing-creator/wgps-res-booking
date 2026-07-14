@@ -1528,6 +1528,289 @@ function findActiveOperationalBundleBooking(bookings, userId) {
   );
 }
 
+
+function getCompletedBundleResourceIds(bookings = []) {
+  const completed = new Set();
+
+  bookings.forEach(booking => {
+    normaliseOperationalBundleLegs(booking.operationalBundle).forEach(leg => {
+      if (String(leg.status || "") !== "Completed") return;
+      toArray(leg.resources?.resource).forEach(resource => {
+        const id = String(resource?.resourceId || "").trim();
+        if (id) completed.add(id);
+      });
+    });
+  });
+
+  return completed;
+}
+
+function buildOperationalTimelineAndJourneys(bookings = [], bookingDate = "") {
+  const resourceById = buildResourceLookup();
+  const completedBundleResourceIds = getCompletedBundleResourceIds(bookings);
+  const DIRECT_HANDOVER_GAP_MINUTES = 30;
+  const bookingsByResource = new Map();
+
+  bookings
+    .filter(booking => booking.status !== "Deleted" && booking.status !== "Cancelled")
+    .filter(booking => bookingRequiresDeployment(booking))
+    .filter(booking => bookingHasDEManagedResources(booking, resourceById))
+    .forEach(booking => {
+      getDEManagedAllocatedResourceIds(booking, resourceById).forEach(resourceId => {
+        if (!bookingsByResource.has(resourceId)) bookingsByResource.set(resourceId, []);
+        bookingsByResource.get(resourceId).push(booking);
+      });
+    });
+
+  bookingsByResource.forEach(sequence => {
+    sequence.sort((a, b) =>
+      `${a.startTime || ""} ${a.endTime || ""}`
+        .localeCompare(`${b.startTime || ""} ${b.endTime || ""}`)
+    );
+  });
+
+  const timelineEvents = [];
+  const journeys = [];
+  const now = new Date();
+  const todayKey = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0")
+  ].join("-");
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const relation = bookingDate < todayKey ? "past" : bookingDate > todayKey ? "future" : "today";
+
+  bookingsByResource.forEach((sequence, resourceId) => {
+    const resource = resourceById.get(resourceId) || {};
+    const resourceName = resource.name || resourceId;
+    const category = normaliseResourceCategory(resource.category);
+    const homeLocation = getResourceHomeLocation(resource);
+    const steps = [{
+      sequence: 0,
+      time: "",
+      type: "Ready",
+      fromLocation: "",
+      location: homeLocation,
+      status: relation === "past" ? "Completed" : "Ready",
+      bookingId: "",
+      bookingStatus: "",
+      note: "Resource home location"
+    }];
+
+    sequence.forEach((booking, index) => {
+      const previous = index > 0 ? sequence[index - 1] : null;
+      const next = index < sequence.length - 1 ? sequence[index + 1] : null;
+      const previousEnd = previous ? timeToMinutes(previous.endTime) : null;
+      const start = timeToMinutes(booking.startTime);
+      const end = timeToMinutes(booking.endTime);
+      const nextStart = next ? timeToMinutes(next.startTime) : null;
+      const pickupLocation =
+        previous &&
+        previousEnd !== null &&
+        start !== null &&
+        start - previousEnd >= 0 &&
+        start - previousEnd <= DIRECT_HANDOVER_GAP_MINUTES
+          ? String(previous.location || homeLocation)
+          : homeLocation;
+
+      const deploymentStatus = normaliseDeploymentStatus(booking);
+      let movementStatus = "Upcoming";
+      if (deploymentStatus === "Deployed") movementStatus = "Completed";
+      else if (deploymentStatus === "Unable to Deploy") movementStatus = "Exception";
+      else if (deploymentStatus === "Claimed") movementStatus = "Active";
+      else if (relation === "past" || (relation === "today" && end !== null && currentMinutes > end)) {
+        movementStatus = "Overdue";
+      } else if (relation === "today" && start !== null && currentMinutes >= start && currentMinutes <= (end ?? start)) {
+        movementStatus = "Due now";
+      }
+
+      const movementType = pickupLocation === homeLocation ? "Deployment" : "Direct Transfer";
+      const bookingId = String(booking["@_id"] || booking.bookingId || "");
+
+      timelineEvents.push({
+        eventId: `${resourceId}-DEPLOY-${index + 1}`,
+        time: String(booking.startTime || ""),
+        endTime: String(booking.endTime || ""),
+        type: movementType,
+        fromLocation: pickupLocation,
+        toLocation: String(booking.location || ""),
+        status: movementStatus,
+        resourceId,
+        resourceName,
+        category,
+        bookingId,
+        requesterName: booking.requesterName || "",
+        note: movementType === "Direct Transfer"
+          ? "Move directly from the previous booking location."
+          : "Collect from the resource home location."
+      });
+
+      steps.push({
+        sequence: steps.length,
+        time: String(booking.startTime || ""),
+        endTime: String(booking.endTime || ""),
+        type: movementType,
+        fromLocation: pickupLocation,
+        location: String(booking.location || ""),
+        status: movementStatus,
+        bookingId,
+        bookingStatus: deploymentStatus,
+        note: booking.requesterName ? `Requested by ${booking.requesterName}` : ""
+      });
+
+      const gapToNext =
+        nextStart !== null && end !== null
+          ? nextStart - end
+          : null;
+      const directToNext =
+        next &&
+        gapToNext !== null &&
+        gapToNext >= 0 &&
+        gapToNext <= DIRECT_HANDOVER_GAP_MINUTES;
+
+      if (!directToNext) {
+        let returnStatus = "Upcoming";
+        if (completedBundleResourceIds.has(resourceId)) returnStatus = "Completed";
+        else if (relation === "past") returnStatus = "Overdue";
+        else if (relation === "today" && end !== null && currentMinutes > end) returnStatus = "Awaiting Return";
+
+        timelineEvents.push({
+          eventId: `${resourceId}-RETURN-${index + 1}`,
+          time: String(booking.endTime || ""),
+          endTime: "",
+          type: "Recovery Return",
+          fromLocation: String(booking.location || ""),
+          toLocation: homeLocation,
+          status: returnStatus,
+          resourceId,
+          resourceName,
+          category,
+          bookingId,
+          requesterName: booking.requesterName || "",
+          note: next
+            ? `Return during the gap before the next booking at ${next.startTime}.`
+            : "No further booking is scheduled for this resource on the selected date."
+        });
+
+        steps.push({
+          sequence: steps.length,
+          time: String(booking.endTime || ""),
+          type: "Recovery Return",
+          fromLocation: String(booking.location || ""),
+          location: homeLocation,
+          status: returnStatus,
+          bookingId,
+          bookingStatus: deploymentStatus,
+          note: next
+            ? `Long gap before next booking at ${next.startTime}.`
+            : "End of today's deployment journey."
+        });
+      }
+    });
+
+    let currentStep = steps[0];
+    if (relation === "past") {
+      currentStep = steps[steps.length - 1] || steps[0];
+    } else if (relation === "future") {
+      currentStep = steps[0];
+    } else {
+      steps.forEach(step => {
+        const stepMinutes = timeToMinutes(step.time);
+        if (stepMinutes !== null && stepMinutes <= currentMinutes) {
+          currentStep = step;
+        }
+      });
+    }
+
+    let operationalStatus = "Ready";
+    if (currentStep.status === "Exception") operationalStatus = "Exception";
+    else if (currentStep.status === "Overdue") operationalStatus = "Overdue";
+    else if (currentStep.type === "Recovery Return" && currentStep.status !== "Completed") operationalStatus = "Awaiting Return";
+    else if (currentStep.type === "Direct Transfer" && currentStep.status !== "Completed") operationalStatus = "Direct Transfer";
+    else if (currentStep.type === "Deployment" && currentStep.location !== homeLocation) operationalStatus = "Deployed";
+    else if (currentStep.status === "Active" || currentStep.status === "Due now") operationalStatus = "In Transit";
+
+    const nextStep = steps.find(step => {
+      const stepMinutes = timeToMinutes(step.time);
+      return relation !== "past" && stepMinutes !== null && (
+        relation === "future" || stepMinutes > currentMinutes
+      );
+    }) || null;
+
+    journeys.push({
+      resourceId,
+      resourceName,
+      category,
+      homeLocation,
+      currentExpectedLocation: currentStep.location || homeLocation,
+      operationalStatus,
+      currentStep,
+      nextStep,
+      steps
+    });
+  });
+
+  const groupedTimeline = new Map();
+
+  timelineEvents.forEach(event => {
+    const key = [
+      event.time,
+      event.type,
+      event.fromLocation,
+      event.toLocation,
+      event.status
+    ].join("|");
+
+    if (!groupedTimeline.has(key)) {
+      groupedTimeline.set(key, {
+        ...event,
+        eventId: `EVT-${groupedTimeline.size + 1}`,
+        resources: []
+      });
+      delete groupedTimeline.get(key).resourceId;
+      delete groupedTimeline.get(key).resourceName;
+      delete groupedTimeline.get(key).category;
+    }
+
+    groupedTimeline.get(key).resources.push({
+      resourceId: event.resourceId,
+      resourceName: event.resourceName,
+      category: event.category
+    });
+  });
+
+  const timeline = Array.from(groupedTimeline.values())
+    .sort((a, b) => {
+      const timeCompare = String(a.time || "99:99").localeCompare(String(b.time || "99:99"));
+      if (timeCompare !== 0) return timeCompare;
+      const priority = type => {
+        if (type === "Deployment") return 1;
+        if (type === "Direct Transfer") return 2;
+        return 3;
+      };
+      return priority(a.type) - priority(b.type);
+    });
+
+  const summary = {
+    totalResources: journeys.length,
+    ready: journeys.filter(item => item.operationalStatus === "Ready").length,
+    deployed: journeys.filter(item => item.operationalStatus === "Deployed").length,
+    inTransit: journeys.filter(item => item.operationalStatus === "In Transit").length,
+    directTransfer: journeys.filter(item => item.operationalStatus === "Direct Transfer").length,
+    awaitingReturn: journeys.filter(item => item.operationalStatus === "Awaiting Return").length,
+    overdue: journeys.filter(item => item.operationalStatus === "Overdue").length,
+    exceptions: journeys.filter(item => item.operationalStatus === "Exception").length,
+    completedEvents: timeline.filter(item => item.status === "Completed").length,
+    upcomingEvents: timeline.filter(item => ["Upcoming", "Due now", "Active"].includes(item.status)).length
+  };
+
+  return {
+    timeline,
+    resourceJourneys: journeys.sort((a, b) => a.resourceName.localeCompare(b.resourceName)),
+    summary
+  };
+}
+
 function formatDeploymentBookingForResponse(booking, users, provenanceByBookingId = new Map()) {
   const requesterName = getUserDisplayNameById(users, booking.userId) || "Requester";
   const claimedByName = booking.claimedByName || getUserDisplayNameById(users, booking.claimedByUserId);
@@ -4360,12 +4643,20 @@ app.get("/api/de/bookings", requireLogin, requireDEOrAdmin, (req, res) => {
 
     const users = getUsersFromXML();
     const provenanceByBookingId = buildDeploymentProvenance(bookings);
+    const formattedBookings = bookings.map(booking =>
+      formatDeploymentBookingForResponse(booking, users, provenanceByBookingId)
+    );
+    const operations = buildOperationalTimelineAndJourneys(
+      formattedBookings,
+      bookingDate
+    );
 
     res.json({
       success: true,
-      bookings: bookings.map(booking =>
-        formatDeploymentBookingForResponse(booking, users, provenanceByBookingId)
-      )
+      bookings: formattedBookings,
+      operationalTimeline: operations.timeline,
+      resourceJourneys: operations.resourceJourneys,
+      operationalSummary: operations.summary
     });
   } catch (error) {
     console.error("DE bookings retrieval error:", error);

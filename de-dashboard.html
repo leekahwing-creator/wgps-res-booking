@@ -1082,6 +1082,421 @@
       color: #475569;
       font-weight: 700;
     }
+
+    /* DE Dashboard R2.2 Cycle 1 — Operational Timeline and Resource Journeys */
+    .operations-overview {
+      margin: 18px 24px 0;
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      background: #ffffff;
+    }
+
+    .operations-overview-header,
+    .section-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .operations-overview-header h2,
+    .section-heading h3 {
+      margin: 0;
+    }
+
+    .operations-overview-header p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 0.84rem;
+    }
+
+    .section-heading {
+      margin-bottom: 12px;
+    }
+
+    .section-heading span {
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 800;
+    }
+
+    .operations-summary {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .summary-stat {
+      padding: 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 13px;
+      background: #f8fafc;
+    }
+
+    .summary-stat span,
+    .summary-stat strong {
+      display: block;
+    }
+
+    .summary-stat span {
+      color: var(--muted);
+      font-size: 0.7rem;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .summary-stat strong {
+      margin-top: 4px;
+      font-size: 1.15rem;
+    }
+
+    .operations-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
+      gap: 14px;
+      margin-top: 14px;
+    }
+
+    .timeline-panel,
+    .resource-journey-panel {
+      min-width: 0;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: #f8fafc;
+    }
+
+    .resource-journey-panel.journey-panel-collapsed {
+      display: none;
+    }
+
+    .resource-journey-panel.journey-panel-collapsed + * {
+      grid-column: auto;
+    }
+
+    .operational-timeline {
+      display: grid;
+    }
+
+    .timeline-event {
+      position: relative;
+      display: grid;
+      grid-template-columns: 58px 18px minmax(0, 1fr);
+      gap: 8px;
+      min-height: 88px;
+    }
+
+    .timeline-marker {
+      padding-top: 8px;
+      text-align: right;
+      color: #334155;
+      font-size: 0.8rem;
+      font-weight: 900;
+    }
+
+    .timeline-line {
+      position: relative;
+    }
+
+    .timeline-line::before {
+      content: "";
+      position: absolute;
+      top: 12px;
+      left: 6px;
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: var(--primary);
+      box-shadow: 0 0 0 4px #ccfbf1;
+    }
+
+    .timeline-line::after {
+      content: "";
+      position: absolute;
+      top: 24px;
+      bottom: -4px;
+      left: 10px;
+      width: 2px;
+      background: #cbd5e1;
+    }
+
+    .timeline-line.last::after {
+      display: none;
+    }
+
+    .timeline-event-card {
+      margin-bottom: 10px;
+      padding: 11px;
+      border: 1px solid #dbe4ee;
+      border-radius: 14px;
+      background: #ffffff;
+    }
+
+    .timeline-event-heading,
+    .resource-journey-card-heading,
+    .journey-current-location {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .timeline-event-heading small {
+      display: block;
+      color: var(--muted);
+      font-size: 0.68rem;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .timeline-event-heading strong {
+      display: block;
+      margin-top: 3px;
+    }
+
+    .timeline-resource-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .timeline-resource-chip {
+      border: 1px solid #cbd5e1;
+      border-radius: 999px;
+      padding: 5px 8px;
+      background: #f8fafc;
+      color: #334155;
+      font-size: 0.75rem;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .timeline-event-card p {
+      margin: 8px 0 0;
+      color: #64748b;
+      font-size: 0.78rem;
+      line-height: 1.4;
+    }
+
+    .resource-journey-list {
+      display: grid;
+      gap: 8px;
+      max-height: 560px;
+      overflow: auto;
+    }
+
+    .resource-journey-card {
+      width: 100%;
+      padding: 11px;
+      border: 1px solid #dbe4ee;
+      border-radius: 14px;
+      background: #ffffff;
+      color: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .resource-location-row,
+    .resource-next-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 8px;
+      font-size: 0.78rem;
+    }
+
+    .resource-location-row span,
+    .resource-next-row span {
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .operational-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 7px;
+      border-radius: 999px;
+      background: #e2e8f0;
+      color: #334155;
+      font-size: 0.68rem;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .operational-badge.ready,
+    .operational-badge.completed {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .operational-badge.deployed,
+    .operational-badge.active,
+    .operational-badge.due-now {
+      background: #dbeafe;
+      color: #1d4ed8;
+    }
+
+    .operational-badge.in-transit,
+    .operational-badge.direct-transfer {
+      background: #ede9fe;
+      color: #6d28d9;
+    }
+
+    .operational-badge.awaiting-return,
+    .operational-badge.upcoming {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .operational-badge.overdue,
+    .operational-badge.exception {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .journey-dialog {
+      width: min(720px, calc(100% - 28px));
+      max-height: 88vh;
+      padding: 0;
+      border: 0;
+      border-radius: 20px;
+      box-shadow: 0 30px 80px rgba(15, 23, 42, 0.28);
+    }
+
+    .journey-dialog::backdrop {
+      background: rgba(15, 23, 42, 0.55);
+    }
+
+    .journey-dialog-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+      background: #ffffff;
+    }
+
+    .journey-dialog-header span {
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .journey-dialog-header h2 {
+      margin: 3px 0 0;
+    }
+
+    .journey-dialog-body {
+      padding: 16px;
+      background: #f8fafc;
+      overflow: auto;
+      max-height: calc(88vh - 86px);
+    }
+
+    .journey-current-location {
+      padding: 12px;
+      border: 1px solid #99f6e4;
+      border-radius: 14px;
+      background: #f0fdfa;
+    }
+
+    .journey-current-location > span:first-child {
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .journey-step-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .journey-step {
+      display: grid;
+      grid-template-columns: 32px minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      padding: 10px;
+      border: 1px solid #dbe4ee;
+      border-radius: 13px;
+      background: #ffffff;
+    }
+
+    .journey-step-number {
+      width: 28px;
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      background: var(--primary-light);
+      color: var(--primary-dark);
+      font-weight: 900;
+    }
+
+    .journey-step small,
+    .journey-step strong {
+      display: block;
+    }
+
+    .journey-step small {
+      color: var(--muted);
+      font-size: 0.68rem;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .journey-step p {
+      margin: 4px 0 0;
+      color: #64748b;
+      font-size: 0.76rem;
+    }
+
+    @media (max-width: 980px) {
+      .operations-summary {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+
+      .operations-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .operations-overview {
+        margin: 12px 12px 0;
+        padding: 12px;
+      }
+
+      .operations-overview-header {
+        align-items: flex-start;
+      }
+
+      .operations-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .timeline-event {
+        grid-template-columns: 48px 16px minmax(0, 1fr);
+      }
+
+      .journey-step {
+        grid-template-columns: 30px minmax(0, 1fr);
+      }
+
+      .journey-step > .operational-badge {
+        grid-column: 2;
+        justify-self: start;
+      }
+    }
+
   </style>
 </head>
 <body>
@@ -1170,6 +1585,36 @@
 
       <section id="currentJobWorkspace" class="current-job-workspace" hidden aria-live="polite"></section>
 
+      <section class="operations-overview" aria-label="Daily operational overview">
+        <div class="operations-overview-header">
+          <div>
+            <h2>Daily Operations</h2>
+            <p>Chronological resource movements based on the selected booking date.</p>
+          </div>
+          <button id="toggleJourneyPanelBtn" class="btn btn-secondary" type="button">Resource Journeys</button>
+        </div>
+
+        <div id="operationsSummary" class="operations-summary"></div>
+
+        <div class="operations-layout">
+          <section class="timeline-panel">
+            <div class="section-heading">
+              <h3>Operational Timeline</h3>
+              <span id="timelineDateLabel"></span>
+            </div>
+            <div id="operationalTimeline" class="operational-timeline"></div>
+          </section>
+
+          <section id="resourceJourneyPanel" class="resource-journey-panel">
+            <div class="section-heading">
+              <h3>Resource Journeys</h3>
+              <span>Expected locations</span>
+            </div>
+            <div id="resourceJourneyList" class="resource-journey-list"></div>
+          </section>
+        </div>
+      </section>
+
       <div class="job-tabs" role="tablist" aria-label="Deployment job categories">
         <button class="job-tab active" type="button" role="tab" aria-selected="true" data-job-tab="Active">
           Active <span id="activeCount" class="count-pill">0</span>
@@ -1238,6 +1683,17 @@
     </section>
   </main>
 
+  <dialog id="resourceJourneyDialog" class="journey-dialog">
+    <div class="journey-dialog-header">
+      <div>
+        <span>Resource journey</span>
+        <h2 id="journeyDialogTitle">Resource</h2>
+      </div>
+      <button id="closeJourneyDialogBtn" class="btn btn-secondary" type="button">Close</button>
+    </div>
+    <div id="journeyDialogBody" class="journey-dialog-body"></div>
+  </dialog>
+
   <script src="portalNavigation.js"></script>
   <script>
 
@@ -1248,6 +1704,16 @@
     const statusMessage = document.getElementById('statusMessage');
     const lastUpdated = document.getElementById('lastUpdated');
     const currentJobWorkspace = document.getElementById('currentJobWorkspace');
+    const operationsSummary = document.getElementById('operationsSummary');
+    const operationalTimeline = document.getElementById('operationalTimeline');
+    const timelineDateLabel = document.getElementById('timelineDateLabel');
+    const resourceJourneyPanel = document.getElementById('resourceJourneyPanel');
+    const resourceJourneyList = document.getElementById('resourceJourneyList');
+    const toggleJourneyPanelBtn = document.getElementById('toggleJourneyPanelBtn');
+    const resourceJourneyDialog = document.getElementById('resourceJourneyDialog');
+    const journeyDialogTitle = document.getElementById('journeyDialogTitle');
+    const journeyDialogBody = document.getElementById('journeyDialogBody');
+    const closeJourneyDialogBtn = document.getElementById('closeJourneyDialogBtn');
     const lanes = {
       'Pending Deployment': document.getElementById('pendingLane'),
       'Claimed': document.getElementById('claimedLane'),
@@ -1269,6 +1735,9 @@
     let currentUser = null;
     let refreshTimer = null;
     let latestBookings = [];
+    let latestOperationalTimeline = [];
+    let latestResourceJourneys = [];
+    let latestOperationalSummary = {};
 
     function parseLocalDate(dateString) {
       const [year, month, day] = dateString.split('-').map(Number);
@@ -1630,6 +2099,138 @@ return currentUser;
       });
     }
 
+    function getStatusClass(value) {
+      return String(value || 'Ready')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-');
+    }
+
+    function renderOperationsSummary(summary = {}) {
+      const items = [
+        ['Resources today', summary.totalResources || 0],
+        ['Ready', summary.ready || 0],
+        ['Deployed', summary.deployed || 0],
+        ['In transit', summary.inTransit || 0],
+        ['Direct transfer', summary.directTransfer || 0],
+        ['Awaiting return', summary.awaitingReturn || 0],
+        ['Overdue', summary.overdue || 0]
+      ];
+
+      operationsSummary.innerHTML = items.map(([label, value]) => `
+        <div class="summary-stat">
+          <span>${escapeHtml(label)}</span>
+          <strong>${Number(value || 0)}</strong>
+        </div>
+      `).join('');
+    }
+
+    function renderOperationalTimeline(events = []) {
+      timelineDateLabel.textContent = deploymentDate.value || '';
+
+      if (!events.length) {
+        operationalTimeline.innerHTML =
+          '<div class="empty-state">No DE-managed resource movements for this date.</div>';
+        return;
+      }
+
+      operationalTimeline.innerHTML = events.map((event, index) => {
+        const resources = Array.isArray(event.resources) ? event.resources : [];
+        return `
+          <article class="timeline-event ${getStatusClass(event.status)}">
+            <div class="timeline-marker">
+              <span>${escapeHtml(event.time || '—')}</span>
+            </div>
+            <div class="timeline-line ${index === events.length - 1 ? 'last' : ''}"></div>
+            <div class="timeline-event-card">
+              <div class="timeline-event-heading">
+                <div>
+                  <small>${escapeHtml(event.type || 'Movement')}</small>
+                  <strong>${escapeHtml(event.fromLocation || 'ICT Room')} → ${escapeHtml(event.toLocation || '-')}</strong>
+                </div>
+                <span class="operational-badge ${getStatusClass(event.status)}">${escapeHtml(event.status || 'Upcoming')}</span>
+              </div>
+              <div class="timeline-resource-list">
+                ${resources.map(resource => `
+                  <button
+                    type="button"
+                    class="timeline-resource-chip"
+                    data-resource-journey="${escapeHtml(resource.resourceId)}"
+                  >${escapeHtml(resource.resourceName || resource.resourceId)}</button>
+                `).join('')}
+              </div>
+              ${event.note ? `<p>${escapeHtml(event.note)}</p>` : ''}
+            </div>
+          </article>
+        `;
+      }).join('');
+    }
+
+    function renderResourceJourneys(journeys = []) {
+      if (!journeys.length) {
+        resourceJourneyList.innerHTML =
+          '<div class="empty-state">No resource journeys for this date.</div>';
+        return;
+      }
+
+      resourceJourneyList.innerHTML = journeys.map(journey => `
+        <button
+          type="button"
+          class="resource-journey-card"
+          data-resource-journey="${escapeHtml(journey.resourceId)}"
+        >
+          <div class="resource-journey-card-heading">
+            <strong>${escapeHtml(journey.resourceName)}</strong>
+            <span class="operational-badge ${getStatusClass(journey.operationalStatus)}">${escapeHtml(journey.operationalStatus)}</span>
+          </div>
+          <div class="resource-location-row">
+            <span>Current expected location</span>
+            <strong>${escapeHtml(journey.currentExpectedLocation || journey.homeLocation || 'ICT Room')}</strong>
+          </div>
+          <div class="resource-next-row">
+            <span>Next</span>
+            <strong>${journey.nextStep
+              ? `${escapeHtml(journey.nextStep.time || '—')} · ${escapeHtml(journey.nextStep.location || '-')}`
+              : 'No further movement'}</strong>
+          </div>
+        </button>
+      `).join('');
+    }
+
+    function openResourceJourney(resourceId) {
+      const journey = latestResourceJourneys.find(
+        item => String(item.resourceId) === String(resourceId)
+      );
+      if (!journey) return;
+
+      journeyDialogTitle.textContent = journey.resourceName || journey.resourceId;
+      journeyDialogBody.innerHTML = `
+        <div class="journey-current-location">
+          <span>Current expected location</span>
+          <strong>${escapeHtml(journey.currentExpectedLocation || journey.homeLocation || 'ICT Room')}</strong>
+          <span class="operational-badge ${getStatusClass(journey.operationalStatus)}">${escapeHtml(journey.operationalStatus)}</span>
+        </div>
+        <div class="journey-step-list">
+          ${(Array.isArray(journey.steps) ? journey.steps : []).map((step, index) => `
+            <div class="journey-step ${getStatusClass(step.status)}">
+              <span class="journey-step-number">${index === 0 ? 'H' : index}</span>
+              <div>
+                <small>${escapeHtml(step.time || 'Start')} · ${escapeHtml(step.type || 'Ready')}</small>
+                <strong>${escapeHtml(step.fromLocation ? `${step.fromLocation} → ${step.location}` : step.location || '-')}</strong>
+                ${step.note ? `<p>${escapeHtml(step.note)}</p>` : ''}
+              </div>
+              <span class="operational-badge ${getStatusClass(step.status)}">${escapeHtml(step.status || '')}</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+
+      if (typeof resourceJourneyDialog.showModal === 'function') {
+        resourceJourneyDialog.showModal();
+      } else {
+        resourceJourneyDialog.setAttribute('open', '');
+      }
+    }
+
     function renderBookings(bookings) {
       latestBookings = Array.isArray(bookings) ? bookings : [];
       renderCurrentJob(latestBookings);
@@ -1701,6 +2302,17 @@ return currentUser;
         throw new Error(result.message || 'Unable to load deployment jobs.');
       }
 
+      latestOperationalTimeline = Array.isArray(result.operationalTimeline)
+        ? result.operationalTimeline
+        : [];
+      latestResourceJourneys = Array.isArray(result.resourceJourneys)
+        ? result.resourceJourneys
+        : [];
+      latestOperationalSummary = result.operationalSummary || {};
+
+      renderOperationsSummary(latestOperationalSummary);
+      renderOperationalTimeline(latestOperationalTimeline);
+      renderResourceJourneys(latestResourceJourneys);
       renderBookings(result.bookings || []);
       lastUpdated.textContent = `Last updated: ${new Date().toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
     }
@@ -1818,6 +2430,27 @@ return currentUser;
       button.addEventListener('click', () => {
         setActiveJobTab(button.dataset.jobTab);
       });
+    });
+
+    toggleJourneyPanelBtn.addEventListener('click', () => {
+      resourceJourneyPanel.classList.toggle('journey-panel-collapsed');
+      toggleJourneyPanelBtn.textContent = resourceJourneyPanel.classList.contains('journey-panel-collapsed')
+        ? 'Show Resource Journeys'
+        : 'Hide Resource Journeys';
+    });
+
+    document.addEventListener('click', event => {
+      const trigger = event.target.closest('[data-resource-journey]');
+      if (!trigger) return;
+      openResourceJourney(trigger.dataset.resourceJourney);
+    });
+
+    closeJourneyDialogBtn.addEventListener('click', () => {
+      if (typeof resourceJourneyDialog.close === 'function') {
+        resourceJourneyDialog.close();
+      } else {
+        resourceJourneyDialog.removeAttribute('open');
+      }
     });
 
     document.getElementById('todayBtn').addEventListener('click', async () => {
