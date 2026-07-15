@@ -1487,6 +1487,8 @@
     let activeProgressTimer = null;
     let lastRows = [];
     let structuredRowsFromFile = null;
+    let lastPreviewData = null;
+    const approvedReviewKeys = new Set();
 
     function showStatus(type, message) {
       statusMessage.className = 'status-panel ' + type;
@@ -1927,26 +1929,32 @@
 
     function renderPreview(data) {
       const validRows = data.validRows || [];
+      const autoApprovedRows = data.autoApprovedRows || validRows.filter(row => row.decision === 'AUTO_APPROVED');
+      const reviewRows = data.reviewRows || validRows.filter(row => row.decision === 'REVIEW_REQUIRED');
       const invalidRows = data.invalidRows || [];
+      lastPreviewData = data;
+      approvedReviewKeys.clear();
       const outOfRangeRows = data.outOfRangeRows || [];
       const skippedRows = data.skippedRows || [];
       const totalRows = data.totalRows || 0;
       const rowsWithinRange = data.rowsWithinRange ?? (validRows.length + invalidRows.length);
       const rowsOutsideRange = data.rowsOutsideRange ?? outOfRangeRows.length;
-      commitBtn.disabled = validRows.length === 0;
+      commitBtn.disabled = autoApprovedRows.length === 0;
       previewResults.innerHTML = `
         <div class="stats-grid" aria-label="Import preview summary">
           <div class="stat-card"><strong>${totalRows}</strong><span>Import records after split</span></div>
           <div class="stat-card"><strong>${rowsWithinRange}</strong><span>Within selected range</span></div>
-          <div class="stat-card"><strong>${validRows.length}</strong><span>Valid bookings</span></div>
-          <div class="stat-card"><strong>${invalidRows.length}</strong><span>Needs review</span></div>
+          <div class="stat-card"><strong>${autoApprovedRows.length}</strong><span>Auto-approved</span></div>
+          <div class="stat-card"><strong>${reviewRows.length}</strong><span>Review required</span></div>
+          <div class="stat-card"><strong>${invalidRows.length}</strong><span>Rejected</span></div>
           <div class="stat-card"><strong>${skippedRows.length}</strong><span>Skipped non-ICT</span></div>
           <div class="stat-card"><strong>${rowsOutsideRange}</strong><span>Outside range</span></div>
         </div>
         ${renderSummaryPills("Resource summary", data.resourceSummary)}
         ${renderSummaryPills("Accessory summary", data.accessorySummary)}
         ${renderSummaryPills("Classification summary", data.classificationSummary)}
-        <div class="note-box"><strong>Preview complete:</strong> Only rows marked as valid will be imported. ${skippedRows.length} non-ICT row(s) and ${rowsOutsideRange} row(s) outside the selected range will be ignored.</div>
+        <div class="note-box"><strong>Preview complete:</strong> Auto-approved records can be committed immediately. Review-required records are committed only after an administrator explicitly approves them. Rejected, non-ICT and out-of-range records are never committed.</div>
+        <div class="import-actions"><button id="downloadAuditBtn" class="btn btn-secondary" type="button">Download Audit Report</button></div>
         <div class="preview-table-wrap">
           <table class="preview-table">
             <thead><tr><th class="col-row">Row</th><th class="col-status">Status</th><th class="col-datetime">Date & Time</th><th class="col-requester">Requester</th><th class="col-location">Location</th><th class="col-resource">Resource</th><th class="col-accessory">Accessories</th><th class="col-detail" title="Details">⋯</th></tr></thead>
@@ -1961,7 +1969,9 @@
                 const accessorySummaryText = accessoryCount ? `${accessoryCount} type${accessoryCount === 1 ? '' : 's'} · ${accessoryTotal}` : 'None';
                 const issues = uniqueMessages([...(row.errors || []), ...(row.warnings || [])]).join(' ') || 'None';
                 const detailId = `preview-detail-${index}`;
-                const rowStatus = row.valid ? 'Valid' : 'Invalid';
+                const rowStatus = row.decision === 'AUTO_APPROVED' ? 'Auto-approved' : row.decision === 'REVIEW_REQUIRED' ? 'Review' : 'Rejected';
+                const statusClass = row.decision === 'REJECTED' ? 'invalid' : 'valid';
+                const approvalControl = row.decision === 'REVIEW_REQUIRED' ? `<label style="display:flex;gap:6px;align-items:center;margin-top:8px;font-size:.78rem"><input class="review-approval" type="checkbox" data-trace-key="${escapeHtml(row.traceKey || '')}">Approve</label>` : '';
                 const legacyRemarks = booking.legacyBookingRemarks || '-';
                 const legacyPurpose = booking.legacyPurpose || '-';
                 const legacyResource = booking.legacyResourceText || '-';
@@ -1970,7 +1980,7 @@
                 const accessoryResolution = booking.legacyAccessoryResolution || '-';
                 return `<tr class="preview-summary-row">
                   <td class="col-row">${escapeHtml(row.rowNumber)}</td>
-                  <td class="col-status"><span class="status-pill ${row.valid ? 'valid' : 'invalid'}">${rowStatus}</span></td>
+                  <td class="col-status"><span class="status-pill ${statusClass}">${rowStatus}</span>${approvalControl}</td>
                   <td class="col-datetime"><span class="datetime-cell"><span class="datetime-date">${escapeHtml(booking.bookingDate || '-')}</span><span class="datetime-time">${escapeHtml(booking.startTime || '-')}–${escapeHtml(booking.endTime || '-')}</span></span></td>
                   <td class="col-requester">${escapeHtml(booking.importedRequesterName || booking.importedRequesterEmail || '-')}</td>
                   <td class="col-location">${escapeHtml(booking.location || '-')}<span class="location-resolution">${escapeHtml(booking.legacyLocationResolution || '')}</span></td>
@@ -1983,6 +1993,7 @@
                     <div class="preview-detail-panel">
                       <div class="detail-grid">
                         <div class="detail-card"><span class="detail-label">Accessories</span><div class="detail-value">${escapeHtml(accessoryList)}<br><span class="location-resolution">${escapeHtml(accessoryResolution)}</span></div></div>
+                        <div class="detail-card"><span class="detail-label">Decision / confidence</span><div class="detail-value">${escapeHtml(row.decision || '-')} · ${escapeHtml(row.confidence ?? '-')}%<br><span class="location-resolution">Trace: ${escapeHtml(row.traceKey || '-')}</span></div></div>
                         <div class="detail-card"><span class="detail-label">Issues / warnings</span><div class="detail-value">${escapeHtml(issues)}</div></div>
                         <div class="detail-card"><span class="detail-label">Legacy resource text</span><div class="detail-value">${escapeHtml(legacyResource)}</div></div>
                         <div class="detail-card"><span class="detail-label">Portal resource mapping</span><div class="detail-value">${escapeHtml(portalResource)}${booking.matchedResourceId ? ` (${escapeHtml(booking.matchedResourceId)})` : ''}<br>${escapeHtml(resourceResolution || '-')}</div></div>
@@ -2000,7 +2011,45 @@
     }
 
 
+    previewResults.addEventListener('change', event => {
+      const checkbox = event.target.closest('.review-approval');
+      if (!checkbox) return;
+      const key = checkbox.dataset.traceKey || '';
+      if (checkbox.checked) approvedReviewKeys.add(key);
+      else approvedReviewKeys.delete(key);
+      const autoCount = (lastPreviewData?.autoApprovedRows || []).length;
+      commitBtn.disabled = autoCount + approvedReviewKeys.size === 0;
+    });
+
     previewResults.addEventListener('click', event => {
+      const auditButton = event.target.closest('#downloadAuditBtn');
+      if (auditButton && lastPreviewData) {
+        const report = {
+          generatedAt: new Date().toISOString(),
+          dateRange: lastPreviewData.dateRange,
+          totals: {
+            totalRows: lastPreviewData.totalRows,
+            autoApproved: (lastPreviewData.autoApprovedRows || []).length,
+            reviewRequired: (lastPreviewData.reviewRows || []).length,
+            rejected: (lastPreviewData.rejectedRows || lastPreviewData.invalidRows || []).length,
+            skipped: (lastPreviewData.skippedRows || []).length,
+            outsideRange: lastPreviewData.rowsOutsideRange || 0
+          },
+          autoApprovedRows: lastPreviewData.autoApprovedRows || [],
+          reviewRows: lastPreviewData.reviewRows || [],
+          rejectedRows: lastPreviewData.rejectedRows || lastPreviewData.invalidRows || [],
+          skippedRows: lastPreviewData.skippedRows || [],
+          outOfRangeRows: lastPreviewData.outOfRangeRows || []
+        };
+        const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `booking-import-audit-${new Date().toISOString().slice(0,10)}.json`;
+        link.click();
+        URL.revokeObjectURL(url);
+        return;
+      }
       const button = event.target.closest('.detail-toggle');
       if (!button) return;
 
@@ -2105,7 +2154,7 @@
         showStatus('error', 'Please preview the import before importing bookings.');
         return;
       }
-      if (!confirm('Import all rows marked as valid in the current preview? Rows outside the selected range and rows needing review will not be imported.')) return;
+      if (!confirm(`Import all auto-approved records and ${approvedReviewKeys.size} explicitly approved review record(s)?`)) return;
 
       setButtonBusy(commitBtn, true, 'Importing valid bookings', 0);
       showProcessing('Preparing valid bookings for import...', 0);
@@ -2117,7 +2166,7 @@
         const response = await fetch('/api/admin/import/bookings/commit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rows: lastRows, allowPartialImport: true, ...importRange })
+          body: JSON.stringify({ rows: lastRows, allowPartialImport: true, approvedReviewKeys: Array.from(approvedReviewKeys), ...importRange })
         });
 
         let result;

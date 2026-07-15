@@ -3436,6 +3436,104 @@ function consolidateAccessoryOnlyImportRows(mappedRows) {
     });
 }
 
+
+function buildImportTraceKey(row = {}) {
+  const booking = row.mappedBooking || {};
+  const source = [
+    booking.importSource || "Legacy Platform",
+    booking.importRowNumber || row.rowNumber || "",
+    booking.importSegmentLabel || row.rowNumber || "",
+    booking.bookingDate || "",
+    booking.startTime || "",
+    booking.endTime || "",
+    booking.location || "",
+    booking.importedRequesterEmail || booking.importedRequesterName || "",
+    booking.legacyResourceText || booking.deviceType || ""
+  ].join("|");
+  return crypto.createHash("sha256").update(source).digest("hex").slice(0, 24);
+}
+
+function classifyImportDecision(row = {}) {
+  const errors = toArray(row.errors).map(value => String(value || "").trim()).filter(Boolean);
+  const warnings = toArray(row.warnings).map(value => String(value || "").trim()).filter(Boolean);
+  const booking = row.mappedBooking || {};
+
+  if (row.skipped) {
+    return { decision: "SKIPPED", confidence: 0, requiresApproval: false, reasons: errors.length ? errors : ["Non-ICT or excluded record."] };
+  }
+
+  if (errors.length) {
+    return { decision: "REJECTED", confidence: 0, requiresApproval: false, reasons: errors };
+  }
+
+  const reviewReasons = [];
+  const materialPatterns = [
+    /generic device type detected/i,
+    /no registered resource name matched/i,
+    /custom descriptive location/i,
+    /custom class-like location/i,
+    /requester was not found/i,
+    /paired sequentially/i,
+    /multiple resource deployments share/i,
+    /accessory-only legacy row/i,
+    /manual review/i,
+    /ambiguous/i,
+    /split from bulk resource booking/i
+  ];
+
+  warnings.forEach(warning => {
+    if (materialPatterns.some(pattern => pattern.test(warning))) reviewReasons.push(warning);
+  });
+
+  const resolutionText = [
+    booking.legacyResourceResolution,
+    booking.legacyLocationResolution,
+    booking.legacyAccessoryResolution
+  ].filter(Boolean).join("; ");
+  if (materialPatterns.some(pattern => pattern.test(resolutionText))) {
+    reviewReasons.push(resolutionText);
+  }
+
+  if (reviewReasons.length) {
+    return {
+      decision: "REVIEW_REQUIRED",
+      confidence: 70,
+      requiresApproval: true,
+      reasons: Array.from(new Set(reviewReasons))
+    };
+  }
+
+  return {
+    decision: "AUTO_APPROVED",
+    confidence: warnings.length ? 90 : 100,
+    requiresApproval: false,
+    reasons: warnings
+  };
+}
+
+function applyImportDecisionMetadata(rows = []) {
+  return toArray(rows).map(row => {
+    const traceKey = buildImportTraceKey(row);
+    const decision = classifyImportDecision(row);
+    const mappedBooking = {
+      ...(row.mappedBooking || {}),
+      importTraceKey: traceKey,
+      importDecision: decision.decision,
+      importConfidence: decision.confidence,
+      importDecisionReasons: { reason: decision.reasons }
+    };
+    return {
+      ...row,
+      mappedBooking,
+      traceKey,
+      decision: decision.decision,
+      confidence: decision.confidence,
+      requiresApproval: decision.requiresApproval,
+      decisionReasons: decision.reasons
+    };
+  });
+}
+
 function previewLegacyBookingRows(rows, dateRange = {}) {
   const users = getUsersFromXML();
   let allRows = toArray(rows).flatMap((row, index) => {
@@ -3470,7 +3568,7 @@ function previewLegacyBookingRows(rows, dateRange = {}) {
     });
   });
 
-  allRows = consolidateAccessoryOnlyImportRows(allRows);
+  allRows = applyImportDecisionMetadata(consolidateAccessoryOnlyImportRows(allRows));
 
   const inRangeRows = [];
   const outOfRangeRows = [];
@@ -3489,9 +3587,12 @@ function previewLegacyBookingRows(rows, dateRange = {}) {
     }
   });
 
-  const validRows = inRangeRows.filter(row => row.valid);
-  const skippedRows = inRangeRows.filter(row => row.skipped);
-  const invalidRows = inRangeRows.filter(row => !row.valid && !row.skipped);
+  const autoApprovedRows = inRangeRows.filter(row => row.decision === "AUTO_APPROVED");
+  const reviewRows = inRangeRows.filter(row => row.decision === "REVIEW_REQUIRED");
+  const rejectedRows = inRangeRows.filter(row => row.decision === "REJECTED");
+  const skippedRows = inRangeRows.filter(row => row.decision === "SKIPPED");
+  const validRows = [...autoApprovedRows, ...reviewRows];
+  const invalidRows = rejectedRows;
 
   const classificationSummary = inRangeRows.reduce((summary, row) => {
     const key = row.classification || "Needs review";
@@ -3520,6 +3621,9 @@ function previewLegacyBookingRows(rows, dateRange = {}) {
     rowsOutsideRange: outOfRangeRows.length,
     dateRange,
     validRows,
+    autoApprovedRows,
+    reviewRows,
+    rejectedRows,
     invalidRows,
     skippedRows,
     outOfRangeRows,
@@ -3628,7 +3732,13 @@ app.post("/api/admin/import/bookings/commit", requireLogin, requireAdmin, (req, 
       });
     }
 
-    const importResults = preview.validRows.map(row => saveImportedBooking(row.mappedBooking, req.session.user));
+    const approvedReviewKeys = new Set(toArray(req.body.approvedReviewKeys).map(value => String(value || "")));
+    const rowsToCommit = [
+      ...preview.autoApprovedRows,
+      ...preview.reviewRows.filter(row => approvedReviewKeys.has(String(row.traceKey || "")))
+    ];
+    const unapprovedReviewRows = preview.reviewRows.filter(row => !approvedReviewKeys.has(String(row.traceKey || "")));
+    const importResults = rowsToCommit.map(row => saveImportedBooking(row.mappedBooking, req.session.user));
     const importedBookings = importResults.filter(result => !result.skipped);
     const duplicateRows = importResults.filter(result => result.skipped);
 
@@ -3636,7 +3746,10 @@ app.post("/api/admin/import/bookings/commit", requireLogin, requireAdmin, (req, 
       success: true,
       message: `${importedBookings.length} booking record(s) imported from the selected date range. ${duplicateRows.length} duplicate row(s) skipped. ${preview.rowsOutsideRange} row(s) were outside the selected date range.`,
       importedCount: importedBookings.length,
-      skippedCount: preview.invalidRows.length + preview.skippedRows.length + duplicateRows.length + preview.rowsOutsideRange,
+      skippedCount: preview.invalidRows.length + preview.skippedRows.length + unapprovedReviewRows.length + duplicateRows.length + preview.rowsOutsideRange,
+      autoApprovedCount: preview.autoApprovedRows.length,
+      manuallyApprovedCount: preview.reviewRows.length - unapprovedReviewRows.length,
+      unapprovedReviewRows,
       duplicateRows,
       importedBookings,
       invalidRows: preview.invalidRows,
