@@ -1318,78 +1318,77 @@ function buildOperationalBundle(bookings, anchorBooking) {
   });
 
   const anchorResourceIds = getDEManagedAllocatedResourceIds(anchorBooking, resourceById);
-  const anchorPickupLocations = new Set();
+  const anchorPickupByResource = new Map();
 
   anchorResourceIds.forEach(resourceId => {
     const sequence = resourceBookings.get(resourceId) || [];
     const anchorIndex = sequence.findIndex(booking => String(booking["@_id"]) === anchorId);
     const resource = resourceById.get(resourceId) || {};
     const home = getResourceHomeLocation(resource);
+    let pickupLocation = home;
 
-    if (anchorIndex <= 0) {
-      anchorPickupLocations.add(home);
-      return;
+    if (anchorIndex > 0) {
+      const previous = sequence[anchorIndex - 1];
+      const previousEnd = timeToMinutes(previous.endTime);
+      const gap = previousEnd !== null && anchorStart !== null ? anchorStart - previousEnd : null;
+      if (gap !== null && gap >= 0 && gap <= HANDOVER_GAP_MINUTES) {
+        pickupLocation = String(previous.location || home);
+      }
     }
 
-    const previous = sequence[anchorIndex - 1];
-    const previousEnd = timeToMinutes(previous.endTime);
-    const gap = previousEnd !== null && anchorStart !== null ? anchorStart - previousEnd : null;
-    anchorPickupLocations.add(
-      gap !== null && gap >= 0 && gap <= HANDOVER_GAP_MINUTES
-        ? String(previous.location || home)
-        : home
-    );
+    anchorPickupByResource.set(resourceId, pickupLocation);
   });
 
-  // Prefer a shared classroom pickup over the ICT Room when one exists.
-  const pickupLocation =
-    Array.from(anchorPickupLocations).find(location => location && location !== "ICT Room") ||
-    Array.from(anchorPickupLocations)[0] ||
-    "ICT Room";
-
+  const anchorPickupLocations = new Set(
+    Array.from(anchorPickupByResource.values()).filter(Boolean)
+  );
   const candidateResources = [];
 
   resourceBookings.forEach((sequence, resourceId) => {
     const resource = resourceById.get(resourceId) || {};
     const homeLocation = getResourceHomeLocation(resource);
+    const isAnchorResource = anchorResourceIds.includes(resourceId);
 
-    // Find the latest booking before the anchor start.
     let previousIndex = -1;
     sequence.forEach((booking, index) => {
       const end = timeToMinutes(booking.endTime);
       if (end !== null && anchorStart !== null && end <= anchorStart) previousIndex = index;
     });
 
-    if (previousIndex < 0) {
-      // Include resources used by the anchor itself when collected from home.
-      if (anchorResourceIds.includes(resourceId) && pickupLocation === homeLocation) {
-        candidateResources.push({
-          resourceId,
-          resourceName: resource.name || resourceId,
-          category: normaliseResourceCategory(resource.category),
-          homeLocation,
-          previousBooking: null,
-          nextBooking: anchorBooking
-        });
-      }
+    if (isAnchorResource) {
+      const pickupLocation = anchorPickupByResource.get(resourceId) || homeLocation;
+      const previous = previousIndex >= 0 && String(sequence[previousIndex]?.location || "") === String(pickupLocation)
+        ? sequence[previousIndex]
+        : null;
+      candidateResources.push({
+        resourceId,
+        resourceName: resource.name || resourceId,
+        category: normaliseResourceCategory(resource.category),
+        homeLocation,
+        pickupLocation,
+        previousBooking: previous,
+        nextBooking: anchorBooking
+      });
       return;
     }
 
+    if (previousIndex < 0) return;
     const previous = sequence[previousIndex];
-    if (String(previous.location || "") !== String(pickupLocation)) return;
+    const pickupLocation = String(previous.location || homeLocation);
+    if (!anchorPickupLocations.has(pickupLocation)) return;
 
-    const next = sequence[previousIndex + 1] || null;
     candidateResources.push({
       resourceId,
       resourceName: resource.name || resourceId,
       category: normaliseResourceCategory(resource.category),
       homeLocation,
+      pickupLocation,
       previousBooking: previous,
-      nextBooking: next
+      nextBooking: sequence[previousIndex + 1] || null
     });
   });
 
-  // Ensure all anchor resources are included.
+  // Defensive inclusion for any anchor resource omitted from the booking index.
   anchorResourceIds.forEach(resourceId => {
     if (candidateResources.some(item => item.resourceId === resourceId)) return;
     const resource = resourceById.get(resourceId) || {};
@@ -1398,6 +1397,7 @@ function buildOperationalBundle(bookings, anchorBooking) {
       resourceName: resource.name || resourceId,
       category: normaliseResourceCategory(resource.category),
       homeLocation: getResourceHomeLocation(resource),
+      pickupLocation: anchorPickupByResource.get(resourceId) || getResourceHomeLocation(resource),
       previousBooking: null,
       nextBooking: anchorBooking
     });
@@ -1410,11 +1410,12 @@ function buildOperationalBundle(bookings, anchorBooking) {
     const previousEnd = item.previousBooking ? timeToMinutes(item.previousBooking.endTime) : null;
     const nextStart = next ? timeToMinutes(next.startTime) : null;
     const gap = previousEnd !== null && nextStart !== null ? nextStart - previousEnd : null;
-    const canDirectTransfer =
-      next &&
-      gap !== null &&
-      gap >= 0 &&
-      gap <= HANDOVER_GAP_MINUTES;
+    const canDirectTransfer = next && (
+      // Every anchor resource is required for the anchor booking, including
+      // resources collected from home where no previous booking exists.
+      String(next["@_id"] || "") === anchorId ||
+      (gap !== null && gap >= 0 && gap <= HANDOVER_GAP_MINUTES)
+    );
 
     const type = canDirectTransfer ? "Deployment" : "Return";
     const movementClass = canDirectTransfer
@@ -1455,7 +1456,8 @@ function buildOperationalBundle(bookings, anchorBooking) {
     leg.resources.resource.push({
       resourceId: item.resourceId,
       resourceName: item.resourceName,
-      category: item.category
+      category: item.category,
+      pickupLocation: item.pickupLocation
     });
     if (linkedBookingId && !leg.linkedBookingIds.bookingId.includes(linkedBookingId)) {
       leg.linkedBookingIds.bookingId.push(linkedBookingId);
@@ -1470,42 +1472,41 @@ function buildOperationalBundle(bookings, anchorBooking) {
 
   const legs = Array.from(grouped.values())
     .sort((a, b) => {
-      const classCompare =
-        routeClassPriority(a.movementClass) -
-        routeClassPriority(b.movementClass);
+      const classCompare = routeClassPriority(a.movementClass) - routeClassPriority(b.movementClass);
       if (classCompare !== 0) return classCompare;
-
-      const timeCompare = String(a.requiredTime || "99:99")
-        .localeCompare(String(b.requiredTime || "99:99"));
+      const timeCompare = String(a.requiredTime || "99:99").localeCompare(String(b.requiredTime || "99:99"));
       if (timeCompare !== 0) return timeCompare;
-
       const deviceCompare = Number(!a.containsDevice) - Number(!b.containsDevice);
       if (deviceCompare !== 0) return deviceCompare;
-
-      const typeCompare =
-        getMovementTypePriority(a.type) -
-        getMovementTypePriority(b.type);
+      const typeCompare = getMovementTypePriority(a.type) - getMovementTypePriority(b.type);
       if (typeCompare !== 0) return typeCompare;
-
       return String(a.destination).localeCompare(String(b.destination));
     })
-    .map((leg, index) => ({
-      ...leg,
-      legId: `LEG-${index + 1}`,
-      routeOrder: index + 1
-    }));
+    .map((leg, index) => ({ ...leg, legId: `LEG-${index + 1}`, routeOrder: index + 1 }));
+
+  const pickupLocations = Array.from(new Set(
+    candidateResources.map(item => item.pickupLocation).filter(Boolean)
+  ));
+  const pickupLocationSummary = pickupLocations.length
+    ? pickupLocations.join(" + ")
+    : "ICT Room";
 
   return {
     bundleId: `BUNDLE-${Date.now()}-${anchorId}`,
     status: "Active",
     anchorBookingId: anchorId,
-    pickupLocation,
+    // Retained for backwards compatibility. New clients should use the
+    // resource-specific manifest and pickupLocations.
+    pickupLocation: pickupLocationSummary,
+    pickupLocations: { location: pickupLocations },
+    pickupLocationSummary,
     claimedAt: new Date().toISOString(),
     resourcesToCollect: {
       resource: candidateResources.map(item => ({
         resourceId: item.resourceId,
         resourceName: item.resourceName,
-        category: item.category
+        category: item.category,
+        pickupLocation: item.pickupLocation
       }))
     },
     legs: { leg: legs }

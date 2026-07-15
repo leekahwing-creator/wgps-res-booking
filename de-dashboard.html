@@ -1913,17 +1913,27 @@ return currentUser;
         </div>
 
         <div class="route-stop">
-          <span>Collect everything from</span>
-          <strong>${escapeHtml(bundle.pickupLocation || active.pickupLocationSummary || 'ICT Room')}</strong>
+          <span>Collect resources from</span>
+          <strong>${escapeHtml(bundle.pickupLocationSummary || bundle.pickupLocation || active.pickupLocationSummary || 'ICT Room')}</strong>
         </div>
 
         <div class="collection-manifest">
-          <strong>Resources to collect</strong>
-          <div class="manifest-list">
-            ${manifest.map(item => `
-              <span class="manifest-chip">${escapeHtml(item.resourceName || item.resourceId)}</span>
-            `).join('')}
-          </div>
+          <strong>Collection plan</strong>
+          ${Object.entries(manifest.reduce((groups, item) => {
+            const location = item.pickupLocation || bundle.pickupLocation || active.pickupLocationSummary || 'ICT Room';
+            if (!groups[location]) groups[location] = [];
+            groups[location].push(item);
+            return groups;
+          }, {})).map(([location, items]) => `
+            <div class="collection-group">
+              <small>Collect from ${escapeHtml(location)}</small>
+              <div class="manifest-list">
+                ${items.map(item => `
+                  <span class="manifest-chip">${escapeHtml(item.resourceName || item.resourceId)}</span>
+                `).join('')}
+              </div>
+            </div>
+          `).join('')}
         </div>
 
         <div class="current-job-itinerary">
