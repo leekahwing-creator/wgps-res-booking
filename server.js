@@ -3315,7 +3315,16 @@ function getAdditionalResourceList(booking = {}) {
 
 function hasDeviceRequest(row) {
   const booking = row?.mappedBooking || {};
-  return Boolean(booking.deviceType && Number(booking.devicesRequired || 0) > 0);
+  const deviceType = normaliseConsolidationKeyValue(booking.deviceType);
+  const resourceCategory = normaliseConsolidationKeyValue(booking.matchedResourceCategory);
+  const noDeviceTokens = new Set(["", "-", "none", "n/a", "na", "nil", "accessory", "accessories"]);
+
+  // Legacy accessory-only rows can carry their accessory quantity in the same
+  // numeric field used for device quantity. Quantity alone must therefore not
+  // cause the row to be treated as a device booking.
+  if (resourceCategory === "accessory" || noDeviceTokens.has(deviceType)) return false;
+
+  return Number(booking.devicesRequired || 0) > 0;
 }
 
 function hasAccessoryRequest(row) {
@@ -3439,12 +3448,33 @@ function consolidateAccessoryOnlyImportRows(mappedRows) {
   return rows
     .filter((_, index) => !mergedAccessoryRowIds.has(index))
     .map(row => {
-      if (row.valid) return row;
+      if (!isAccessoryOnlyImportRow(row)) return row;
+
+      // An accessory-only row that could not be matched to one unique device
+      // booking is structurally importable, but its operational intent is not
+      // certain. Keep it visible for explicit Admin review; never silently
+      // auto-approve a booking with no device anchor.
       const cleanedErrors = removeDeviceTypeErrors(row.errors);
+      const reviewWarning = `Accessory-only legacy row ${row.rowNumber} could not be matched uniquely to a device booking and requires Admin review.`;
+      const warnings = Array.from(new Set([
+        ...toArray(row.warnings),
+        reviewWarning
+      ]));
+
       return {
         ...row,
         errors: cleanedErrors,
-        valid: cleanedErrors.length === 0
+        warnings,
+        valid: cleanedErrors.length === 0,
+        mappedBooking: {
+          ...(row.mappedBooking || {}),
+          importWarnings: {
+            warning: Array.from(new Set([
+              ...toArray(row.mappedBooking?.importWarnings?.warning),
+              reviewWarning
+            ]))
+          }
+        }
       };
     });
 }
