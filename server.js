@@ -1708,6 +1708,7 @@ function buildOperationalTimelineAndJourneys(bookings = [], bookingDate = "") {
         const completedThisReturn =
           completedMovement &&
           completedMovement.movementClass === "Recovery Return" &&
+          String(completedMovement.bookingId || "") === bookingId &&
           String(completedMovement.destination || "") === String(homeLocation);
         if (completedThisReturn) returnStatus = "Completed";
         else if (relation === "past") returnStatus = "Overdue";
