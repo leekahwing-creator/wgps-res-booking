@@ -1762,28 +1762,52 @@ function buildOperationalTimelineAndJourneys(bookings = [], bookingDate = "") {
       });
     }
 
-    const completedMovement = completedResourceMovements.get(resourceId);
+    // Derive physical location from this resource journey's ordered completed
+    // steps. This keeps the journey header consistent with the last completed
+    // job shown in the drawer and prevents an unrelated/stale movement record
+    // from resetting the resource to its home location.
+    const latestCompletedStep = [...steps]
+      .reverse()
+      .find(step =>
+        step.status === "Completed" &&
+        ["Deployment", "Direct Transfer", "Recovery Return"].includes(step.type)
+      ) || null;
+
+    const completedMovement = latestCompletedStep
+      ? {
+          destination: latestCompletedStep.location,
+          movementClass: latestCompletedStep.type,
+          bookingId: latestCompletedStep.bookingId,
+          completedAt: "",
+          source: "Completed journey step"
+        }
+      : null;
+
     const actualLocation =
-      relation !== "future" && completedMovement?.destination
-        ? completedMovement.destination
-        : (currentStep.location || homeLocation);
+      relation !== "future" && latestCompletedStep?.location
+        ? latestCompletedStep.location
+        : homeLocation;
 
     let operationalStatus = "Ready";
     if (currentStep.status === "Exception") operationalStatus = "Exception";
     else if (currentStep.status === "Overdue") operationalStatus = "Overdue";
-    else if (completedMovement?.movementClass === "Recovery Return" && actualLocation === homeLocation) operationalStatus = "Ready";
-    else if (completedMovement && actualLocation !== homeLocation) operationalStatus = "Deployed";
+    else if (latestCompletedStep?.type === "Recovery Return" && actualLocation === homeLocation) operationalStatus = "Ready";
+    else if (latestCompletedStep && actualLocation !== homeLocation) operationalStatus = "Deployed";
     else if (currentStep.type === "Recovery Return" && currentStep.status !== "Completed") operationalStatus = "Awaiting Return";
     else if (currentStep.type === "Direct Transfer" && currentStep.status !== "Completed") operationalStatus = "Direct Transfer";
     else if (currentStep.type === "Deployment" && currentStep.location !== homeLocation) operationalStatus = "Deployed";
     else if (currentStep.status === "Active" || currentStep.status === "Due now") operationalStatus = "In Transit";
 
-    const nextStep = steps.find(step => {
-      const stepMinutes = timeToMinutes(step.time);
-      return relation !== "past" && stepMinutes !== null && (
-        relation === "future" || stepMinutes > currentMinutes
-      );
-    }) || null;
+    // The summary card's "Next" item must follow operational progress, not
+    // merely the clock. Completed steps are skipped even when their scheduled
+    // time is still the earliest matching time. This keeps the summary aligned
+    // with the detailed journey drawer after jobs are completed early or late.
+    const nextStep = relation === "past"
+      ? null
+      : steps.find(step =>
+          ["Deployment", "Direct Transfer", "Recovery Return"].includes(step.type) &&
+          step.status !== "Completed"
+        ) || null;
 
     journeys.push({
       resourceId,
