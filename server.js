@@ -1529,25 +1529,59 @@ function findActiveOperationalBundleBooking(bookings, userId) {
 }
 
 
-function getCompletedBundleResourceIds(bookings = []) {
-  const completed = new Set();
+function getCompletedResourceMovements(bookings = [], resourceById = buildResourceLookup()) {
+  const completedByResource = new Map();
+
+  const recordMovement = (resourceId, movement) => {
+    const id = String(resourceId || "").trim();
+    if (!id || !movement?.destination) return;
+
+    const existing = completedByResource.get(id);
+    const movementTime = Date.parse(movement.completedAt || "") || 0;
+    const existingTime = Date.parse(existing?.completedAt || "") || 0;
+
+    if (!existing || movementTime >= existingTime) {
+      completedByResource.set(id, movement);
+    }
+  };
 
   bookings.forEach(booking => {
     normaliseOperationalBundleLegs(booking.operationalBundle).forEach(leg => {
       if (String(leg.status || "") !== "Completed") return;
+
       toArray(leg.resources?.resource).forEach(resource => {
-        const id = String(resource?.resourceId || "").trim();
-        if (id) completed.add(id);
+        recordMovement(resource?.resourceId, {
+          destination: String(leg.destination || "").trim(),
+          movementClass: String(leg.movementClass || leg.type || "").trim(),
+          completedAt: String(leg.completedAt || booking.operationalBundle?.completedAt || ""),
+          bookingId: String(booking["@_id"] || booking.bookingId || ""),
+          source: "Operational route leg"
+        });
       });
     });
+
+    // Preserve compatibility with legacy/single-job completion records that do
+    // not have an operational bundle leg. A completed deployment means the
+    // allocated DE-managed resources physically reached the booking location.
+    if (!booking.operationalBundle && normaliseDeploymentStatus(booking) === "Deployed") {
+      getDEManagedAllocatedResourceIds(booking, resourceById).forEach(resourceId => {
+        recordMovement(resourceId, {
+          destination: String(booking.location || "").trim(),
+          movementClass: "Deployment",
+          completedAt: String(booking.deployedAt || ""),
+          bookingId: String(booking["@_id"] || booking.bookingId || ""),
+          source: "Completed deployment job"
+        });
+      });
+    }
   });
 
-  return completed;
+  return completedByResource;
 }
 
 function buildOperationalTimelineAndJourneys(bookings = [], bookingDate = "") {
   const resourceById = buildResourceLookup();
-  const completedBundleResourceIds = getCompletedBundleResourceIds(bookings);
+  const completedResourceMovements = getCompletedResourceMovements(bookings, resourceById);
   const DIRECT_HANDOVER_GAP_MINUTES = 30;
   const bookingsByResource = new Map();
 
@@ -1670,7 +1704,12 @@ function buildOperationalTimelineAndJourneys(bookings = [], bookingDate = "") {
 
       if (!directToNext) {
         let returnStatus = "Upcoming";
-        if (completedBundleResourceIds.has(resourceId)) returnStatus = "Completed";
+        const completedMovement = completedResourceMovements.get(resourceId);
+        const completedThisReturn =
+          completedMovement &&
+          completedMovement.movementClass === "Recovery Return" &&
+          String(completedMovement.destination || "") === String(homeLocation);
+        if (completedThisReturn) returnStatus = "Completed";
         else if (relation === "past") returnStatus = "Overdue";
         else if (relation === "today" && end !== null && currentMinutes > end) returnStatus = "Awaiting Return";
 
@@ -1722,9 +1761,17 @@ function buildOperationalTimelineAndJourneys(bookings = [], bookingDate = "") {
       });
     }
 
+    const completedMovement = completedResourceMovements.get(resourceId);
+    const actualLocation =
+      relation !== "future" && completedMovement?.destination
+        ? completedMovement.destination
+        : (currentStep.location || homeLocation);
+
     let operationalStatus = "Ready";
     if (currentStep.status === "Exception") operationalStatus = "Exception";
     else if (currentStep.status === "Overdue") operationalStatus = "Overdue";
+    else if (completedMovement?.movementClass === "Recovery Return" && actualLocation === homeLocation) operationalStatus = "Ready";
+    else if (completedMovement && actualLocation !== homeLocation) operationalStatus = "Deployed";
     else if (currentStep.type === "Recovery Return" && currentStep.status !== "Completed") operationalStatus = "Awaiting Return";
     else if (currentStep.type === "Direct Transfer" && currentStep.status !== "Completed") operationalStatus = "Direct Transfer";
     else if (currentStep.type === "Deployment" && currentStep.location !== homeLocation) operationalStatus = "Deployed";
@@ -1742,7 +1789,8 @@ function buildOperationalTimelineAndJourneys(bookings = [], bookingDate = "") {
       resourceName,
       category,
       homeLocation,
-      currentExpectedLocation: currentStep.location || homeLocation,
+      currentExpectedLocation: actualLocation,
+      locationEvidence: completedMovement || null,
       operationalStatus,
       currentStep,
       nextStep,
