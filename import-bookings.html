@@ -1276,29 +1276,32 @@
     }
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(6, minmax(0, 1fr));
-      gap: 12px;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 10px;
     }
     .stat-card {
+      min-width: 0;
       border: 1px solid var(--border);
       border-radius: 16px;
-      padding: 14px;
+      padding: 12px 13px;
       background: #ffffff;
     }
     .stat-card strong {
       display: block;
-      font-size: 1.45rem;
+      font-size: 1.35rem;
       color: var(--primary-dark);
-      line-height: 1.1;
+      line-height: 1.05;
     }
     .stat-card span {
       display: block;
-      margin-top: 6px;
-      font-size: .78rem;
+      margin-top: 5px;
+      font-size: .72rem;
+      line-height: 1.25;
       color: var(--muted);
       font-weight: 800;
       text-transform: uppercase;
-      letter-spacing: .04em;
+      letter-spacing: .025em;
+      overflow-wrap: anywhere;
     }
 
     .summary-section {
@@ -1329,8 +1332,15 @@
       font-size: .85rem;
     }
 
+    @media (max-width: 1180px) {
+      .stats-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    }
     @media (max-width: 860px) {
-      .range-grid, .stats-grid { grid-template-columns: 1fr; }
+      .range-grid { grid-template-columns: 1fr; }
+      .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 520px) {
+      .stats-grid { grid-template-columns: 1fr; }
     }
 
     /* Prevent old standalone navigation from flashing/overlapping before the shared navigation controller finishes applying role-aware layout. */
@@ -1934,7 +1944,12 @@
         const elapsed = performance.now() - activeProgressStartedAt;
         const state = progressPhase(weightedPhases, elapsed);
         const safePercent = Math.min(94, state.percent);
-        updateProcessingProgress(safePercent, state.label, state.detail);
+        const isAwaitingServer = safePercent >= 93.8;
+        updateProcessingProgress(
+          safePercent,
+          isAwaitingServer ? 'Wrapping up and awaiting response from server...' : state.label,
+          isAwaitingServer ? 'Final server processing may take up to a few minutes. Please keep this page open.' : state.detail
+        );
         updateButtonProgress(button, safePercent, baseLabel);
       };
       tick();
