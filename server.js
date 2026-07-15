@@ -1,4 +1,5 @@
 const { createJourneyEngine } = require("./journeyEngine");
+const bookingSegmentationEngine = require("./bookingSegmentationEngine");
 const express = require("express");
 const session = require("express-session");
 const argon2 = require("argon2");
@@ -1194,8 +1195,54 @@ function getDateBookingsFile(bookingDate) {
   return ensureMonthlyBookingsFile(bookingDate);
 }
 
+function getBookingRecordId(booking = {}) {
+  return String(booking["@_id"] || booking.bookingId || "").trim();
+}
+
+function getBookingIdentityKey(booking = {}) {
+  return [
+    getBookingRecordId(booking),
+    String(booking.bookingDate || ""),
+    String(booking.startTime || ""),
+    String(booking.endTime || ""),
+    String(booking.location || ""),
+    String(booking.userId || "")
+  ].join("|");
+}
+
+function findBookingsById(bookings, bookingId) {
+  const target = String(bookingId || "");
+  return bookings.filter(booking => getBookingRecordId(booking) === target);
+}
+
 function findBookingById(bookings, bookingId) {
-  return bookings.find(booking => String(booking["@_id"]) === String(bookingId));
+  const matches = findBookingsById(bookings, bookingId);
+  if (matches.length > 1) {
+    const error = new Error(`Booking identity conflict: ${matches.length} records share booking ID ${bookingId}.`);
+    error.statusCode = 409;
+    error.code = "DUPLICATE_BOOKING_ID";
+    throw error;
+  }
+  return matches[0];
+}
+
+function getNextBookingRecordId(bookings = []) {
+  const numericIds = bookings
+    .map(booking => Number.parseInt(getBookingRecordId(booking), 10))
+    .filter(Number.isFinite);
+  return String((numericIds.length ? Math.max(...numericIds) : 0) + 1);
+}
+
+function getDuplicateBookingIds(bookings = []) {
+  const counts = new Map();
+  bookings.forEach(booking => {
+    const id = getBookingRecordId(booking);
+    if (!id) return;
+    counts.set(id, (counts.get(id) || 0) + 1);
+  });
+  return Array.from(counts.entries())
+    .filter(([, count]) => count > 1)
+    .map(([bookingId, count]) => ({ bookingId, count }));
 }
 
 function normaliseResourceIdList(value) {
@@ -1269,8 +1316,9 @@ function formatDeploymentBookingForResponse(booking, users, provenanceByBookingI
   const requesterName = getUserDisplayNameById(users, booking.userId) || "Requester";
   const claimedByName = booking.claimedByName || getUserDisplayNameById(users, booking.claimedByUserId);
   const deployedByName = booking.deployedByName || getUserDisplayNameById(users, booking.deployedByUserId);
-  const bookingId = String(booking["@_id"] || booking.bookingId || "");
-  const resourceMovements = provenanceByBookingId.get(bookingId) || [];
+  const bookingId = getBookingRecordId(booking);
+  const bookingIdentityKey = getBookingIdentityKey(booking);
+  const resourceMovements = provenanceByBookingId.get(bookingIdentityKey) || [];
   const resourceById = buildResourceLookup();
   const deManagedResourceIds = getDEManagedAllocatedResourceIds(booking, resourceById);
   const userCollectedResourceIds = getUserCollectedAllocatedResourceIds(booking, resourceById);
@@ -1295,6 +1343,8 @@ function formatDeploymentBookingForResponse(booking, users, provenanceByBookingI
   const pickupLocations = Array.from(new Set(resourceMovements.map(item => item.pickupLocation).filter(Boolean)));
   return {
     ...booking,
+    bookingId,
+    bookingIdentityKey,
     requesterName,
     deploymentStatus: normaliseDeploymentStatus(booking),
     claimedByName: claimedByName || "",
@@ -2534,46 +2584,8 @@ function parseLegacyTimeslots(value) {
 
 
 function parseLegacyTimeslotSegments(value) {
-  const text = normaliseImportValue(value);
-  const matches = Array.from(text.matchAll(/\bP(\d+)\s*\((\d{1,2}:\d{2})-(\d{1,2}:\d{2})\)/gi))
-    .map(match => ({
-      period: Number(match[1]),
-      startTime: normaliseImportTime(match[2]),
-      endTime: normaliseImportTime(match[3])
-    }))
-    .filter(segment => segment.period && segment.startTime && segment.endTime)
-    .sort((a, b) => a.period - b.period);
-
-  if (matches.length <= 1) return [];
-
-  const groups = [];
-  let currentGroup = [matches[0]];
-
-  for (let i = 1; i < matches.length; i++) {
-    const previous = currentGroup[currentGroup.length - 1];
-    const current = matches[i];
-    const periodIsConsecutive = current.period === previous.period + 1;
-    const timeIsContinuous = current.startTime === previous.endTime;
-
-    if (periodIsConsecutive && timeIsContinuous) {
-      currentGroup.push(current);
-    } else {
-      groups.push(currentGroup);
-      currentGroup = [current];
-    }
-  }
-
-  groups.push(currentGroup);
-
-  if (groups.length <= 1) return [];
-
-  return groups.map((group, index) => ({
-    segmentIndex: index + 1,
-    segmentTotal: groups.length,
-    periodLabel: `P${group[0].period}${group.length > 1 ? `–P${group[group.length - 1].period}` : ""}`,
-    startTime: group[0].startTime,
-    endTime: group[group.length - 1].endTime
-  }));
+  const segments = bookingSegmentationEngine.buildTimeSegments(value);
+  return segments.length > 1 ? segments : [];
 }
 
 function normaliseSearchText(value) {
@@ -3433,14 +3445,29 @@ function previewLegacyBookingRows(rows, dateRange = {}) {
       "Timeslots", "Timeslot", "Time Slots", "Time", "Start Time", "Start", "startTime", "StartTime"
     ]));
 
-    const resourceSegmentList = resourceSegments.length ? resourceSegments : [null];
-    const timeSegmentList = timeSegments.length ? timeSegments : [null];
+    const segmentation = bookingSegmentationEngine.pairOperationalSegments(resourceSegments, timeSegments);
 
-    return resourceSegmentList.flatMap(resourceSegment =>
-      timeSegmentList.map(timeSegment =>
-        mapLegacyBookingRow(buildLegacySegmentRow(sourceRow, resourceSegment, timeSegment), index, users)
-      )
-    );
+    if (segmentation.errors.length) {
+      const reviewRow = mapLegacyBookingRow(sourceRow, index, users);
+      reviewRow.valid = false;
+      reviewRow.errors = Array.from(new Set([...(reviewRow.errors || []), ...segmentation.errors]));
+      reviewRow.warnings = Array.from(new Set([...(reviewRow.warnings || []), ...segmentation.warnings]));
+      reviewRow.mappedBooking.importWarnings = { warning: reviewRow.warnings };
+      reviewRow.classification = "Needs review";
+      return [reviewRow];
+    }
+
+    return segmentation.segments.map(({ resourceSegment, timeSegment }) => {
+      const mapped = mapLegacyBookingRow(buildLegacySegmentRow(sourceRow, resourceSegment, timeSegment), index, users);
+      if (segmentation.warnings.length) {
+        mapped.warnings = Array.from(new Set([...(mapped.warnings || []), ...segmentation.warnings]));
+        mapped.mappedBooking.importWarnings = { warning: mapped.warnings };
+      }
+      mapped.mappedBooking.operationalSegmentNumber = timeSegment?.segmentIndex || resourceSegment?.segmentIndex || 1;
+      mapped.mappedBooking.operationalSegmentTotal = Math.max(timeSegment?.segmentTotal || 1, resourceSegment?.segmentTotal || 1);
+      mapped.mappedBooking.operationalSegmentationReason = timeSegment?.segmentationReason || "resource/location boundary";
+      return mapped;
+    });
   });
 
   allRows = consolidateAccessoryOnlyImportRows(allRows);
@@ -3549,7 +3576,7 @@ function saveImportedBooking(mappedBooking, importerUser) {
   });
 
   const newBooking = {
-    "@_id": bookings.length + 1,
+    "@_id": getNextBookingRecordId(bookings),
     ...bookingRequest,
     status: allocationResult.status,
     allocation: allocationResult.allocation,
@@ -3751,7 +3778,7 @@ app.post("/api/bookings", requireLogin, (req, res) => {
       });
 
       const newBooking = {
-        "@_id": parsed.bookings.booking.length + 1,
+        "@_id": getNextBookingRecordId(parsed.bookings.booking),
         ...singleBookingRequest,
         status: allocationResult.status,
         allocation: allocationResult.allocation,
@@ -4095,6 +4122,7 @@ app.get("/api/de/bookings", requireLogin, requireDEOrAdmin, (req, res) => {
       .filter(booking => bookingHasDEManagedResources(booking, resourceById))
       .sort((a, b) => `${a.startTime || ""} ${a.location || ""}`.localeCompare(`${b.startTime || ""} ${b.location || ""}`));
 
+    const duplicateBookingIds = getDuplicateBookingIds(bookings);
     const users = getUsersFromXML();
     const provenanceByBookingId = getJourneyEngine().buildDeploymentProvenance(bookings);
     const formattedBookings = bookings.map(booking =>
@@ -4110,7 +4138,11 @@ app.get("/api/de/bookings", requireLogin, requireDEOrAdmin, (req, res) => {
       bookings: formattedBookings,
       operationalTimeline: operations.timeline,
       resourceJourneys: operations.resourceJourneys,
-      operationalSummary: operations.summary
+      operationalSummary: operations.summary,
+      bookingIdentityIntegrity: {
+        valid: duplicateBookingIds.length === 0,
+        duplicateBookingIds
+      }
     });
   } catch (error) {
     console.error("DE bookings retrieval error:", error);
