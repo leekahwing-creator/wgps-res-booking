@@ -3362,24 +3362,37 @@ function consolidateAccessoryOnlyImportRows(mappedRows) {
     const booking = row.mappedBooking || {};
     if (!booking.bookingDate || !booking.location) return;
 
-    // Tier 1: same requester, date and location. This remains the strongest
-    // and preferred match. Device-booking timing takes precedence.
+    // Tier 1: same requester and date. Legacy exports may store the device
+    // booking and its accessories as separate rows with different free-text
+    // locations. The device row is authoritative for timing, location,
+    // quantity and device profile; the accessory row contributes accessories
+    // only. Prefer an exact time match, then a unique overlapping lesson.
     const sameRequesterCandidates = deviceRows.filter(candidate => {
       const candidateBooking = candidate.mappedBooking || {};
       return getImportRequesterKey(candidateBooking) &&
         getImportRequesterKey(candidateBooking) === getImportRequesterKey(booking) &&
-        normaliseConsolidationKeyValue(candidateBooking.bookingDate) === normaliseConsolidationKeyValue(booking.bookingDate) &&
-        getImportLocationKey(candidateBooking) === getImportLocationKey(booking);
+        normaliseConsolidationKeyValue(candidateBooking.bookingDate) === normaliseConsolidationKeyValue(booking.bookingDate);
     });
 
-    let target = sameRequesterCandidates.find(candidate =>
-      timeRangesOverlapForImport(candidate.mappedBooking, booking)
-    ) || sameRequesterCandidates.find(candidate =>
-      candidate.mappedBooking?.startTime === booking.startTime ||
-      candidate.mappedBooking?.endTime === booking.endTime
-    ) || sameRequesterCandidates[0];
+    const exactTimeCandidates = sameRequesterCandidates.filter(candidate => {
+      const candidateBooking = candidate.mappedBooking || {};
+      return candidateBooking.startTime === booking.startTime &&
+        candidateBooking.endTime === booking.endTime;
+    });
 
-    let matchTier = "same requester";
+    const overlappingCandidates = sameRequesterCandidates.filter(candidate =>
+      timeRangesOverlapForImport(candidate.mappedBooking, booking)
+    );
+
+    let target = exactTimeCandidates.length === 1
+      ? exactTimeCandidates[0]
+      : overlappingCandidates.length === 1
+        ? overlappingCandidates[0]
+        : null;
+
+    let matchTier = exactTimeCandidates.length === 1
+      ? "same requester and exact lesson time"
+      : "same requester and unique overlapping lesson";
 
     // Tier 2: legacy helper booking. Different users sometimes booked the
     // device and accessories separately for the same lesson. Merge only when
