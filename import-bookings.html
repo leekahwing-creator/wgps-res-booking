@@ -1148,7 +1148,15 @@
     .preview-table th, .preview-table td { padding: 12px 12px; border-bottom: 1px solid #e2e8f0; text-align:left; vertical-align:top; }
     .preview-table th { background:#f8fafc; color:var(--muted); font-size:.72rem; text-transform:uppercase; letter-spacing:.035em; line-height:1.25; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .preview-table th.col-row, .preview-table td.col-row { width: 74px; white-space: nowrap; }
-    .preview-table th.col-status, .preview-table td.col-status { width: 92px; white-space: nowrap; }
+    .preview-table th.col-status, .preview-table td.col-status { width: 136px; }
+    .status-cell { display:flex; flex-direction:column; align-items:flex-start; gap:8px; min-width:0; }
+    .status-pill { max-width:100%; white-space:nowrap; }
+    .review-approval-label { display:inline-flex; align-items:center; gap:7px; margin:0; padding:5px 8px; border:1px solid #bae6fd; border-radius:999px; background:#f0f9ff; color:#075985; font-size:.74rem; font-weight:900; line-height:1; cursor:pointer; }
+    .review-approval-label:hover { background:#e0f2fe; }
+    .review-approval { appearance:none; -webkit-appearance:none; width:16px; height:16px; min-height:16px; padding:0; margin:0; border:2px solid #38bdf8; border-radius:5px; background:#fff; display:grid; place-content:center; cursor:pointer; }
+    .review-approval::before { content:""; width:8px; height:8px; transform:scale(0); transition:transform .12s ease-in-out; clip-path:polygon(14% 44%, 0 65%, 42% 100%, 100% 18%, 80% 0, 40% 62%); background:#0369a1; }
+    .review-approval:checked::before { transform:scale(1); }
+    .review-approval:focus-visible { outline:3px solid rgba(14,165,233,.24); outline-offset:2px; }
     .preview-table th.col-datetime, .preview-table td.col-datetime { width: 148px; white-space: nowrap; }
     .preview-table th.col-requester, .preview-table td.col-requester { width: 17%; }
     .preview-table th.col-location, .preview-table td.col-location { width: 18%; }
@@ -1193,7 +1201,10 @@
       align-items:center;
       gap:10px;
     }
-    .processing-panel.active { display:grid; grid-template-columns:auto 1fr auto; }
+    .processing-panel.active { display:grid; grid-template-columns:auto minmax(0,1fr) auto; }
+    .processing-copy { min-width:0; display:grid; gap:3px; }
+    .processing-stage { font-weight:900; line-height:1.25; }
+    .processing-detail { color:#0f766e; font-size:.8rem; font-weight:700; line-height:1.35; }
     .processing-progress-wrap { grid-column:1 / -1; width:100%; height:8px; border-radius:999px; background:#ccfbf1; overflow:hidden; }
     .processing-progress-bar { height:100%; width:0%; border-radius:999px; background:#0f766e; transition:width .28s ease; }
     .processing-percent { font-weight:900; color:#0f766e; min-width:46px; text-align:right; }
@@ -1452,7 +1463,7 @@
 
           <div id="processingPanel" class="processing-panel" role="status" aria-live="polite">
             <span class="processing-spinner" aria-hidden="true"></span>
-            <span id="processingText">Processing import preview...</span>
+            <span class="processing-copy"><span id="processingText" class="processing-stage">Processing import preview...</span><span id="processingDetail" class="processing-detail">Preparing the selected data.</span></span>
             <span id="processingPercent" class="processing-percent">0%</span>
             <div class="processing-progress-wrap" aria-hidden="true"><div id="processingProgressBar" class="processing-progress-bar"></div></div>
           </div>
@@ -1483,8 +1494,10 @@
     const processingPanel = document.getElementById('processingPanel');
     const processingText = document.getElementById('processingText');
     const processingPercent = document.getElementById('processingPercent');
+    const processingDetail = document.getElementById('processingDetail');
     const processingProgressBar = document.getElementById('processingProgressBar');
     let activeProgressTimer = null;
+    let activeProgressStartedAt = 0;
     let lastRows = [];
     let structuredRowsFromFile = null;
     let lastPreviewData = null;
@@ -1860,37 +1873,72 @@
       button.textContent = `${button.dataset.busyLabel || 'Processing'} ${safePercent}%`;
     }
 
-    function updateProcessingProgress(percent, message) {
+    function updateProcessingProgress(percent, message, detail = '') {
       const safePercent = Math.max(0, Math.min(100, Math.round(percent)));
       if (processingText && message) processingText.textContent = message;
+      if (processingDetail) processingDetail.textContent = detail || 'Processing is continuing on the server.';
       if (processingPercent) processingPercent.textContent = `${safePercent}%`;
       if (processingProgressBar) processingProgressBar.style.width = `${safePercent}%`;
     }
 
-    function showProcessing(message, percent = 0) {
+    function showProcessing(message, percent = 0, detail = '') {
       if (!processingPanel) return;
-      updateProcessingProgress(percent, message || 'Processing import preview...');
+      updateProcessingProgress(percent, message || 'Processing import preview...', detail);
       processingPanel.classList.add('active');
     }
 
     function hideProcessing() {
       if (!processingPanel) return;
       processingPanel.classList.remove('active');
-      updateProcessingProgress(0, 'Processing import preview...');
+      updateProcessingProgress(0, 'Processing import preview...', 'Preparing the selected data.');
     }
 
-    function startProgressTicker(button, baseLabel, panelMessage, start = 8, cap = 92) {
+    function estimatePreviewDuration(rowCount) {
+      // Calibrated estimate: fixed setup cost plus per-row validation/allocation work.
+      return Math.max(6500, Math.min(90000, 4200 + (Number(rowCount) || 0) * 24));
+    }
+
+    function estimateCommitDuration(rowCount) {
+      // Writing and allocation are more expensive per committed row than preview classification.
+      return Math.max(7000, Math.min(120000, 4800 + (Number(rowCount) || 0) * 34));
+    }
+
+    function progressPhase(phases, elapsedMs) {
+      let cursor = 0;
+      for (const phase of phases) {
+        const phaseEnd = cursor + phase.duration;
+        if (elapsedMs <= phaseEnd) {
+          const fraction = phase.duration ? Math.max(0, Math.min(1, (elapsedMs - cursor) / phase.duration)) : 1;
+          return { ...phase, percent: phase.from + ((phase.to - phase.from) * fraction) };
+        }
+        cursor = phaseEnd;
+      }
+      const last = phases[phases.length - 1];
+      return { ...last, percent: last.to };
+    }
+
+    function startWeightedProgress(button, baseLabel, phases, estimatedTotalMs, startPercent = 0) {
       clearProgressTicker();
-      let current = start;
-      showProcessing(panelMessage, current);
-      updateButtonProgress(button, current, baseLabel);
-      activeProgressTimer = window.setInterval(() => {
-        if (current >= cap) return;
-        const step = current < 55 ? 7 : current < 78 ? 4 : 2;
-        current = Math.min(cap, current + step);
-        updateProcessingProgress(current, panelMessage);
-        updateButtonProgress(button, current, baseLabel);
-      }, 450);
+      activeProgressStartedAt = performance.now();
+      const totalWeight = phases.reduce((sum, phase) => sum + phase.weight, 0) || 1;
+      let accumulatedPercent = Math.max(0, Math.min(90, startPercent));
+      const availablePercent = 94 - accumulatedPercent;
+      const weightedPhases = phases.map(phase => {
+        const from = accumulatedPercent;
+        const share = (phase.weight / totalWeight) * availablePercent;
+        accumulatedPercent += share;
+        return { ...phase, from, to: accumulatedPercent, duration: estimatedTotalMs * (phase.weight / totalWeight) };
+      });
+
+      const tick = () => {
+        const elapsed = performance.now() - activeProgressStartedAt;
+        const state = progressPhase(weightedPhases, elapsed);
+        const safePercent = Math.min(94, state.percent);
+        updateProcessingProgress(safePercent, state.label, state.detail);
+        updateButtonProgress(button, safePercent, baseLabel);
+      };
+      tick();
+      activeProgressTimer = window.setInterval(tick, 300);
       return activeProgressTimer;
     }
 
@@ -1971,7 +2019,7 @@
                 const detailId = `preview-detail-${index}`;
                 const rowStatus = row.decision === 'AUTO_APPROVED' ? 'Auto-approved' : row.decision === 'REVIEW_REQUIRED' ? 'Review' : 'Rejected';
                 const statusClass = row.decision === 'REJECTED' ? 'invalid' : 'valid';
-                const approvalControl = row.decision === 'REVIEW_REQUIRED' ? `<label style="display:flex;gap:6px;align-items:center;margin-top:8px;font-size:.78rem"><input class="review-approval" type="checkbox" data-trace-key="${escapeHtml(row.traceKey || '')}">Approve</label>` : '';
+                const approvalControl = row.decision === 'REVIEW_REQUIRED' ? `<label class="review-approval-label"><input class="review-approval" type="checkbox" data-trace-key="${escapeHtml(row.traceKey || '')}"><span>Approve</span></label>` : '';
                 const legacyRemarks = booking.legacyBookingRemarks || '-';
                 const legacyPurpose = booking.legacyPurpose || '-';
                 const legacyResource = booking.legacyResourceText || '-';
@@ -1980,7 +2028,7 @@
                 const accessoryResolution = booking.legacyAccessoryResolution || '-';
                 return `<tr class="preview-summary-row">
                   <td class="col-row">${escapeHtml(row.rowNumber)}</td>
-                  <td class="col-status"><span class="status-pill ${statusClass}">${rowStatus}</span>${approvalControl}</td>
+                  <td class="col-status"><div class="status-cell"><span class="status-pill ${statusClass}">${rowStatus}</span>${approvalControl}</div></td>
                   <td class="col-datetime"><span class="datetime-cell"><span class="datetime-date">${escapeHtml(booking.bookingDate || '-')}</span><span class="datetime-time">${escapeHtml(booking.startTime || '-')}–${escapeHtml(booking.endTime || '-')}</span></span></td>
                   <td class="col-requester">${escapeHtml(booking.importedRequesterName || booking.importedRequesterEmail || '-')}</td>
                   <td class="col-location">${escapeHtml(booking.location || '-')}<span class="location-resolution">${escapeHtml(booking.legacyLocationResolution || '')}</span></td>
@@ -2101,22 +2149,28 @@
 
     previewBtn.addEventListener('click', async () => {
       setButtonBusy(previewBtn, true, 'Previewing selected range', 0);
-      showProcessing('Preparing booking records for preview...', 0);
+      showProcessing('Preparing uploaded records', 0, 'Reading the selected file and date range.');
       commitBtn.disabled = true;
 
       try {
-        updateProcessingProgress(8, 'Reading uploaded data...');
-        updateButtonProgress(previewBtn, 8, 'Previewing selected range');
+        updateProcessingProgress(4, 'Reading uploaded data', 'Parsing workbook rows in the browser before server validation.');
+        updateButtonProgress(previewBtn, 4, 'Previewing selected range');
         lastRows = structuredRowsFromFile && importText.value.trim().startsWith('[') ? structuredRowsFromFile : parseRows(importText.value);
         if (lastRows.length === 0) {
           showStatus('error', 'No import rows found. Check that the first row contains headers, or re-select the Excel/CSV file.');
           return;
         }
 
-        updateProcessingProgress(22, `Preparing ${lastRows.length} row(s) for server validation...`);
-        updateButtonProgress(previewBtn, 22, 'Previewing selected range');
+        updateProcessingProgress(7, `Preparing ${lastRows.length} row(s)`, 'Normalising source rows and packaging the preview request.');
+        updateButtonProgress(previewBtn, 7, 'Previewing selected range');
         const importRange = getImportRangePayload();
-        startProgressTicker(previewBtn, 'Previewing selected range', 'Server is analysing dates, users, resources, accessories and locations...', 30, 92);
+        startWeightedProgress(previewBtn, 'Previewing selected range', [
+          { weight: 10, label: 'Filtering the selected date range', detail: 'The server is excluding out-of-range and non-booking rows.' },
+          { weight: 18, label: 'Resolving users and locations', detail: 'Matching requester identities, registered locations and custom venues.' },
+          { weight: 24, label: 'Segmenting timetable periods', detail: 'Building continuous operational booking segments under ADR-025.' },
+          { weight: 30, label: 'Matching resources and accessories', detail: 'Resolving aliases, quantities, device profiles and accessory requirements.' },
+          { weight: 18, label: 'Classifying preview decisions', detail: 'Assigning auto-approved, review-required, rejected or skipped outcomes.' }
+        ], estimatePreviewDuration(lastRows.length), 7);
         const response = await fetch('/api/admin/import/bookings/preview', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2136,7 +2190,9 @@
         }
 
         clearProgressTicker();
-        updateProcessingProgress(100, 'Preview generated. Rendering results...');
+        updateProcessingProgress(97, 'Rendering the preview table', 'Formatting classifications, traceability details and approval controls.');
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        updateProcessingProgress(100, 'Preview ready', 'The complete preview is now available for administrator review.');
         updateButtonProgress(previewBtn, 100, 'Preview complete');
         showStatus(result.invalidRows?.length ? 'warning' : 'success', 'Preview generated. Review the rows before importing valid bookings.');
         renderPreview(result);
@@ -2157,12 +2213,19 @@
       if (!confirm(`Import all auto-approved records and ${approvedReviewKeys.size} explicitly approved review record(s)?`)) return;
 
       setButtonBusy(commitBtn, true, 'Importing valid bookings', 0);
-      showProcessing('Preparing valid bookings for import...', 0);
+      showProcessing('Preparing approved bookings', 0, 'Collecting auto-approved records and administrator-approved review records.');
       previewBtn.disabled = true;
 
       try {
         const importRange = getImportRangePayload();
-        startProgressTicker(commitBtn, 'Importing valid bookings', 'Server is writing valid bookings and allocating resources...', 12, 92);
+        const estimatedCommitRows = ((lastPreviewData?.autoApprovedRows || []).length + approvedReviewKeys.size) || lastRows.length;
+        startWeightedProgress(commitBtn, 'Importing valid bookings', [
+          { weight: 12, label: 'Revalidating approved records', detail: 'The server is checking decisions and administrator approvals before commit.' },
+          { weight: 22, label: 'Creating booking records', detail: 'Generating traceable booking identities and operational segment metadata.' },
+          { weight: 42, label: 'Allocating resources and resolving conflicts', detail: 'The allocator is reserving compatible devices and accessories for each booking.' },
+          { weight: 18, label: 'Writing monthly booking data', detail: 'Validated records are being persisted to the appropriate monthly files.' },
+          { weight: 6, label: 'Finalising the import audit', detail: 'The server is compiling commit results and audit totals.' }
+        ], estimateCommitDuration(estimatedCommitRows));
         const response = await fetch('/api/admin/import/bookings/commit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2182,7 +2245,7 @@
         }
 
         clearProgressTicker();
-        updateProcessingProgress(100, 'Import completed.');
+        updateProcessingProgress(100, 'Import completed', 'Booking records and the import audit have been finalised.');
         updateButtonProgress(commitBtn, 100, 'Import complete');
         showStatus('success', result.message || 'Import completed.');
         commitBtn.disabled = true;
