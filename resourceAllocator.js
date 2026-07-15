@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const { XMLParser } = require("fast-xml-parser");
 const { ensureMonthlyBookingsFile } = require("./bookingFileHelper");
+const { getReservedResourceIds } = require("./journeyEngine");
 
 const parser = new XMLParser({ ignoreAttributes: false });
 
@@ -23,9 +24,6 @@ function loadXML(filePath) {
   return parser.parse(fs.readFileSync(filePath, "utf8"));
 }
 
-function timeOverlaps(startA, endA, startB, endB) {
-  return startA < endB && endA > startB;
-}
 
 function normaliseResourceCategory(resource) {
   return String(resource?.category || "Device").trim() || "Device";
@@ -159,26 +157,10 @@ function getBookedResourceIds(bookingRequest) {
   const parsedBookings = loadXML(bookingsFile);
   const bookings = toArray(parsedBookings.bookings?.booking);
 
-  const overlappingBookings = bookings.filter(booking => {
-    if (booking.bookingDate !== bookingRequest.bookingDate) return false;
-    if (["Cancelled", "Deleted"].includes(booking.status)) return false;
-
-    return timeOverlaps(
-      bookingRequest.startTime,
-      bookingRequest.endTime,
-      booking.startTime,
-      booking.endTime
-    );
+  // ADR-024 Phase 2: reservation state is derived by the Journey Engine.
+  return getReservedResourceIds(bookings, bookingRequest, {
+    excludeBookingId: bookingRequest.excludeBookingId || ""
   });
-
-  const bookedIds = new Set();
-
-  overlappingBookings.forEach(booking => {
-    collectResourceIdsFromAllocation(booking.allocation)
-      .forEach(resourceId => bookedIds.add(String(resourceId)));
-  });
-
-  return bookedIds;
 }
 
 function findBestResourceCombination(availableResources, quantityRequired) {

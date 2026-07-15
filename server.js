@@ -1248,8 +1248,6 @@ function getJourneyEngine() {
   return journeyEngineInstance;
 }
 
-function buildDeploymentProvenance(bookings = []) { return getJourneyEngine().buildDeploymentProvenance(bookings); }
-
 
 function getResourceCategoryPriority(resource = {}) {
   return normaliseResourceCategory(resource.category) === "Accessory" ? 2 : 1;
@@ -1259,12 +1257,6 @@ function getMovementTypePriority(type) {
   return String(type || "") === "Deployment" ? 1 : 2;
 }
 
-function normaliseOperationalBundleLegs(bundle = {}) { return getJourneyEngine().normaliseOperationalBundleLegs(bundle); }
-
-function buildOperationalBundle(bookings, anchorBooking) { return getJourneyEngine().buildOperationalBundle(bookings, anchorBooking); }
-
-function getBundleLinkedBookingIds(bundle = {}) { return getJourneyEngine().getBundleLinkedBookingIds(bundle); }
-
 function findActiveOperationalBundleBooking(bookings, userId) {
   return bookings.find(booking =>
     String(booking.claimedByUserId || "") === String(userId || "") &&
@@ -1272,10 +1264,6 @@ function findActiveOperationalBundleBooking(bookings, userId) {
   );
 }
 
-
-function getCompletedResourceMovements(bookings = [], resourceById = buildResourceLookup()) { return getJourneyEngine().getCompletedResourceMovements(bookings, resourceById); }
-
-function buildOperationalTimelineAndJourneys(bookings = [], bookingDate = "") { return getJourneyEngine().buildOperationalTimelineAndJourneys(bookings, bookingDate); }
 
 function formatDeploymentBookingForResponse(booking, users, provenanceByBookingId = new Map()) {
   const requesterName = getUserDisplayNameById(users, booking.userId) || "Requester";
@@ -1331,7 +1319,7 @@ function formatDeploymentBookingForResponse(booking, users, provenanceByBookingI
             )
           },
           legs: {
-            leg: normaliseOperationalBundleLegs(booking.operationalBundle)
+            leg: getJourneyEngine().normaliseOperationalBundleLegs(booking.operationalBundle)
           }
         }
       : null
@@ -4108,11 +4096,11 @@ app.get("/api/de/bookings", requireLogin, requireDEOrAdmin, (req, res) => {
       .sort((a, b) => `${a.startTime || ""} ${a.location || ""}`.localeCompare(`${b.startTime || ""} ${b.location || ""}`));
 
     const users = getUsersFromXML();
-    const provenanceByBookingId = buildDeploymentProvenance(bookings);
+    const provenanceByBookingId = getJourneyEngine().buildDeploymentProvenance(bookings);
     const formattedBookings = bookings.map(booking =>
       formatDeploymentBookingForResponse(booking, users, provenanceByBookingId)
     );
-    const operations = buildOperationalTimelineAndJourneys(
+    const operations = getJourneyEngine().buildOperationalTimelineAndJourneys(
       formattedBookings,
       bookingDate
     );
@@ -4169,8 +4157,8 @@ app.put("/api/de/bookings/:bookingId/claim", requireLogin, requireDEOrAdmin, (re
       });
     }
 
-    const bundle = buildOperationalBundle(bookings, booking);
-    const linkedBookingIds = getBundleLinkedBookingIds(bundle);
+    const bundle = getJourneyEngine().buildOperationalBundle(bookings, booking);
+    const linkedBookingIds = getJourneyEngine().getBundleLinkedBookingIds(bundle);
     const now = new Date().toISOString();
 
     linkedBookingIds.forEach(linkedId => {
@@ -4210,10 +4198,10 @@ app.put("/api/de/bookings/:bookingId/claim", requireLogin, requireDEOrAdmin, (re
 
     writeBookingsToFile(bookingsFile, bookings);
 
-    const provenance = buildDeploymentProvenance(bookings);
+    const provenance = getJourneyEngine().buildDeploymentProvenance(bookings);
     res.json({
       success: true,
-      message: `Operational route claimed with ${normaliseOperationalBundleLegs(bundle).length} stop(s).`,
+      message: `Operational route claimed with ${getJourneyEngine().normaliseOperationalBundleLegs(bundle).length} stop(s).`,
       booking: formatDeploymentBookingForResponse(
         booking,
         getUsersFromXML(),
@@ -4251,7 +4239,7 @@ app.put("/api/de/bookings/:bookingId/release", requireLogin, requireDEOrAdmin, (
     }
 
     const linkedIds = booking.operationalBundle
-      ? getBundleLinkedBookingIds(booking.operationalBundle)
+      ? getJourneyEngine().getBundleLinkedBookingIds(booking.operationalBundle)
       : [String(bookingId)];
 
     linkedIds.forEach(linkedId => {
@@ -4314,7 +4302,7 @@ app.put("/api/de/bookings/:bookingId/bundle-legs/:legId/complete", requireLogin,
       });
     }
 
-    const legs = normaliseOperationalBundleLegs(anchorBooking.operationalBundle);
+    const legs = getJourneyEngine().normaliseOperationalBundleLegs(anchorBooking.operationalBundle);
     const leg = legs.find(item => String(item.legId) === String(legId));
     if (!leg) {
       return res.status(404).json({ success: false, message: "Route stop not found." });
@@ -4360,7 +4348,7 @@ app.put("/api/de/bookings/:bookingId/bundle-legs/:legId/complete", requireLogin,
 
     writeBookingsToFile(bookingsFile, bookings);
 
-    const provenance = buildDeploymentProvenance(bookings);
+    const provenance = getJourneyEngine().buildDeploymentProvenance(bookings);
     res.json({
       success: true,
       message: allCompleted

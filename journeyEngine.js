@@ -1,5 +1,41 @@
 "use strict";
 
+function asArray(value) {
+  if (!value) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+function collectAllocationResourceIds(allocation = {}) {
+  const ids = asArray(allocation?.resources?.resourceId).map(String);
+  asArray(allocation?.additionalResources?.resource).forEach(item => {
+    asArray(item?.resources?.resourceId).forEach(id => ids.push(String(id)));
+  });
+  return Array.from(new Set(ids.filter(Boolean)));
+}
+
+function bookingTimesOverlap(startA, endA, startB, endB) {
+  return String(startA || "") < String(endB || "") && String(endA || "") > String(startB || "");
+}
+
+function getOverlappingActiveBookings(bookings = [], request = {}, options = {}) {
+  const excludeBookingId = String(options.excludeBookingId || request.excludeBookingId || "");
+  return asArray(bookings).filter(booking => {
+    const bookingId = String(booking?.["@_id"] || booking?.bookingId || "");
+    if (excludeBookingId && bookingId === excludeBookingId) return false;
+    if (["Cancelled", "Deleted"].includes(String(booking?.status || ""))) return false;
+    if (String(booking?.bookingDate || "") !== String(request?.bookingDate || "")) return false;
+    return bookingTimesOverlap(request?.startTime, request?.endTime, booking?.startTime, booking?.endTime);
+  });
+}
+
+function getReservedResourceIds(bookings = [], request = {}, options = {}) {
+  const reserved = new Set();
+  getOverlappingActiveBookings(bookings, request, options).forEach(booking => {
+    collectAllocationResourceIds(booking?.allocation).forEach(id => reserved.add(String(id)));
+  });
+  return reserved;
+}
+
 /**
  * ADR-024 Centralised Journey Engine.
  *
@@ -706,8 +742,15 @@ function createJourneyEngine(dependencies = {}) {
     getResourceState,
     getTimeline,
     getCurrentLocation,
-    getNextStep
+    getNextStep,
+    getOverlappingActiveBookings,
+    getReservedResourceIds
   });
 }
 
-module.exports = { createJourneyEngine };
+module.exports = {
+  createJourneyEngine,
+  getOverlappingActiveBookings,
+  getReservedResourceIds,
+  collectAllocationResourceIds
+};

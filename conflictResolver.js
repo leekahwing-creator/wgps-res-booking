@@ -12,6 +12,7 @@ const {
   normaliseAccessoryCompatibilityKey,
   resourceSupportsAdditionalResources
 } = require("./resourceAllocator");
+const { getOverlappingActiveBookings } = require("./journeyEngine");
 
 const parser = new XMLParser({ ignoreAttributes: false });
 
@@ -33,9 +34,6 @@ function loadXML(filePath) {
   return parser.parse(fs.readFileSync(filePath, "utf8"));
 }
 
-function timeOverlaps(startA, endA, startB, endB) {
-  return startA < endB && endA > startB;
-}
 
 function selectResourcesForRequest(allResources, remainingResourceIds, predicate, quantityRequired) {
   const availableResources = allResources
@@ -110,17 +108,12 @@ function resolveConflict(newBookingRequest) {
 
   const existingBookings = toArray(parsedBookings.bookings?.booking);
 
-  const affectedBookings = existingBookings.filter(booking => {
-    if (["Cancelled", "Deleted"].includes(booking.status)) return false;
-    if (booking.bookingDate !== newBookingRequest.bookingDate) return false;
-
-    return timeOverlaps(
-      newBookingRequest.startTime,
-      newBookingRequest.endTime,
-      booking.startTime,
-      booking.endTime
-    );
-  });
+  // ADR-024 Phase 2: use the Journey Engine's authoritative overlap view.
+  const affectedBookings = getOverlappingActiveBookings(
+    existingBookings,
+    newBookingRequest,
+    { excludeBookingId: newBookingRequest.excludeBookingId || "" }
+  );
 
   const unaffectedResourceIds = new Set(allResources.map(resource => String(resource.id)));
   affectedBookings.forEach(booking => {
