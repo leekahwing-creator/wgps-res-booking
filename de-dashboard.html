@@ -1500,6 +1500,47 @@
     /* DE Dashboard R2.2 HF1 — Floating Operations Drawers */
     body.drawer-open{overflow:hidden}.floating-drawer-tabs{position:fixed;right:0;top:42%;z-index:85;display:grid;gap:8px;transform:translateY(-50%)}.floating-drawer-tab{width:46px;min-height:126px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:9px 6px;border:1px solid #99f6e4;border-right:0;border-radius:15px 0 0 15px;background:#fff;color:var(--primary-dark);box-shadow:-8px 12px 24px rgba(15,23,42,.13);cursor:pointer;font-weight:900}.floating-drawer-tab span:last-child{writing-mode:vertical-rl;transform:rotate(180deg);font-size:.72rem;letter-spacing:.04em;text-transform:uppercase}.floating-tab-icon{font-size:1.1rem}.floating-drawer-tab[aria-expanded=true]{background:var(--primary);color:#fff}.drawer-overlay{position:fixed;inset:0;z-index:90;background:rgba(15,23,42,.38);opacity:0;transition:opacity .22s}.drawer-overlay.open{opacity:1}.drawer-overlay[hidden],.side-drawer[hidden]{display:none!important}.side-drawer{position:fixed;top:0;right:0;z-index:95;width:min(440px,92vw);height:100dvh;display:grid;grid-template-rows:auto minmax(0,1fr);border-left:1px solid var(--border);background:#fff;box-shadow:-22px 0 50px rgba(15,23,42,.2);transform:translateX(100%);transition:transform .22s}.side-drawer.open{transform:translateX(0)}.side-drawer-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px;border-bottom:1px solid var(--border);background:linear-gradient(135deg,#ecfeff,#fff)}.side-drawer-header span{color:var(--primary-dark);font-size:.7rem;font-weight:900;text-transform:uppercase}.side-drawer-header h2{margin:3px 0 0;font-size:1.15rem}.side-drawer-body{min-height:0;overflow:auto;padding:14px;background:#f8fafc}.drawer-section,.drawer-disclosure{border:1px solid var(--border);border-radius:15px;background:#fff}.drawer-section{padding:12px}.drawer-disclosure{margin-top:10px;overflow:hidden}.drawer-disclosure>summary{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px;cursor:pointer;font-weight:900;list-style:none}.drawer-disclosure>summary::-webkit-details-marker{display:none}.drawer-disclosure[open]>summary{border-bottom:1px solid var(--border)}.drawer-timeline{padding:12px}.drawer-resource-status-list{display:grid;gap:7px;padding:10px}.drawer-resource-status-item{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;color:inherit;text-align:left;cursor:pointer}.drawer-resource-status-item strong,.drawer-resource-status-item small{display:block}.drawer-resource-status-item small{margin-top:3px;color:var(--muted);font-size:.74rem}.drawer-search-wrap{display:grid;gap:7px;margin-bottom:12px}.journey-detail-heading{margin:14px 0 10px}.journey-detail-heading span{color:var(--muted);font-size:.7rem;font-weight:900;text-transform:uppercase}.journey-detail-heading h3{margin:3px 0 0}.journey-detail-body{max-height:none;padding:0;overflow:visible;background:transparent}.side-drawer .operations-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.side-drawer .timeline-event{grid-template-columns:48px 16px minmax(0,1fr)}@media(max-width:640px){.floating-drawer-tabs{top:auto;bottom:96px;transform:none}.floating-drawer-tab{width:42px;min-height:112px}.side-drawer{width:min(92vw,440px)}.side-drawer-header{padding:13px}.side-drawer-body{padding:11px}}
 
+
+    /* Resource Journeys drawer — full-height viewport utilisation */
+    .side-drawer {
+      height: 100vh;
+      height: 100dvh;
+      max-height: 100vh;
+      max-height: 100dvh;
+    }
+
+    #journeysDrawer .side-drawer-body {
+      display: grid;
+      grid-template-rows: minmax(0, 1fr);
+      overflow: hidden;
+    }
+
+    #journeyListView:not([hidden]) {
+      min-height: 0;
+      height: 100%;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+    }
+
+    #journeysDrawer .resource-journey-list {
+      min-height: 0;
+      max-height: none;
+      height: 100%;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
+      padding-right: 3px;
+    }
+
+    #journeyDetailView:not([hidden]) {
+      min-height: 0;
+      height: 100%;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
+      padding-right: 3px;
+    }
+
   </style>
 </head>
 <body>
@@ -1913,27 +1954,17 @@ return currentUser;
         </div>
 
         <div class="route-stop">
-          <span>Collect resources from</span>
-          <strong>${escapeHtml(bundle.pickupLocationSummary || bundle.pickupLocation || active.pickupLocationSummary || 'ICT Room')}</strong>
+          <span>Collect everything from</span>
+          <strong>${escapeHtml(bundle.pickupLocation || active.pickupLocationSummary || 'ICT Room')}</strong>
         </div>
 
         <div class="collection-manifest">
-          <strong>Collection plan</strong>
-          ${Object.entries(manifest.reduce((groups, item) => {
-            const location = item.pickupLocation || bundle.pickupLocation || active.pickupLocationSummary || 'ICT Room';
-            if (!groups[location]) groups[location] = [];
-            groups[location].push(item);
-            return groups;
-          }, {})).map(([location, items]) => `
-            <div class="collection-group">
-              <small>Collect from ${escapeHtml(location)}</small>
-              <div class="manifest-list">
-                ${items.map(item => `
-                  <span class="manifest-chip">${escapeHtml(item.resourceName || item.resourceId)}</span>
-                `).join('')}
-              </div>
-            </div>
-          `).join('')}
+          <strong>Resources to collect</strong>
+          <div class="manifest-list">
+            ${manifest.map(item => `
+              <span class="manifest-chip">${escapeHtml(item.resourceName || item.resourceId)}</span>
+            `).join('')}
+          </div>
         </div>
 
         <div class="current-job-itinerary">
