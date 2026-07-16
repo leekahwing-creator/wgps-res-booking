@@ -3405,14 +3405,37 @@ function consolidateParallelDeviceImportRows(mappedRows) {
     const anchorBooking = anchor.mappedBooking || {};
 
     let totalDevices = 0;
-    let mergedResources = [];
+    const accessoryTotals = new Map();
     const sourceLabels = [];
     const legacyTexts = [];
 
     sorted.forEach(({ row, index }) => {
       const booking = row.mappedBooking || {};
-      totalDevices += Number(booking.devicesRequired || 0);
-      mergedResources.push(...getAdditionalResourceList(booking));
+      const rowDeviceQuantity = Number(booking.devicesRequired || 0);
+      totalDevices += rowDeviceQuantity;
+
+      // Deduplicate repeated mentions within each individual legacy row first
+      // (for example, the same mouse mentioned in both Purpose and Remarks),
+      // then add quantities across separate parallel device rows. This preserves
+      // the established anti-double-counting behaviour within one row while
+      // correctly producing 40 mice from two 20-device rows.
+      const rowAccessories = mergeAccessoryQuantities(
+        getAdditionalResourceList(booking),
+        rowDeviceQuantity || 1
+      );
+
+      rowAccessories.forEach(item => {
+        const type = String(item.type || '').trim();
+        if (!type) return;
+        const quantity = Number(item.quantity || 0);
+        const key = type.toLowerCase();
+        if (!accessoryTotals.has(key)) {
+          accessoryTotals.set(key, { type, quantity });
+        } else {
+          accessoryTotals.get(key).quantity += quantity;
+        }
+      });
+
       sourceLabels.push(String(row.rowNumber || ''));
       if (booking.legacyResourceText) legacyTexts.push(String(booking.legacyResourceText));
       if (index !== anchorItem.index) consumed.add(index);
@@ -3420,9 +3443,7 @@ function consolidateParallelDeviceImportRows(mappedRows) {
 
     anchorBooking.devicesRequired = totalDevices;
     anchorBooking.additionalResources = {
-      resource: normaliseAdditionalResourceRequests(
-        mergeAccessoryQuantities(mergedResources, totalDevices || 1)
-      )
+      resource: normaliseAdditionalResourceRequests(Array.from(accessoryTotals.values()))
     };
     anchorBooking.legacyResourceText = Array.from(new Set(legacyTexts)).join('; ');
     anchorBooking.legacyResourceResolution = [
