@@ -715,6 +715,140 @@ function createJourneyEngine(dependencies = {}) {
     };
   }
 
+  /**
+   * ADR-024 Phase 3 — Intelligent Journey Optimisation.
+   *
+   * Produces an advisory, deterministic optimisation plan from the same
+   * authoritative booking and resource data used by the operational journey.
+   * It does not mutate bookings or allocations. Consumers may use the output
+   * to explain avoided returns, direct-transfer chains and multi-location
+   * collection work before an operational route is claimed.
+   */
+  function buildOptimizationPlan(bookings = [], bookingDate = "", options = {}) {
+    const resources = readResourcesFromXML().map(formatResourceForResponse);
+    const resourceById = new Map(resources.map(resource => [String(resource.id || ""), resource]));
+    const directTransferWindowMinutes = Number.isFinite(Number(options.directTransferWindowMinutes))
+      ? Math.max(0, Number(options.directTransferWindowMinutes))
+      : 30;
+
+    const active = toArray(bookings)
+      .filter(booking => booking.status !== "Deleted" && booking.status !== "Cancelled")
+      .filter(booking => !bookingDate || String(booking.bookingDate || "") === String(bookingDate))
+      .filter(booking => bookingRequiresDeployment(booking))
+      .filter(booking => bookingHasDEManagedResources(booking, resourceById));
+
+    const byResource = new Map();
+    active.forEach(booking => {
+      getDEManagedAllocatedResourceIds(booking, resourceById).forEach(resourceId => {
+        if (!byResource.has(resourceId)) byResource.set(resourceId, []);
+        byResource.get(resourceId).push(booking);
+      });
+    });
+
+    const resourcePlans = [];
+    const opportunities = [];
+    let baselineMovements = 0;
+    let optimisedMovements = 0;
+    let avoidedReturns = 0;
+    let directTransfers = 0;
+
+    byResource.forEach((sequence, resourceId) => {
+      sequence.sort((a, b) => `${a.startTime || ""} ${a.endTime || ""}`.localeCompare(`${b.startTime || ""} ${b.endTime || ""}`));
+      const resource = resourceById.get(resourceId) || {};
+      const homeLocation = getResourceHomeLocation(resource);
+      const movements = [];
+
+      sequence.forEach((booking, index) => {
+        const previous = index > 0 ? sequence[index - 1] : null;
+        const previousEnd = previous ? timeToMinutes(previous.endTime) : null;
+        const currentStart = timeToMinutes(booking.startTime);
+        const gapMinutes = previousEnd !== null && currentStart !== null ? currentStart - previousEnd : null;
+        const canTransfer = Boolean(previous) && gapMinutes !== null && gapMinutes >= 0 && gapMinutes <= directTransferWindowMinutes;
+        const fromLocation = canTransfer ? String(previous.location || homeLocation) : homeLocation;
+        const movementClass = canTransfer ? "Direct Transfer" : "Deployment";
+
+        baselineMovements += previous ? 2 : 1;
+        optimisedMovements += 1;
+        if (canTransfer) {
+          avoidedReturns += 1;
+          directTransfers += 1;
+          opportunities.push({
+            type: "AVOID_RETURN",
+            resourceId,
+            resourceName: resource.name || resourceId,
+            fromLocation,
+            toLocation: String(booking.location || ""),
+            previousBookingId: String(previous?.["@_id"] || previous?.bookingId || ""),
+            nextBookingId: String(booking?.["@_id"] || booking?.bookingId || ""),
+            gapMinutes,
+            estimatedMovementsSaved: 1
+          });
+        }
+
+        movements.push({
+          sequence: index + 1,
+          movementClass,
+          fromLocation,
+          toLocation: String(booking.location || ""),
+          requiredTime: String(booking.startTime || ""),
+          bookingId: String(booking?.["@_id"] || booking?.bookingId || ""),
+          gapMinutes: gapMinutes === null ? null : gapMinutes
+        });
+      });
+
+      if (sequence.length) {
+        baselineMovements += 1;
+        optimisedMovements += 1;
+        const last = sequence[sequence.length - 1];
+        movements.push({
+          sequence: movements.length + 1,
+          movementClass: "Recovery Return",
+          fromLocation: String(last.location || ""),
+          toLocation: homeLocation,
+          requiredTime: String(last.endTime || ""),
+          bookingId: String(last?.["@_id"] || last?.bookingId || ""),
+          gapMinutes: null
+        });
+      }
+
+      resourcePlans.push({
+        resourceId,
+        resourceName: resource.name || resourceId,
+        homeLocation,
+        bookingCount: sequence.length,
+        directTransfers: movements.filter(item => item.movementClass === "Direct Transfer").length,
+        movements
+      });
+    });
+
+    const estimatedMovementReduction = Math.max(0, baselineMovements - optimisedMovements);
+    const estimatedReductionPercent = baselineMovements
+      ? Math.round((estimatedMovementReduction / baselineMovements) * 100)
+      : 0;
+
+    return {
+      bookingDate,
+      policy: {
+        directTransferWindowMinutes,
+        mutationMode: "Advisory only",
+        sourceOfTruth: "ADR-024 Journey Engine"
+      },
+      summary: {
+        resourcesAnalysed: resourcePlans.length,
+        bookingsAnalysed: active.length,
+        baselineMovements,
+        optimisedMovements,
+        estimatedMovementReduction,
+        estimatedReductionPercent,
+        avoidedReturns,
+        directTransfers,
+        opportunities: opportunities.length
+      },
+      opportunities,
+      resourcePlans: resourcePlans.sort((a, b) => String(a.resourceName).localeCompare(String(b.resourceName)))
+    };
+  }
+
   function getResourceState(bookings = [], bookingDate = "", resourceId = "") {
     const result = buildOperationalTimelineAndJourneys(bookings, bookingDate);
     return result.resourceJourneys.find(item => String(item.resourceId) === String(resourceId)) || null;
@@ -743,6 +877,7 @@ function createJourneyEngine(dependencies = {}) {
     getTimeline,
     getCurrentLocation,
     getNextStep,
+    buildOptimizationPlan,
     getOverlappingActiveBookings,
     getReservedResourceIds
   });
