@@ -2795,6 +2795,20 @@ function extractLegacyLocation(row) {
     }
   }
 
+  // Combined-class shorthand such as 6AB, 6DE or P6AB is a valid
+  // deployment destination even when it is not present in locations.xml.
+  // Preserve it as a custom class-like location rather than rejecting it.
+  const combinedClassMatch = searchableText.match(/\bP?\s*([1-6])\s*([A-G]{2,6})(?=\b|\s*(?:class|classroom|room|el|math|science|mt|mother\s*tongue))/i);
+  if (combinedClassMatch) {
+    const classCandidate = `${combinedClassMatch[1]}${combinedClassMatch[2]}`.toUpperCase();
+    const knownClassLocation = findKnownLocationByCandidate(classCandidate, knownLocations);
+    return {
+      location: knownClassLocation || classCandidate,
+      resolution: knownClassLocation ? "Matched existing location" : "Custom combined-class location",
+      sourceText: searchableText
+    };
+  }
+
   // Primary-school class shorthand is commonly entered as P6D, P 6D,
   // P6D classroom, or P6D EL. Strip the optional P prefix before matching
   // against the maintained deployment-location list.
@@ -2841,6 +2855,26 @@ function extractLegacyLocation(row) {
     };
   }
 
+
+  // Legacy requesters frequently express the destination as an instruction,
+  // for example "Please send the booked items to WePed". Extract the object
+  // of the destination phrase before falling back to the whole remark.
+  const destinationInstructionMatch = searchableText.match(
+    /\b(?:send|deliver|deploy|bring|move|take)\b[^\n.;:]{0,80}?\bto\s+([A-Za-z0-9][A-Za-z0-9 .&'()\/-]{0,60}?)(?=$|[\n.;:])/i
+  );
+  if (destinationInstructionMatch) {
+    const destinationCandidate = destinationInstructionMatch[1]
+      .replace(/\s+(?:please|thanks?|thank\s+you)$/i, "")
+      .trim();
+    if (destinationCandidate) {
+      const knownDestination = findKnownLocationByCandidate(destinationCandidate, knownLocations);
+      return {
+        location: knownDestination || destinationCandidate,
+        resolution: knownDestination ? "Matched existing location" : "Custom instructed destination",
+        sourceText: searchableText
+      };
+    }
+  }
 
   const descriptiveSource = sources.find(source => looksLikeDescriptiveDeploymentLocation(source));
   if (descriptiveSource) {
@@ -3476,7 +3510,11 @@ function consolidateAccessoryOnlyImportRows(mappedRows) {
     if (!isAccessoryOnlyImportRow(row)) return;
 
     const booking = row.mappedBooking || {};
-    if (!booking.bookingDate || !booking.location) return;
+    // Accessory-only legacy rows often omit the destination or use a venue
+    // label that differs from the device row. The device booking is
+    // authoritative for location and timing, so a missing accessory-row
+    // location must not prevent same-requester overlap matching.
+    if (!booking.bookingDate) return;
 
     // Tier 1: same requester and date. Legacy exports may store the device
     // booking and its accessories as separate rows with different free-text
