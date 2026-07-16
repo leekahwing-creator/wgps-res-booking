@@ -3315,7 +3315,16 @@ function getAdditionalResourceList(booking = {}) {
 
 function hasDeviceRequest(row) {
   const booking = row?.mappedBooking || {};
-  return Boolean(booking.deviceType && Number(booking.devicesRequired || 0) > 0);
+  const deviceType = normaliseConsolidationKeyValue(booking.deviceType);
+  const resourceCategory = normaliseConsolidationKeyValue(booking.matchedResourceCategory);
+  const noDeviceTokens = new Set(["", "-", "none", "n/a", "na", "nil", "accessory", "accessories"]);
+
+  // Legacy accessory-only rows can carry their accessory quantity in the same
+  // numeric field used for device quantity. Quantity alone must therefore not
+  // cause the row to be treated as a device booking.
+  if (resourceCategory === "accessory" || noDeviceTokens.has(deviceType)) return false;
+
+  return Number(booking.devicesRequired || 0) > 0;
 }
 
 function hasAccessoryRequest(row) {
@@ -3351,6 +3360,113 @@ function timeRangesOverlapForImport(a = {}, b = {}) {
   return aStart < bEnd && aEnd > bStart;
 }
 
+
+function getParallelDeviceMergeKey(row) {
+  const booking = row?.mappedBooking || {};
+  return [
+    getImportRequesterKey(booking),
+    normaliseConsolidationKeyValue(booking.bookingDate),
+    normaliseConsolidationKeyValue(booking.startTime),
+    normaliseConsolidationKeyValue(booking.endTime),
+    getImportLocationKey(booking),
+    normaliseConsolidationKeyValue(booking.deviceType),
+    normaliseConsolidationKeyValue(booking.softwareRequirement),
+    normaliseConsolidationKeyValue(booking.fulfilmentMode)
+  ].join("|");
+}
+
+function consolidateParallelDeviceImportRows(mappedRows) {
+  const rows = toArray(mappedRows);
+  const groups = new Map();
+  const consumed = new Set();
+
+  rows.forEach((row, index) => {
+    if (!hasDeviceRequest(row)) return;
+    const booking = row.mappedBooking || {};
+    if (!booking.bookingDate || !booking.startTime || !booking.endTime || !booking.location || !booking.deviceType) return;
+    const key = getParallelDeviceMergeKey(row);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push({ row, index });
+  });
+
+  groups.forEach(items => {
+    if (items.length < 2) return;
+
+    // Use the earliest source row as the operational anchor. All sibling rows
+    // have already matched on requester, date, exact lesson time, venue,
+    // device profile, software and fulfilment mode.
+    const sorted = items.slice().sort((a, b) => {
+      const an = Number(String(a.row.rowNumber || '').match(/\d+/)?.[0] || Number.MAX_SAFE_INTEGER);
+      const bn = Number(String(b.row.rowNumber || '').match(/\d+/)?.[0] || Number.MAX_SAFE_INTEGER);
+      return an - bn || a.index - b.index;
+    });
+    const anchorItem = sorted[0];
+    const anchor = anchorItem.row;
+    const anchorBooking = anchor.mappedBooking || {};
+
+    let totalDevices = 0;
+    const accessoryTotals = new Map();
+    const sourceLabels = [];
+    const legacyTexts = [];
+
+    sorted.forEach(({ row, index }) => {
+      const booking = row.mappedBooking || {};
+      const rowDeviceQuantity = Number(booking.devicesRequired || 0);
+      totalDevices += rowDeviceQuantity;
+
+      // Deduplicate repeated mentions within each individual legacy row first
+      // (for example, the same mouse mentioned in both Purpose and Remarks),
+      // then add quantities across separate parallel device rows. This preserves
+      // the established anti-double-counting behaviour within one row while
+      // correctly producing 40 mice from two 20-device rows.
+      const rowAccessories = mergeAccessoryQuantities(
+        getAdditionalResourceList(booking),
+        rowDeviceQuantity || 1
+      );
+
+      rowAccessories.forEach(item => {
+        const type = String(item.type || '').trim();
+        if (!type) return;
+        const quantity = Number(item.quantity || 0);
+        const key = type.toLowerCase();
+        if (!accessoryTotals.has(key)) {
+          accessoryTotals.set(key, { type, quantity });
+        } else {
+          accessoryTotals.get(key).quantity += quantity;
+        }
+      });
+
+      sourceLabels.push(String(row.rowNumber || ''));
+      if (booking.legacyResourceText) legacyTexts.push(String(booking.legacyResourceText));
+      if (index !== anchorItem.index) consumed.add(index);
+    });
+
+    anchorBooking.devicesRequired = totalDevices;
+    anchorBooking.additionalResources = {
+      resource: normaliseAdditionalResourceRequests(Array.from(accessoryTotals.values()))
+    };
+    anchorBooking.legacyResourceText = Array.from(new Set(legacyTexts)).join('; ');
+    anchorBooking.legacyResourceResolution = [
+      anchorBooking.legacyResourceResolution,
+      `Consolidated ${sorted.length} parallel device rows into one operational booking`
+    ].filter(Boolean).join('; ');
+
+    const mergeNote = `Parallel device rows ${sourceLabels.join(', ')} consolidated into one operational booking; device quantities and accessories combined.`;
+    anchor.warnings = Array.from(new Set([
+      ...toArray(anchor.warnings),
+      mergeNote
+    ]));
+    anchorBooking.importWarnings = {
+      warning: Array.from(new Set([
+        ...toArray(anchorBooking.importWarnings?.warning),
+        mergeNote
+      ]))
+    };
+  });
+
+  return rows.filter((_, index) => !consumed.has(index));
+}
+
 function consolidateAccessoryOnlyImportRows(mappedRows) {
   const rows = toArray(mappedRows);
   const deviceRows = rows.filter(row => hasDeviceRequest(row));
@@ -3362,24 +3478,74 @@ function consolidateAccessoryOnlyImportRows(mappedRows) {
     const booking = row.mappedBooking || {};
     if (!booking.bookingDate || !booking.location) return;
 
-    // Tier 1: same requester, date and location. This remains the strongest
-    // and preferred match. Device-booking timing takes precedence.
+    // Tier 1: same requester and date. Legacy exports may store the device
+    // booking and its accessories as separate rows with different free-text
+    // locations. The device row is authoritative for timing, location,
+    // quantity and device profile; the accessory row contributes accessories
+    // only. Prefer an exact time match, then a unique overlapping lesson.
     const sameRequesterCandidates = deviceRows.filter(candidate => {
       const candidateBooking = candidate.mappedBooking || {};
       return getImportRequesterKey(candidateBooking) &&
         getImportRequesterKey(candidateBooking) === getImportRequesterKey(booking) &&
-        normaliseConsolidationKeyValue(candidateBooking.bookingDate) === normaliseConsolidationKeyValue(booking.bookingDate) &&
-        getImportLocationKey(candidateBooking) === getImportLocationKey(booking);
+        normaliseConsolidationKeyValue(candidateBooking.bookingDate) === normaliseConsolidationKeyValue(booking.bookingDate);
     });
 
-    let target = sameRequesterCandidates.find(candidate =>
-      timeRangesOverlapForImport(candidate.mappedBooking, booking)
-    ) || sameRequesterCandidates.find(candidate =>
-      candidate.mappedBooking?.startTime === booking.startTime ||
-      candidate.mappedBooking?.endTime === booking.endTime
-    ) || sameRequesterCandidates[0];
+    const exactTimeCandidates = sameRequesterCandidates.filter(candidate => {
+      const candidateBooking = candidate.mappedBooking || {};
+      return candidateBooking.startTime === booking.startTime &&
+        candidateBooking.endTime === booking.endTime;
+    });
 
-    let matchTier = "same requester";
+    const overlappingCandidates = sameRequesterCandidates.filter(candidate =>
+      timeRangesOverlapForImport(candidate.mappedBooking, booking)
+    );
+
+    function numericSourceRow(value) {
+      const match = String(value || "").match(/\d+/);
+      return match ? Number(match[0]) : Number.NaN;
+    }
+
+    function nearestAdjacentCandidate(candidates) {
+      const accessoryRowNumber = numericSourceRow(row.rowNumber);
+      if (!Number.isFinite(accessoryRowNumber)) return null;
+
+      const adjacent = candidates
+        .map(candidate => ({
+          candidate,
+          rowNumber: numericSourceRow(candidate.rowNumber)
+        }))
+        .filter(item => Number.isFinite(item.rowNumber) && item.rowNumber !== accessoryRowNumber)
+        .map(item => ({
+          ...item,
+          distance: Math.abs(item.rowNumber - accessoryRowNumber)
+        }))
+        .sort((a, b) => a.distance - b.distance || a.rowNumber - b.rowNumber);
+
+      if (!adjacent.length) return null;
+      const nearestDistance = adjacent[0].distance;
+      const equallyNear = adjacent.filter(item => item.distance === nearestDistance);
+      return equallyNear.length === 1 ? equallyNear[0].candidate : null;
+    }
+
+    let target = exactTimeCandidates.length === 1
+      ? exactTimeCandidates[0]
+      : exactTimeCandidates.length > 1
+        ? nearestAdjacentCandidate(exactTimeCandidates)
+        : overlappingCandidates.length === 1
+          ? overlappingCandidates[0]
+          : overlappingCandidates.length > 1
+            ? nearestAdjacentCandidate(overlappingCandidates)
+            : null;
+
+    let matchTier = exactTimeCandidates.length === 1
+      ? "same requester and exact lesson time"
+      : exactTimeCandidates.length > 1 && target
+        ? "same requester, exact lesson time and nearest adjacent source row"
+        : overlappingCandidates.length === 1
+          ? "same requester and unique overlapping lesson"
+          : overlappingCandidates.length > 1 && target
+            ? "same requester, overlapping lesson and nearest adjacent source row"
+            : "same requester and unique overlapping lesson";
 
     // Tier 2: legacy helper booking. Different users sometimes booked the
     // device and accessories separately for the same lesson. Merge only when
@@ -3426,14 +3592,133 @@ function consolidateAccessoryOnlyImportRows(mappedRows) {
   return rows
     .filter((_, index) => !mergedAccessoryRowIds.has(index))
     .map(row => {
-      if (row.valid) return row;
+      if (!isAccessoryOnlyImportRow(row)) return row;
+
+      // An accessory-only row that could not be matched to one unique device
+      // booking is structurally importable, but its operational intent is not
+      // certain. Keep it visible for explicit Admin review; never silently
+      // auto-approve a booking with no device anchor.
       const cleanedErrors = removeDeviceTypeErrors(row.errors);
+      const reviewWarning = `Accessory-only legacy row ${row.rowNumber} could not be matched uniquely to a device booking and requires Admin review.`;
+      const warnings = Array.from(new Set([
+        ...toArray(row.warnings),
+        reviewWarning
+      ]));
+
       return {
         ...row,
         errors: cleanedErrors,
-        valid: cleanedErrors.length === 0
+        warnings,
+        valid: cleanedErrors.length === 0,
+        mappedBooking: {
+          ...(row.mappedBooking || {}),
+          importWarnings: {
+            warning: Array.from(new Set([
+              ...toArray(row.mappedBooking?.importWarnings?.warning),
+              reviewWarning
+            ]))
+          }
+        }
       };
     });
+}
+
+
+function buildImportTraceKey(row = {}) {
+  const booking = row.mappedBooking || {};
+  const source = [
+    booking.importSource || "Legacy Platform",
+    booking.importRowNumber || row.rowNumber || "",
+    booking.importSegmentLabel || row.rowNumber || "",
+    booking.bookingDate || "",
+    booking.startTime || "",
+    booking.endTime || "",
+    booking.location || "",
+    booking.importedRequesterEmail || booking.importedRequesterName || "",
+    booking.legacyResourceText || booking.deviceType || ""
+  ].join("|");
+  return crypto.createHash("sha256").update(source).digest("hex").slice(0, 24);
+}
+
+function classifyImportDecision(row = {}) {
+  const errors = toArray(row.errors).map(value => String(value || "").trim()).filter(Boolean);
+  const warnings = toArray(row.warnings).map(value => String(value || "").trim()).filter(Boolean);
+  const booking = row.mappedBooking || {};
+
+  if (row.skipped) {
+    return { decision: "SKIPPED", confidence: 0, requiresApproval: false, reasons: errors.length ? errors : ["Non-ICT or excluded record."] };
+  }
+
+  if (errors.length) {
+    return { decision: "REJECTED", confidence: 0, requiresApproval: false, reasons: errors };
+  }
+
+  const reviewReasons = [];
+  const materialPatterns = [
+    /generic device type detected/i,
+    /no registered resource name matched/i,
+    /custom descriptive location/i,
+    /custom class-like location/i,
+    /requester was not found/i,
+    /paired sequentially/i,
+    /multiple resource deployments share/i,
+    /accessory-only legacy row/i,
+    /manual review/i,
+    /ambiguous/i,
+    /split from bulk resource booking/i
+  ];
+
+  warnings.forEach(warning => {
+    if (materialPatterns.some(pattern => pattern.test(warning))) reviewReasons.push(warning);
+  });
+
+  const resolutionText = [
+    booking.legacyResourceResolution,
+    booking.legacyLocationResolution,
+    booking.legacyAccessoryResolution
+  ].filter(Boolean).join("; ");
+  if (materialPatterns.some(pattern => pattern.test(resolutionText))) {
+    reviewReasons.push(resolutionText);
+  }
+
+  if (reviewReasons.length) {
+    return {
+      decision: "REVIEW_REQUIRED",
+      confidence: 70,
+      requiresApproval: true,
+      reasons: Array.from(new Set(reviewReasons))
+    };
+  }
+
+  return {
+    decision: "AUTO_APPROVED",
+    confidence: warnings.length ? 90 : 100,
+    requiresApproval: false,
+    reasons: warnings
+  };
+}
+
+function applyImportDecisionMetadata(rows = []) {
+  return toArray(rows).map(row => {
+    const traceKey = buildImportTraceKey(row);
+    const decision = classifyImportDecision(row);
+    const mappedBooking = {
+      ...(row.mappedBooking || {}),
+      importTraceKey: traceKey,
+      importDecision: decision.decision,
+      importConfidence: decision.confidence,
+      importDecisionReasons: { reason: decision.reasons }
+    };
+    return {
+      ...row,
+      mappedBooking,
+      traceKey,
+      decision: decision.decision,
+      confidence: decision.confidence,
+      requiresApproval: decision.requiresApproval,
+      decisionReasons: decision.reasons
+    };
+  });
 }
 
 function previewLegacyBookingRows(rows, dateRange = {}) {
@@ -3470,7 +3755,8 @@ function previewLegacyBookingRows(rows, dateRange = {}) {
     });
   });
 
-  allRows = consolidateAccessoryOnlyImportRows(allRows);
+  allRows = consolidateParallelDeviceImportRows(allRows);
+  allRows = applyImportDecisionMetadata(consolidateAccessoryOnlyImportRows(allRows));
 
   const inRangeRows = [];
   const outOfRangeRows = [];
@@ -3489,9 +3775,12 @@ function previewLegacyBookingRows(rows, dateRange = {}) {
     }
   });
 
-  const validRows = inRangeRows.filter(row => row.valid);
-  const skippedRows = inRangeRows.filter(row => row.skipped);
-  const invalidRows = inRangeRows.filter(row => !row.valid && !row.skipped);
+  const autoApprovedRows = inRangeRows.filter(row => row.decision === "AUTO_APPROVED");
+  const reviewRows = inRangeRows.filter(row => row.decision === "REVIEW_REQUIRED");
+  const rejectedRows = inRangeRows.filter(row => row.decision === "REJECTED");
+  const skippedRows = inRangeRows.filter(row => row.decision === "SKIPPED");
+  const validRows = [...autoApprovedRows, ...reviewRows];
+  const invalidRows = rejectedRows;
 
   const classificationSummary = inRangeRows.reduce((summary, row) => {
     const key = row.classification || "Needs review";
@@ -3520,6 +3809,9 @@ function previewLegacyBookingRows(rows, dateRange = {}) {
     rowsOutsideRange: outOfRangeRows.length,
     dateRange,
     validRows,
+    autoApprovedRows,
+    reviewRows,
+    rejectedRows,
     invalidRows,
     skippedRows,
     outOfRangeRows,
@@ -3628,7 +3920,13 @@ app.post("/api/admin/import/bookings/commit", requireLogin, requireAdmin, (req, 
       });
     }
 
-    const importResults = preview.validRows.map(row => saveImportedBooking(row.mappedBooking, req.session.user));
+    const approvedReviewKeys = new Set(toArray(req.body.approvedReviewKeys).map(value => String(value || "")));
+    const rowsToCommit = [
+      ...preview.autoApprovedRows,
+      ...preview.reviewRows.filter(row => approvedReviewKeys.has(String(row.traceKey || "")))
+    ];
+    const unapprovedReviewRows = preview.reviewRows.filter(row => !approvedReviewKeys.has(String(row.traceKey || "")));
+    const importResults = rowsToCommit.map(row => saveImportedBooking(row.mappedBooking, req.session.user));
     const importedBookings = importResults.filter(result => !result.skipped);
     const duplicateRows = importResults.filter(result => result.skipped);
 
@@ -3636,7 +3934,10 @@ app.post("/api/admin/import/bookings/commit", requireLogin, requireAdmin, (req, 
       success: true,
       message: `${importedBookings.length} booking record(s) imported from the selected date range. ${duplicateRows.length} duplicate row(s) skipped. ${preview.rowsOutsideRange} row(s) were outside the selected date range.`,
       importedCount: importedBookings.length,
-      skippedCount: preview.invalidRows.length + preview.skippedRows.length + duplicateRows.length + preview.rowsOutsideRange,
+      skippedCount: preview.invalidRows.length + preview.skippedRows.length + unapprovedReviewRows.length + duplicateRows.length + preview.rowsOutsideRange,
+      autoApprovedCount: preview.autoApprovedRows.length,
+      manuallyApprovedCount: preview.reviewRows.length - unapprovedReviewRows.length,
+      unapprovedReviewRows,
       duplicateRows,
       importedBookings,
       invalidRows: preview.invalidRows,
@@ -4139,9 +4440,6 @@ app.get("/api/de/bookings", requireLogin, requireDEOrAdmin, (req, res) => {
       operationalTimeline: operations.timeline,
       resourceJourneys: operations.resourceJourneys,
       operationalSummary: operations.summary,
-      journeyOptimization: getJourneyEngine().buildOptimizationPlan(formattedBookings, bookingDate),
-      journeyValidation: getJourneyEngine().buildValidationReport(formattedBookings, bookingDate),
-      journeyOperationalRecommendations: getJourneyEngine().buildOperationalRecommendations(formattedBookings, bookingDate),
       bookingIdentityIntegrity: {
         valid: duplicateBookingIds.length === 0,
         duplicateBookingIds
