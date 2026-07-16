@@ -4141,6 +4141,7 @@ app.get("/api/de/bookings", requireLogin, requireDEOrAdmin, (req, res) => {
       operationalSummary: operations.summary,
       journeyOptimization: getJourneyEngine().buildOptimizationPlan(formattedBookings, bookingDate),
       journeyValidation: getJourneyEngine().buildValidationReport(formattedBookings, bookingDate),
+      journeyOperationalRecommendations: getJourneyEngine().buildOperationalRecommendations(formattedBookings, bookingDate),
       bookingIdentityIntegrity: {
         valid: duplicateBookingIds.length === 0,
         duplicateBookingIds

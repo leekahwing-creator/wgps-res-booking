@@ -1708,6 +1708,7 @@
     <div class="side-drawer-body">
       <section class="drawer-section"><div class="section-heading"><h3>Today's Summary</h3><span id="operationsSummaryDate"></span></div><div id="operationsSummary" class="operations-summary"></div></section>
       <section class="drawer-section" style="margin-top:10px"><div class="section-heading"><h3>Journey Intelligence</h3><span id="journeyIntelligenceDate"></span></div><div id="journeyIntelligenceSummary" class="journey-intelligence-grid"></div><div id="journeyValidationHealth"></div><div id="journeyIntelligencePolicy" class="intelligence-policy"></div></section>
+      <details class="drawer-disclosure" open><summary><span>Operational Recommendations</span><small id="operationalRecommendationCount">0</small></summary><div id="operationalRecommendationList" class="intelligence-list"></div></details>
       <details class="drawer-disclosure"><summary><span>Optimisation Opportunities</span><small id="journeyOpportunityCount">0</small></summary><div id="journeyOpportunityList" class="intelligence-list"></div></details>
       <details class="drawer-disclosure"><summary><span>Journey Validation</span><small id="journeyFindingCount">0</small></summary><div id="journeyFindingList" class="intelligence-list"></div></details>
       <details class="drawer-disclosure" open><summary><span>Operational Timeline</span><small id="timelineDateLabel"></small></summary><div id="operationalTimeline" class="operational-timeline drawer-timeline"></div></details>
@@ -1737,6 +1738,8 @@
     const journeyValidationHealth = document.getElementById('journeyValidationHealth');
     const journeyIntelligencePolicy = document.getElementById('journeyIntelligencePolicy');
     const journeyIntelligenceDate = document.getElementById('journeyIntelligenceDate');
+    const operationalRecommendationList = document.getElementById('operationalRecommendationList');
+    const operationalRecommendationCount = document.getElementById('operationalRecommendationCount');
     const journeyOpportunityList = document.getElementById('journeyOpportunityList');
     const journeyFindingList = document.getElementById('journeyFindingList');
     const journeyOpportunityCount = document.getElementById('journeyOpportunityCount');
@@ -1788,6 +1791,7 @@
     let latestOperationalSummary = {};
     let latestJourneyOptimization = {};
     let latestJourneyValidation = {};
+    let latestOperationalRecommendations = {};
     let activeDrawer = null;
     let lastDrawerTrigger = null;
 
@@ -2205,6 +2209,27 @@ return currentUser;
       journeyFindingList.innerHTML = findings.length ? findings.map(item => `<article class="intelligence-item"><div class="intelligence-item-heading"><div><strong>${escapeHtml(item.message || item.code || 'Journey finding')}</strong><small>${escapeHtml(item.resourceName || item.resourceId || '')}${item.fromLocation || item.toLocation ? ` · ${escapeHtml(item.fromLocation || '—')} → ${escapeHtml(item.toLocation || '—')}` : ''}${item.gapMinutes != null ? ` · ${Number(item.gapMinutes)} min` : ''}</small></div><span class="finding-badge ${String(item.severity || 'INFO').toLowerCase()}">${escapeHtml(item.severity || 'INFO')}</span></div></article>`).join('') : '<div class="intelligence-empty">No journey validation findings.</div>';
     }
 
+
+    function renderOperationalRecommendations(payload = {}) {
+      const recommendations = Array.isArray(payload.recommendations) ? payload.recommendations : [];
+      operationalRecommendationCount.textContent = recommendations.length;
+      const readinessClass = value => {
+        const key = String(value || 'READY').toLowerCase();
+        return key === 'blocked' ? 'error' : key === 'review' ? 'warning' : 'info';
+      };
+      operationalRecommendationList.innerHTML = recommendations.length ? recommendations.map(item => {
+        const resources = Array.isArray(item.resources) && item.resources.length
+          ? item.resources.map(resource => resource.resourceName || resource.resourceId).join(', ')
+          : (item.resourceName || item.resourceId || 'Resource');
+        const route = `${item.fromLocation || '—'} → ${item.toLocation || '—'}`;
+        const detail = item.recommendationType === 'GROUPED_DEPLOYMENT'
+          ? `${resources} · ${item.requiredTime || ''}`
+          : `${resources} · ${Number(item.gapMinutes || 0)} min gap`;
+        const resourceId = item.resourceId || (Array.isArray(item.resourceIds) ? item.resourceIds[0] : '');
+        return `<article class="intelligence-item"><div class="intelligence-item-heading"><div><strong>${escapeHtml(item.title || 'Operational recommendation')}</strong><small>${escapeHtml(route)} · ${escapeHtml(detail)}</small></div><span class="finding-badge ${readinessClass(item.readiness)}">${escapeHtml(item.readiness || 'READY')}</span></div><p style="margin:8px 0 0;color:var(--muted);font-size:.78rem">${escapeHtml(item.instruction || '')}</p>${resourceId ? `<button type="button" class="btn btn-secondary" data-resource-journey="${escapeHtml(resourceId)}" style="margin-top:8px;padding:6px 9px;font-size:.72rem">Review journey</button>` : ''}</article>`;
+      }).join('') : '<div class="intelligence-empty">No operational route recommendations for this date.</div>';
+    }
+
     function renderOperationalTimeline(events = []) {
       timelineDateLabel.textContent = deploymentDate.value || '';
       operationsSummaryDate.textContent = deploymentDate.value || '';
@@ -2398,9 +2423,11 @@ return currentUser;
       latestOperationalSummary = result.operationalSummary || {};
       latestJourneyOptimization = result.journeyOptimization || {};
       latestJourneyValidation = result.journeyValidation || {};
+      latestOperationalRecommendations = result.journeyOperationalRecommendations || {};
 
       renderOperationsSummary(latestOperationalSummary);
       renderJourneyIntelligence(latestJourneyOptimization, latestJourneyValidation);
+      renderOperationalRecommendations(latestOperationalRecommendations);
       renderOperationalTimeline(latestOperationalTimeline);
       renderResourceJourneys(latestResourceJourneys);
       renderOperationsStatusGroups();

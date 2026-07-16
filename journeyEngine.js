@@ -1017,6 +1017,117 @@ function createJourneyEngine(dependencies = {}) {
     };
   }
 
+
+  /**
+   * ADR-024 Phase 6 — Operational Recommendations.
+   *
+   * Converts advisory optimisation and validation output into reviewable,
+   * non-destructive operational recommendations for the DE dashboard.
+   */
+  function buildOperationalRecommendations(bookings = [], bookingDate = "", options = {}) {
+    const optimization = buildOptimizationPlan(bookings, bookingDate, options);
+    const validation = buildValidationReport(bookings, bookingDate, options);
+    const findings = toArray(validation.findings);
+    const recommendations = [];
+
+    const relatedFindings = (resourceId, bookingIds = []) => {
+      const idSet = new Set(bookingIds.map(value => String(value || "")).filter(Boolean));
+      return findings.filter(finding => {
+        if (String(finding.resourceId || "") === String(resourceId || "")) return true;
+        return [finding.bookingId, finding.previousBookingId, finding.nextBookingId]
+          .map(value => String(value || ""))
+          .some(value => value && idSet.has(value));
+      });
+    };
+
+    const classifyReadiness = relevant => {
+      if (relevant.some(item => item.severity === "ERROR")) return "BLOCKED";
+      if (relevant.some(item => item.severity === "WARNING")) return "REVIEW";
+      return "READY";
+    };
+
+    toArray(optimization.opportunities).forEach(opportunity => {
+      const bookingIds = [opportunity.previousBookingId, opportunity.nextBookingId].filter(Boolean);
+      const relevant = relatedFindings(opportunity.resourceId, bookingIds);
+      const readiness = classifyReadiness(relevant);
+      recommendations.push({
+        recommendationId: `OR-${String(recommendations.length + 1).padStart(4, "0")}`,
+        recommendationType: "DIRECT_TRANSFER",
+        readiness,
+        title: `Direct transfer ${opportunity.resourceName || opportunity.resourceId}`,
+        resourceId: String(opportunity.resourceId || ""),
+        resourceName: String(opportunity.resourceName || opportunity.resourceId || "Resource"),
+        bookingIds,
+        fromLocation: String(opportunity.fromLocation || ""),
+        toLocation: String(opportunity.toLocation || ""),
+        gapMinutes: Number(opportunity.gapMinutes || 0),
+        estimatedMovementsSaved: Number(opportunity.estimatedMovementsSaved || 1),
+        instruction: `Move directly from ${opportunity.fromLocation || "the current venue"} to ${opportunity.toLocation || "the next venue"} instead of returning to the home location.`,
+        blockingFindings: relevant.filter(item => item.severity === "ERROR").map(item => item.findingId),
+        cautionFindings: relevant.filter(item => item.severity === "WARNING").map(item => item.findingId)
+      });
+    });
+
+    // Group parallel deployments that share a route and start time.
+    const plans = toArray(optimization.resourcePlans);
+    const movementGroups = new Map();
+    plans.forEach(plan => {
+      toArray(plan.movements).forEach(movement => {
+        if (movement.movementClass !== "Deployment") return;
+        const key = [movement.requiredTime, movement.fromLocation, movement.toLocation].join("|");
+        if (!movementGroups.has(key)) movementGroups.set(key, []);
+        movementGroups.get(key).push({ plan, movement });
+      });
+    });
+    movementGroups.forEach(items => {
+      if (items.length < 2) return;
+      const resourceIds = items.map(item => String(item.plan.resourceId || ""));
+      const bookingIds = items.map(item => String(item.movement.bookingId || "")).filter(Boolean);
+      const relevant = items.flatMap(item => relatedFindings(item.plan.resourceId, [item.movement.bookingId]));
+      const readiness = classifyReadiness(relevant);
+      recommendations.push({
+        recommendationId: `OR-${String(recommendations.length + 1).padStart(4, "0")}`,
+        recommendationType: "GROUPED_DEPLOYMENT",
+        readiness,
+        title: `Grouped deployment to ${items[0].movement.toLocation || "destination"}`,
+        resourceIds,
+        resources: items.map(item => ({
+          resourceId: String(item.plan.resourceId || ""),
+          resourceName: String(item.plan.resourceName || item.plan.resourceId || "Resource")
+        })),
+        bookingIds,
+        fromLocation: String(items[0].movement.fromLocation || ""),
+        toLocation: String(items[0].movement.toLocation || ""),
+        requiredTime: String(items[0].movement.requiredTime || ""),
+        instruction: `Collect ${items.length} resources together from ${items[0].movement.fromLocation || "the home location"} and deliver them to ${items[0].movement.toLocation || "the destination"}.`,
+        estimatedMovementsSaved: Math.max(1, items.length - 1),
+        blockingFindings: relevant.filter(item => item.severity === "ERROR").map(item => item.findingId),
+        cautionFindings: relevant.filter(item => item.severity === "WARNING").map(item => item.findingId)
+      });
+    });
+
+    const counts = recommendations.reduce((acc, item) => {
+      acc[item.readiness.toLowerCase()] += 1;
+      acc[item.recommendationType === "DIRECT_TRANSFER" ? "directTransfers" : "groupedDeployments"] += 1;
+      acc.estimatedMovementsSaved += Number(item.estimatedMovementsSaved || 0);
+      return acc;
+    }, { ready: 0, review: 0, blocked: 0, directTransfers: 0, groupedDeployments: 0, estimatedMovementsSaved: 0 });
+
+    return {
+      bookingDate,
+      policy: {
+        mutationMode: "Reviewable recommendations only",
+        automaticExecution: false,
+        sourceOfTruth: "ADR-024 Journey Engine"
+      },
+      summary: {
+        totalRecommendations: recommendations.length,
+        ...counts
+      },
+      recommendations
+    };
+  }
+
   function getResourceState(bookings = [], bookingDate = "", resourceId = "") {
     const result = buildOperationalTimelineAndJourneys(bookings, bookingDate);
     return result.resourceJourneys.find(item => String(item.resourceId) === String(resourceId)) || null;
@@ -1047,6 +1158,7 @@ function createJourneyEngine(dependencies = {}) {
     getNextStep,
     buildOptimizationPlan,
     buildValidationReport,
+    buildOperationalRecommendations,
     getOverlappingActiveBookings,
     getReservedResourceIds
   });
