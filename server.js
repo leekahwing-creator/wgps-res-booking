@@ -3360,6 +3360,92 @@ function timeRangesOverlapForImport(a = {}, b = {}) {
   return aStart < bEnd && aEnd > bStart;
 }
 
+
+function getParallelDeviceMergeKey(row) {
+  const booking = row?.mappedBooking || {};
+  return [
+    getImportRequesterKey(booking),
+    normaliseConsolidationKeyValue(booking.bookingDate),
+    normaliseConsolidationKeyValue(booking.startTime),
+    normaliseConsolidationKeyValue(booking.endTime),
+    getImportLocationKey(booking),
+    normaliseConsolidationKeyValue(booking.deviceType),
+    normaliseConsolidationKeyValue(booking.softwareRequirement),
+    normaliseConsolidationKeyValue(booking.fulfilmentMode)
+  ].join("|");
+}
+
+function consolidateParallelDeviceImportRows(mappedRows) {
+  const rows = toArray(mappedRows);
+  const groups = new Map();
+  const consumed = new Set();
+
+  rows.forEach((row, index) => {
+    if (!hasDeviceRequest(row)) return;
+    const booking = row.mappedBooking || {};
+    if (!booking.bookingDate || !booking.startTime || !booking.endTime || !booking.location || !booking.deviceType) return;
+    const key = getParallelDeviceMergeKey(row);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push({ row, index });
+  });
+
+  groups.forEach(items => {
+    if (items.length < 2) return;
+
+    // Use the earliest source row as the operational anchor. All sibling rows
+    // have already matched on requester, date, exact lesson time, venue,
+    // device profile, software and fulfilment mode.
+    const sorted = items.slice().sort((a, b) => {
+      const an = Number(String(a.row.rowNumber || '').match(/\d+/)?.[0] || Number.MAX_SAFE_INTEGER);
+      const bn = Number(String(b.row.rowNumber || '').match(/\d+/)?.[0] || Number.MAX_SAFE_INTEGER);
+      return an - bn || a.index - b.index;
+    });
+    const anchorItem = sorted[0];
+    const anchor = anchorItem.row;
+    const anchorBooking = anchor.mappedBooking || {};
+
+    let totalDevices = 0;
+    let mergedResources = [];
+    const sourceLabels = [];
+    const legacyTexts = [];
+
+    sorted.forEach(({ row, index }) => {
+      const booking = row.mappedBooking || {};
+      totalDevices += Number(booking.devicesRequired || 0);
+      mergedResources.push(...getAdditionalResourceList(booking));
+      sourceLabels.push(String(row.rowNumber || ''));
+      if (booking.legacyResourceText) legacyTexts.push(String(booking.legacyResourceText));
+      if (index !== anchorItem.index) consumed.add(index);
+    });
+
+    anchorBooking.devicesRequired = totalDevices;
+    anchorBooking.additionalResources = {
+      resource: normaliseAdditionalResourceRequests(
+        mergeAccessoryQuantities(mergedResources, totalDevices || 1)
+      )
+    };
+    anchorBooking.legacyResourceText = Array.from(new Set(legacyTexts)).join('; ');
+    anchorBooking.legacyResourceResolution = [
+      anchorBooking.legacyResourceResolution,
+      `Consolidated ${sorted.length} parallel device rows into one operational booking`
+    ].filter(Boolean).join('; ');
+
+    const mergeNote = `Parallel device rows ${sourceLabels.join(', ')} consolidated into one operational booking; device quantities and accessories combined.`;
+    anchor.warnings = Array.from(new Set([
+      ...toArray(anchor.warnings),
+      mergeNote
+    ]));
+    anchorBooking.importWarnings = {
+      warning: Array.from(new Set([
+        ...toArray(anchorBooking.importWarnings?.warning),
+        mergeNote
+      ]))
+    };
+  });
+
+  return rows.filter((_, index) => !consumed.has(index));
+}
+
 function consolidateAccessoryOnlyImportRows(mappedRows) {
   const rows = toArray(mappedRows);
   const deviceRows = rows.filter(row => hasDeviceRequest(row));
@@ -3648,6 +3734,7 @@ function previewLegacyBookingRows(rows, dateRange = {}) {
     });
   });
 
+  allRows = consolidateParallelDeviceImportRows(allRows);
   allRows = applyImportDecisionMetadata(consolidateAccessoryOnlyImportRows(allRows));
 
   const inRangeRows = [];
