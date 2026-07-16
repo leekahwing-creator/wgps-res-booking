@@ -3398,42 +3398,46 @@ function consolidateAccessoryOnlyImportRows(mappedRows) {
       return match ? Number(match[0]) : Number.NaN;
     }
 
-    function nearestPrecedingCandidate(candidates) {
+    function nearestAdjacentCandidate(candidates) {
       const accessoryRowNumber = numericSourceRow(row.rowNumber);
       if (!Number.isFinite(accessoryRowNumber)) return null;
 
-      const preceding = candidates
+      const adjacent = candidates
         .map(candidate => ({
           candidate,
           rowNumber: numericSourceRow(candidate.rowNumber)
         }))
-        .filter(item => Number.isFinite(item.rowNumber) && item.rowNumber < accessoryRowNumber)
-        .sort((a, b) => b.rowNumber - a.rowNumber);
+        .filter(item => Number.isFinite(item.rowNumber) && item.rowNumber !== accessoryRowNumber)
+        .map(item => ({
+          ...item,
+          distance: Math.abs(item.rowNumber - accessoryRowNumber)
+        }))
+        .sort((a, b) => a.distance - b.distance || a.rowNumber - b.rowNumber);
 
-      if (!preceding.length) return null;
-      const nearestDistance = accessoryRowNumber - preceding[0].rowNumber;
-      const equallyNear = preceding.filter(item => accessoryRowNumber - item.rowNumber === nearestDistance);
+      if (!adjacent.length) return null;
+      const nearestDistance = adjacent[0].distance;
+      const equallyNear = adjacent.filter(item => item.distance === nearestDistance);
       return equallyNear.length === 1 ? equallyNear[0].candidate : null;
     }
 
     let target = exactTimeCandidates.length === 1
       ? exactTimeCandidates[0]
       : exactTimeCandidates.length > 1
-        ? nearestPrecedingCandidate(exactTimeCandidates)
+        ? nearestAdjacentCandidate(exactTimeCandidates)
         : overlappingCandidates.length === 1
           ? overlappingCandidates[0]
           : overlappingCandidates.length > 1
-            ? nearestPrecedingCandidate(overlappingCandidates)
+            ? nearestAdjacentCandidate(overlappingCandidates)
             : null;
 
     let matchTier = exactTimeCandidates.length === 1
       ? "same requester and exact lesson time"
       : exactTimeCandidates.length > 1 && target
-        ? "same requester, exact lesson time and nearest preceding source row"
+        ? "same requester, exact lesson time and nearest adjacent source row"
         : overlappingCandidates.length === 1
           ? "same requester and unique overlapping lesson"
           : overlappingCandidates.length > 1 && target
-            ? "same requester, overlapping lesson and nearest preceding source row"
+            ? "same requester, overlapping lesson and nearest adjacent source row"
             : "same requester and unique overlapping lesson";
 
     // Tier 2: legacy helper booking. Different users sometimes booked the
