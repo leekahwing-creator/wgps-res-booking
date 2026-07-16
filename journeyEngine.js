@@ -849,6 +849,174 @@ function createJourneyEngine(dependencies = {}) {
     };
   }
 
+
+  /**
+   * ADR-024 Phase 4 — Journey Validation.
+   *
+   * Validates the authoritative daily journey model without mutating bookings.
+   * Findings are deliberately classified so consumers can distinguish hard
+   * contradictions from operational warnings and advisory observations.
+   */
+  function buildValidationReport(bookings = [], bookingDate = "", options = {}) {
+    const resources = readResourcesFromXML().map(formatResourceForResponse);
+    const resourceById = new Map(resources.map(resource => [String(resource.id || ""), resource]));
+    const minimumTransferMinutes = Number.isFinite(Number(options.minimumTransferMinutes))
+      ? Math.max(0, Number(options.minimumTransferMinutes))
+      : 10;
+    const directTransferWindowMinutes = Number.isFinite(Number(options.directTransferWindowMinutes))
+      ? Math.max(minimumTransferMinutes, Number(options.directTransferWindowMinutes))
+      : 30;
+
+    const active = toArray(bookings)
+      .filter(booking => booking.status !== "Deleted" && booking.status !== "Cancelled")
+      .filter(booking => !bookingDate || String(booking.bookingDate || "") === String(bookingDate))
+      .filter(booking => bookingRequiresDeployment(booking))
+      .filter(booking => bookingHasDEManagedResources(booking, resourceById));
+
+    const findings = [];
+    const addFinding = (severity, code, message, detail = {}) => {
+      findings.push({
+        findingId: `JV-${String(findings.length + 1).padStart(4, "0")}`,
+        severity,
+        code,
+        message,
+        ...detail
+      });
+    };
+
+    const byResource = new Map();
+    active.forEach(booking => {
+      const bookingId = String(booking?.["@_id"] || booking?.bookingId || "");
+      const resourceIds = getDEManagedAllocatedResourceIds(booking, resourceById);
+      if (!resourceIds.length) {
+        addFinding("ERROR", "NO_MANAGED_RESOURCE", "Deployment booking has no DE-managed allocated resource.", {
+          bookingId,
+          bookingTime: `${booking.startTime || ""}-${booking.endTime || ""}`,
+          location: String(booking.location || "")
+        });
+      }
+      resourceIds.forEach(resourceId => {
+        if (!byResource.has(resourceId)) byResource.set(resourceId, []);
+        byResource.get(resourceId).push(booking);
+      });
+    });
+
+    byResource.forEach((sequence, resourceId) => {
+      sequence.sort((a, b) => `${a.startTime || ""} ${a.endTime || ""}`.localeCompare(`${b.startTime || ""} ${b.endTime || ""}`));
+      const resource = resourceById.get(resourceId) || {};
+      const resourceName = resource.name || resourceId;
+      const homeLocation = getResourceHomeLocation(resource);
+      if (!homeLocation) {
+        addFinding("ERROR", "MISSING_HOME_LOCATION", "Resource has no configured home location.", { resourceId, resourceName });
+      }
+
+      sequence.forEach((booking, index) => {
+        const bookingId = String(booking?.["@_id"] || booking?.bookingId || "");
+        if (!String(booking.location || "").trim()) {
+          addFinding("ERROR", "MISSING_DESTINATION", "Booking has no deployment destination.", {
+            resourceId, resourceName, bookingId
+          });
+        }
+        if (index === 0) return;
+
+        const previous = sequence[index - 1];
+        const previousId = String(previous?.["@_id"] || previous?.bookingId || "");
+        const previousEnd = timeToMinutes(previous.endTime);
+        const currentStart = timeToMinutes(booking.startTime);
+        if (previousEnd === null || currentStart === null) {
+          addFinding("ERROR", "INVALID_TIME", "Journey contains an unparseable booking time.", {
+            resourceId, resourceName, previousBookingId: previousId, bookingId
+          });
+          return;
+        }
+
+        const gapMinutes = currentStart - previousEnd;
+        const fromLocation = String(previous.location || homeLocation || "");
+        const toLocation = String(booking.location || "");
+
+        if (gapMinutes < 0) {
+          addFinding("ERROR", "RESOURCE_BOOKING_OVERLAP", "The same resource is allocated to overlapping bookings.", {
+            resourceId, resourceName, previousBookingId: previousId, bookingId,
+            fromLocation, toLocation, gapMinutes
+          });
+          return;
+        }
+
+        if (fromLocation !== toLocation && gapMinutes < minimumTransferMinutes) {
+          addFinding("WARNING", "INSUFFICIENT_TRANSFER_TIME", "The planned transfer gap may be too short for movement between locations.", {
+            resourceId, resourceName, previousBookingId: previousId, bookingId,
+            fromLocation, toLocation, gapMinutes, minimumTransferMinutes
+          });
+        } else if (fromLocation !== toLocation && gapMinutes <= directTransferWindowMinutes) {
+          addFinding("INFO", "DIRECT_TRANSFER_AVAILABLE", "A direct transfer is operationally available within the configured handover window.", {
+            resourceId, resourceName, previousBookingId: previousId, bookingId,
+            fromLocation, toLocation, gapMinutes
+          });
+        }
+
+        if (normaliseDeploymentStatus(previous) === "Unable to Deploy" && gapMinutes <= directTransferWindowMinutes) {
+          addFinding("ERROR", "STALE_LOCATION_ASSUMPTION", "A later journey step assumes the resource reached a previous location even though that deployment was unable to complete.", {
+            resourceId, resourceName, previousBookingId: previousId, bookingId,
+            assumedLocation: fromLocation, gapMinutes
+          });
+        }
+      });
+    });
+
+    const operations = buildOperationalTimelineAndJourneys(active, bookingDate);
+    operations.resourceJourneys.forEach(journey => {
+      let incompleteMovementSeen = false;
+      journey.steps.forEach(step => {
+        if (!["Deployment", "Direct Transfer", "Recovery Return"].includes(step.type)) return;
+        if (step.status !== "Completed") incompleteMovementSeen = true;
+        else if (incompleteMovementSeen) {
+          addFinding("ERROR", "COMPLETION_SEQUENCE_CONTRADICTION", "A later movement is completed while an earlier movement in the same resource journey remains incomplete.", {
+            resourceId: journey.resourceId,
+            resourceName: journey.resourceName,
+            bookingId: String(step.bookingId || ""),
+            movementType: step.type,
+            location: String(step.location || "")
+          });
+        }
+      });
+
+      const evidence = journey.locationEvidence;
+      if (evidence && String(journey.currentExpectedLocation || "") !== String(evidence.destination || "")) {
+        addFinding("ERROR", "LOCATION_EVIDENCE_MISMATCH", "Current expected location contradicts the latest completed movement evidence.", {
+          resourceId: journey.resourceId,
+          resourceName: journey.resourceName,
+          currentExpectedLocation: journey.currentExpectedLocation,
+          evidenceDestination: evidence.destination,
+          evidenceBookingId: evidence.bookingId || ""
+        });
+      }
+    });
+
+    const counts = {
+      errors: findings.filter(item => item.severity === "ERROR").length,
+      warnings: findings.filter(item => item.severity === "WARNING").length,
+      information: findings.filter(item => item.severity === "INFO").length
+    };
+
+    return {
+      bookingDate,
+      valid: counts.errors === 0,
+      policy: {
+        minimumTransferMinutes,
+        directTransferWindowMinutes,
+        mutationMode: "Validation only",
+        sourceOfTruth: "ADR-024 Journey Engine"
+      },
+      summary: {
+        resourcesValidated: byResource.size,
+        bookingsValidated: active.length,
+        findings: findings.length,
+        ...counts
+      },
+      findings
+    };
+  }
+
   function getResourceState(bookings = [], bookingDate = "", resourceId = "") {
     const result = buildOperationalTimelineAndJourneys(bookings, bookingDate);
     return result.resourceJourneys.find(item => String(item.resourceId) === String(resourceId)) || null;
@@ -878,6 +1046,7 @@ function createJourneyEngine(dependencies = {}) {
     getCurrentLocation,
     getNextStep,
     buildOptimizationPlan,
+    buildValidationReport,
     getOverlappingActiveBookings,
     getReservedResourceIds
   });
