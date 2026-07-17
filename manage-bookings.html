@@ -212,6 +212,17 @@
       padding: 16px;
     }
 
+
+    .booking-card.validation-failed {
+      border-color: #dc2626;
+      box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.12);
+    }
+
+    .booking-card.save-complete {
+      border-color: #16a34a;
+      box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.10);
+    }
+
     .booking-top {
       display: flex;
       justify-content: space-between;
@@ -280,6 +291,35 @@
 
     .edit-panel.show {
       display: block;
+    }
+
+
+    .edit-status {
+      display: none;
+      margin: 0 0 12px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      font-size: 0.9rem;
+      font-weight: 800;
+    }
+
+    .edit-status.error {
+      display: block;
+      background: #fee2e2;
+      color: var(--danger);
+      border: 1px solid #fecaca;
+    }
+
+    .edit-status.success {
+      display: block;
+      background: #dcfce7;
+      color: #166534;
+      border: 1px solid #bbf7d0;
+    }
+
+    .btn[disabled] {
+      cursor: wait;
+      opacity: 0.68;
     }
 
     .edit-grid {
@@ -1067,6 +1107,64 @@
       statusMessage.textContent = '';
     }
 
+
+    function clearCardStatus(card) {
+      const inlineStatus = card?.querySelector('[data-edit-status]');
+      if (inlineStatus) {
+        inlineStatus.className = 'edit-status';
+        inlineStatus.textContent = '';
+      }
+      card?.classList.remove('validation-failed', 'save-complete');
+      card?.querySelectorAll('[aria-invalid="true"]').forEach(input => {
+        input.removeAttribute('aria-invalid');
+      });
+    }
+
+    function showCardStatus(card, type, message, fieldName = '') {
+      if (!card) return;
+      clearCardStatus(card);
+      const editPanel = card.querySelector('.edit-panel');
+      const inlineStatus = card.querySelector('[data-edit-status]');
+      editPanel?.classList.add('show');
+      if (inlineStatus) {
+        inlineStatus.className = `edit-status ${type}`;
+        inlineStatus.textContent = message;
+      }
+      card.classList.add(type === 'error' ? 'validation-failed' : 'save-complete');
+
+      const target = fieldName
+        ? card.querySelector(`[data-edit-field="${fieldName}"]`)
+        : inlineStatus;
+      if (target && type === 'error') {
+        target.setAttribute?.('aria-invalid', 'true');
+      }
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      window.setTimeout(() => target?.focus?.({ preventScroll: true }), 250);
+    }
+
+    function setSaveBusy(button, isBusy) {
+      if (!button) return;
+      if (isBusy) {
+        button.dataset.originalText = button.textContent;
+        button.textContent = 'Saving…';
+        button.disabled = true;
+        button.setAttribute('aria-busy', 'true');
+      } else {
+        button.textContent = button.dataset.originalText || 'Save Changes';
+        button.disabled = false;
+        button.removeAttribute('aria-busy');
+      }
+    }
+
+    function inferValidationField(message = '') {
+      const value = String(message).toLowerCase();
+      if (value.includes('date') || value.includes('same-day') || value.includes('weekday') || value.includes('weekend')) return 'bookingDate';
+      if (value.includes('start time') || value.includes('elapsed') || value.includes('already passed')) return 'startTime';
+      if (value.includes('end time') || value.includes('after the start')) return 'endTime';
+      if (value.includes('location')) return 'location';
+      return '';
+    }
+
     function escapeHtml(value) {
       return String(value ?? '').replace(/[&<>'"]/g, char => ({
         '&': '&amp;',
@@ -1436,6 +1534,7 @@
             </div>
 
             <div class="edit-panel">
+              <div class="edit-status" data-edit-status role="alert" aria-live="assertive"></div>
               <div class="edit-grid">
                 <div class="field">
                   <label>Booking date</label>
@@ -1572,8 +1671,14 @@
       const bookingId = card.dataset.bookingId;
       const bookingDate = card.dataset.bookingDate;
 
-      if (action === 'toggle-edit') editPanel.classList.add('show');
-      if (action === 'cancel-edit') editPanel.classList.remove('show');
+      if (action === 'toggle-edit') {
+        clearCardStatus(card);
+        editPanel.classList.add('show');
+      }
+      if (action === 'cancel-edit') {
+        clearCardStatus(card);
+        editPanel.classList.remove('show');
+      }
 
       if (action === 'delete-one') {
         if (!confirm('Delete this booking occurrence?')) return;
@@ -1603,6 +1708,9 @@
       }
 
       if (action === 'save-edit') {
+        clearCardStatus(card);
+        clearStatus();
+
         const updatedBooking = {};
         card.querySelectorAll('[data-edit-field]').forEach(input => {
           updatedBooking[input.dataset.editField] = input.value;
@@ -1631,20 +1739,31 @@
 
         const validation = validateModifyBooking(updatedBooking);
         if (!validation.valid) {
-          showStatus('error', validation.message);
+          showCardStatus(card, 'error', validation.message, inferValidationField(validation.message));
           return;
         }
 
-        const response = await fetch(`/api/bookings/${bookingId}?date=${bookingDate}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updatedBooking)
-        });
+        setSaveBusy(button, true);
+        try {
+          const response = await fetch(`/api/bookings/${bookingId}?date=${bookingDate}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updatedBooking)
+          });
 
-        const result = await response.json();
-        if (!response.ok || !result.success) throw new Error(result.message || 'Unable to update booking.');
-        showStatus('success', 'Booking updated successfully.');
-        await retrieveBookings();
+          const result = await response.json();
+          if (!response.ok || !result.success) {
+            throw new Error(result.message || 'Unable to update booking.');
+          }
+
+          showCardStatus(card, 'success', 'Booking updated successfully.');
+          await retrieveBookings();
+          showStatus('success', 'Booking updated successfully.');
+        } catch (error) {
+          showCardStatus(card, 'error', error.message, inferValidationField(error.message));
+        } finally {
+          setSaveBusy(button, false);
+        }
       }
     });
   </script>
