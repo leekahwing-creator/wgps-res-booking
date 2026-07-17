@@ -4158,11 +4158,7 @@ document.getElementById("requesterName").textContent = user.name;
 
       const softwareSupported = selectedSoftwareIsSupported();
 
-      const validBookingDate = Boolean(
-        data.bookingDate &&
-        data.bookingDate >= getNextAvailableBookingDate() &&
-        !isWeekend(data.bookingDate)
-      );
+      const validBookingDate = isBookingDateEligible(data.bookingDate);
 
       const effectiveProgress = {
         ...bookingUIState.progress,
@@ -4302,6 +4298,68 @@ document.getElementById("requesterName").textContent = user.name;
       return formatLocalDateForInput(date);
     }
 
+    function isAdministrator() {
+      return currentUser?.role === 'Admin';
+    }
+
+    function getTodayDateValue() {
+      return formatLocalDateForInput(new Date());
+    }
+
+    function getNextBookableStartTime() {
+      const now = new Date();
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      const nextQuarter = Math.floor(currentMinutes / 15) * 15 + 15;
+      const openingMinutes = 7 * 60 + 45;
+      const closingMinutes = 17 * 60 + 30;
+      const nextMinutes = Math.max(openingMinutes, nextQuarter);
+
+      if (nextMinutes >= closingMinutes) return '';
+
+      return `${String(Math.floor(nextMinutes / 60)).padStart(2, '0')}:${String(nextMinutes % 60).padStart(2, '0')}`;
+    }
+
+    function administratorCanBookToday() {
+      return isAdministrator() && !isWeekend(getTodayDateValue()) && Boolean(getNextBookableStartTime());
+    }
+
+    function getMinimumBookingDate() {
+      return administratorCanBookToday()
+        ? getTodayDateValue()
+        : getNextAvailableBookingDate();
+    }
+
+    function getDefaultBookingDate() {
+      return getMinimumBookingDate();
+    }
+
+    function isBookingDateEligible(dateValue) {
+      if (!dateValue || isWeekend(dateValue)) return false;
+
+      const today = getTodayDateValue();
+      if (dateValue < today) return false;
+      if (dateValue === today && !administratorCanBookToday()) return false;
+
+      return true;
+    }
+
+    function updateSameDayTimeAvailability() {
+      if (!startTime || !endTime) return;
+
+      const isAdminSameDay = isAdministrator() && bookingDate.value === getTodayDateValue();
+      const nextBookableStart = isAdminSameDay ? getNextBookableStartTime() : '';
+
+      Array.from(startTime.options).forEach(option => {
+        if (!option.value) return;
+        option.disabled = Boolean(isAdminSameDay && (!nextBookableStart || option.value < nextBookableStart));
+      });
+
+      if (startTime.value && startTime.selectedOptions[0]?.disabled) {
+        startTime.value = '';
+        endTime.value = '';
+      }
+    }
+
     function populateTimeOptions() {
       const startMinutes = 7 * 60 + 45;
       const endMinutes = 17 * 60 + 30;
@@ -4329,15 +4387,26 @@ document.getElementById("requesterName").textContent = user.name;
     function validateBookingDate() {
       if (!bookingDate.value) return false;
 
-      const earliestDate = getNextAvailableBookingDate();
+      const today = getTodayDateValue();
+      const earliestDate = getMinimumBookingDate();
 
-      if (bookingDate.value < earliestDate) {
-        showStatus('error', `Same-day booking is not allowed. The earliest available booking date is ${formatDate(earliestDate)}.`);
+      if (bookingDate.value < today) {
+        showStatus('error', 'Past dates cannot be booked. Please choose an available weekday.');
         return false;
       }
 
       if (isWeekend(bookingDate.value)) {
-        showStatus('error', 'Bookings can only be made from Monday to Friday. Please select the next available weekday.');
+        showStatus('error', 'Bookings can only be made from Monday to Friday. Please select an available weekday.');
+        return false;
+      }
+
+      if (bookingDate.value === today && !isAdministrator()) {
+        showStatus('error', `Same-day booking is not allowed. The earliest available booking date is ${formatDate(earliestDate)}.`);
+        return false;
+      }
+
+      if (bookingDate.value === today && isAdministrator() && !getNextBookableStartTime()) {
+        showStatus('error', `Today's booking window has closed. The earliest available booking date is ${formatDate(getNextAvailableBookingDate())}.`);
         return false;
       }
 
@@ -4346,6 +4415,14 @@ document.getElementById("requesterName").textContent = user.name;
 
     function validateTimes() {
       if (!validateBookingDate()) return false;
+
+      if (isAdministrator() && bookingDate.value === getTodayDateValue()) {
+        const nextBookableStart = getNextBookableStartTime();
+        if (!startTime.value || !nextBookableStart || startTime.value < nextBookableStart) {
+          showStatus('error', `For a same-day administrative booking, select a start time of ${nextBookableStart || 'the next available weekday'} or later.`);
+          return false;
+        }
+      }
 
       if (startTime.value && endTime.value && endTime.value <= startTime.value) {
         showStatus('error', 'End time must be later than start time.');
@@ -4598,6 +4675,7 @@ document.getElementById("requesterName").textContent = user.name;
 
       bookingDate.addEventListener('change', () => {
         bookingUIState.progress.date = Boolean(bookingDate.value);
+        updateSameDayTimeAvailability();
         if (bookingDate.value && isWeekend(bookingDate.value)) {
           showStatus('error', 'Bookings can only be made from Monday to Friday. Please choose a weekday.');
         }
@@ -4615,8 +4693,10 @@ document.getElementById("requesterName").textContent = user.name;
 
       form.addEventListener('reset', () => {
         setTimeout(() => {
-          const earliestBookingDate = getNextAvailableBookingDate();
-          bookingDate.value = earliestBookingDate;
+          const earliestBookingDate = getMinimumBookingDate();
+          bookingDate.min = earliestBookingDate;
+          bookingDate.value = getDefaultBookingDate();
+          updateSameDayTimeAvailability();
           devicesRequired.value = 1;
           endTime.value = '';
           setBookingMode('one-time');
@@ -4725,10 +4805,11 @@ document.getElementById("requesterName").textContent = user.name;
 
       bindEventListeners();
 
-      const earliestBookingDate = getNextAvailableBookingDate();
+      const earliestBookingDate = getMinimumBookingDate();
       bookingDate.min = earliestBookingDate;
-      bookingDate.value = earliestBookingDate;
+      bookingDate.value = getDefaultBookingDate();
       populateTimeOptions();
+      updateSameDayTimeAvailability();
 
       populateLocationDropdown();
       toggleCustomLocationField();
