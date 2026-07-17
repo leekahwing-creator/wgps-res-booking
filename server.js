@@ -3691,32 +3691,33 @@ function classifyImportDecision(row = {}) {
     return { decision: "REJECTED", confidence: 0, requiresApproval: false, reasons: errors };
   }
 
-  const reviewReasons = [];
-  const materialPatterns = [
-    /generic device type detected/i,
-    /no registered resource name matched/i,
-    /custom descriptive location/i,
-    /custom class-like location/i,
-    /requester was not found/i,
-    /paired sequentially/i,
-    /multiple resource deployments share/i,
-    /accessory-only legacy row/i,
-    /manual review/i,
-    /ambiguous/i,
-    /split from bulk resource booking/i
-  ];
-
-  warnings.forEach(warning => {
-    if (materialPatterns.some(pattern => pattern.test(warning))) reviewReasons.push(warning);
-  });
-
-  const resolutionText = [
+  const combinedText = [
+    ...warnings,
     booking.legacyResourceResolution,
     booking.legacyLocationResolution,
     booking.legacyAccessoryResolution
   ].filter(Boolean).join("; ");
-  if (materialPatterns.some(pattern => pattern.test(resolutionText))) {
-    reviewReasons.push(resolutionText);
+
+  // Review is reserved for uncertainty that could change the operational booking.
+  const reviewPatterns = [
+    /requester was not found/i,
+    /manual review/i,
+    /ambiguous/i,
+    /could not be matched uniquely/i,
+    /multiple possible/i,
+    /equal-distance tie/i,
+    /paired sequentially/i,
+    /multiple resource deployments share/i,
+    /split from bulk resource booking/i,
+    /custom descriptive location/i,
+    /no location detected/i,
+    /unknown device/i,
+    /no device/i
+  ];
+
+  const reviewReasons = warnings.filter(warning => reviewPatterns.some(pattern => pattern.test(warning)));
+  if (reviewPatterns.some(pattern => pattern.test(combinedText))) {
+    reviewReasons.push(combinedText);
   }
 
   if (reviewReasons.length) {
@@ -3728,9 +3729,28 @@ function classifyImportDecision(row = {}) {
     };
   }
 
+  // These outcomes are deterministic enough for normal operations. The allocator
+  // can resolve a generic device request, while parsed room/class locations and
+  // exact merge/consolidation rules preserve the source intent.
+  const qualifiedAutoPatterns = [
+    /generic device type detected/i,
+    /no registered resource name matched/i,
+    /custom room location/i,
+    /custom class-like location/i,
+    /custom combined-class location/i,
+    /custom destination location/i,
+    /matched existing location/i,
+    /accessory-only legacy row .* merged into device row .* exact lesson time/i,
+    /accessory-only legacy row .* merged into device row .* unique overlapping/i,
+    /parallel device rows .* consolidated into one operational booking/i,
+    /merged accessories from legacy row/i,
+    /collection-only resource/i
+  ];
+
+  const hasQualifiedInference = qualifiedAutoPatterns.some(pattern => pattern.test(combinedText));
   return {
     decision: "AUTO_APPROVED",
-    confidence: warnings.length ? 90 : 100,
+    confidence: hasQualifiedInference || warnings.length ? 90 : 100,
     requiresApproval: false,
     reasons: warnings
   };

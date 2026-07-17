@@ -1448,9 +1448,13 @@
               </div>
             </div>
             <div class="quick-preset-row" aria-label="Import range presets">
-              <button id="fullFilePresetBtn" class="btn btn-secondary" type="button">Full File</button>
+              <button id="todayPresetBtn" class="btn btn-secondary" type="button">Today</button>
+              <button id="tomorrowPresetBtn" class="btn btn-secondary" type="button">Tomorrow</button>
+              <button id="thisWeekPresetBtn" class="btn btn-secondary" type="button">This Week</button>
+              <button id="nextWeekPresetBtn" class="btn btn-secondary" type="button">Next Week</button>
               <button id="thisMonthPresetBtn" class="btn btn-secondary" type="button">This Month</button>
               <button id="nextMonthPresetBtn" class="btn btn-secondary" type="button">Next Month</button>
+              <button id="fullFilePresetBtn" class="btn btn-secondary" type="button">Full File</button>
               <button id="clearDatesBtn" class="btn btn-secondary" type="button">Clear Dates</button>
             </div>
           </div>
@@ -1496,6 +1500,10 @@
     const previewResults = document.getElementById('previewResults');
     const importFrom = document.getElementById('importFrom');
     const importTo = document.getElementById('importTo');
+    const todayPresetBtn = document.getElementById('todayPresetBtn');
+    const tomorrowPresetBtn = document.getElementById('tomorrowPresetBtn');
+    const thisWeekPresetBtn = document.getElementById('thisWeekPresetBtn');
+    const nextWeekPresetBtn = document.getElementById('nextWeekPresetBtn');
     const fullFilePresetBtn = document.getElementById('fullFilePresetBtn');
     const thisMonthPresetBtn = document.getElementById('thisMonthPresetBtn');
     const nextMonthPresetBtn = document.getElementById('nextMonthPresetBtn');
@@ -1550,12 +1558,41 @@
       importTo.value = '';
     }
 
-    function setMonthRange(monthOffset) {
-      const today = new Date();
-      const firstDay = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
-      const lastDay = new Date(today.getFullYear(), today.getMonth() + monthOffset + 1, 0);
+    function setDateRange(firstDay, lastDay = firstDay) {
       importFrom.value = formatDateForInput(firstDay);
       importTo.value = formatDateForInput(lastDay);
+    }
+
+    function startOfWeek(date) {
+      const result = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      const day = result.getDay();
+      const offset = day === 0 ? -6 : 1 - day;
+      result.setDate(result.getDate() + offset);
+      return result;
+    }
+
+    function setDayRange(dayOffset) {
+      const date = new Date();
+      date.setHours(12, 0, 0, 0);
+      date.setDate(date.getDate() + dayOffset);
+      setDateRange(date);
+    }
+
+    function setWeekRange(weekOffset) {
+      const today = new Date();
+      today.setHours(12, 0, 0, 0);
+      const firstDay = startOfWeek(today);
+      firstDay.setDate(firstDay.getDate() + (weekOffset * 7));
+      const lastDay = new Date(firstDay);
+      lastDay.setDate(lastDay.getDate() + 6);
+      setDateRange(firstDay, lastDay);
+    }
+
+    function setMonthRange(monthOffset) {
+      const today = new Date();
+      const firstDay = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1, 12);
+      const lastDay = new Date(today.getFullYear(), today.getMonth() + monthOffset + 1, 0, 12);
+      setDateRange(firstDay, lastDay);
     }
 
 
@@ -2293,9 +2330,24 @@
 
 
 
-    fullFilePresetBtn.addEventListener('click', () => {
-      clearImportRange();
-      showStatus('success', 'Full File selected. All dated rows in the uploaded data will be considered.');
+    todayPresetBtn.addEventListener('click', () => {
+      setDayRange(0);
+      showStatus('success', 'Today range selected.');
+    });
+
+    tomorrowPresetBtn.addEventListener('click', () => {
+      setDayRange(1);
+      showStatus('success', 'Tomorrow range selected.');
+    });
+
+    thisWeekPresetBtn.addEventListener('click', () => {
+      setWeekRange(0);
+      showStatus('success', 'This Week range selected (Monday to Sunday).');
+    });
+
+    nextWeekPresetBtn.addEventListener('click', () => {
+      setWeekRange(1);
+      showStatus('success', 'Next Week range selected (Monday to Sunday).');
     });
 
     thisMonthPresetBtn.addEventListener('click', () => {
@@ -2306,6 +2358,11 @@
     nextMonthPresetBtn.addEventListener('click', () => {
       setMonthRange(1);
       showStatus('success', 'Next Month range selected.');
+    });
+
+    fullFilePresetBtn.addEventListener('click', () => {
+      clearImportRange();
+      showStatus('success', 'Full File selected. All dated rows in the uploaded data will be considered.');
     });
 
     clearDatesBtn.addEventListener('click', () => {
