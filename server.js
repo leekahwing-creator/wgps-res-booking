@@ -4158,6 +4158,140 @@ function sendBookingEligibilityError(res, eligibility) {
   });
 }
 
+/* ---------------- ADR-026: ADMINISTRATIVE OVERRIDE AUDIT ---------------- */
+
+const BOOKING_OVERRIDE_AUDIT_DIR = path.join(dataDir, "audit");
+const BOOKING_OVERRIDE_AUDIT_FILE = path.join(
+  BOOKING_OVERRIDE_AUDIT_DIR,
+  "booking-administrative-overrides.jsonl"
+);
+
+function ensureBookingOverrideAuditStore() {
+  ensureDataDir();
+
+  if (!fs.existsSync(BOOKING_OVERRIDE_AUDIT_DIR)) {
+    fs.mkdirSync(BOOKING_OVERRIDE_AUDIT_DIR, { recursive: true });
+  }
+
+  if (!fs.existsSync(BOOKING_OVERRIDE_AUDIT_FILE)) {
+    fs.writeFileSync(BOOKING_OVERRIDE_AUDIT_FILE, "", { encoding: "utf8", mode: 0o600 });
+  }
+}
+
+function getAdministrativeOverrideReason(requestBody, operation) {
+  const suppliedReason = String(
+    requestBody?.adminOverrideReason ||
+    requestBody?.overrideReason ||
+    requestBody?.reason ||
+    ""
+  ).trim();
+
+  if (suppliedReason) return suppliedReason.slice(0, 500);
+
+  return operation === BOOKING_OPERATIONS.MODIFY
+    ? "Administrative same-day booking modification."
+    : "Administrative same-day booking creation.";
+}
+
+function createBookingAuditSnapshot(booking) {
+  if (!booking) return null;
+
+  return {
+    bookingId: String(booking["@_id"] || booking.bookingId || ""),
+    bookingRequestId: String(booking.bookingRequestId || ""),
+    recurringGroupId: String(booking.recurringGroupId || ""),
+    userId: String(booking.userId || ""),
+    bookingDate: String(booking.bookingDate || ""),
+    startTime: String(booking.startTime || ""),
+    endTime: String(booking.endTime || ""),
+    location: String(booking.location || ""),
+    resourceType: String(booking.resourceType || booking.deviceType || ""),
+    quantity: Number(booking.quantity || booking.numberOfDevices || 0) || 0,
+    status: String(booking.status || ""),
+    allocationMethod: String(booking.allocationMethod || booking.status || ""),
+    allocation: booking.allocation || null
+  };
+}
+
+function getChangedAuditFields(previousValues, newValues) {
+  if (!previousValues || !newValues) return [];
+
+  const keys = new Set([...Object.keys(previousValues), ...Object.keys(newValues)]);
+
+  return [...keys].filter(key => {
+    return JSON.stringify(previousValues[key] ?? null) !== JSON.stringify(newValues[key] ?? null);
+  });
+}
+
+function appendAdministrativeOverrideAudit({
+  req,
+  operation,
+  eligibility,
+  previousBooking = null,
+  newBooking,
+  reason
+}) {
+  if (!eligibility?.context?.isAdmin || !eligibility?.context?.sameDay) {
+    return { recorded: false, reason: "NOT_ADMINISTRATIVE_SAME_DAY_OVERRIDE" };
+  }
+
+  ensureBookingOverrideAuditStore();
+
+  const previousValues = createBookingAuditSnapshot(previousBooking);
+  const newValues = createBookingAuditSnapshot(newBooking);
+  const event = {
+    schemaVersion: "1.0",
+    eventId: crypto.randomUUID(),
+    eventType: operation === BOOKING_OPERATIONS.MODIFY
+      ? "ADMIN_SAME_DAY_BOOKING_MODIFIED"
+      : "ADMIN_SAME_DAY_BOOKING_CREATED",
+    operation,
+    timestamp: new Date().toISOString(),
+    actor: {
+      userId: String(req.session?.user?.userId || ""),
+      name: String(req.session?.user?.name || ""),
+      email: String(req.session?.user?.email || ""),
+      role: normaliseUserRole(req.session?.user?.role)
+    },
+    request: {
+      ipAddress: String(req.ip || req.socket?.remoteAddress || ""),
+      userAgent: String(req.get("user-agent") || "").slice(0, 500)
+    },
+    reason: String(reason || "Administrative operational override.").slice(0, 500),
+    validationContext: eligibility.context,
+    previousValues,
+    newValues,
+    changedFields: getChangedAuditFields(previousValues, newValues)
+  };
+
+  fs.appendFileSync(
+    BOOKING_OVERRIDE_AUDIT_FILE,
+    `${JSON.stringify(event)}\n`,
+    { encoding: "utf8", mode: 0o600 }
+  );
+
+  return {
+    recorded: true,
+    eventId: event.eventId,
+    auditFile: path.basename(BOOKING_OVERRIDE_AUDIT_FILE)
+  };
+}
+
+
+function recordAdministrativeOverrideAudit(details) {
+  try {
+    return appendAdministrativeOverrideAudit(details);
+  } catch (error) {
+    console.error("Administrative override audit write error:", error);
+    return {
+      recorded: false,
+      reason: "AUDIT_WRITE_FAILED",
+      message: error.message
+    };
+  }
+}
+
+
 /* ---------------- BOOKING ROUTES ---------------- */
 
 app.post("/api/bookings", requireLogin, (req, res) => {
@@ -4229,6 +4363,8 @@ app.post("/api/bookings", requireLogin, (req, res) => {
       return singleBookingRequest;
     });
 
+    const eligibilityByBookingDate = new Map();
+
     for (const preparedBookingRequest of preparedBookingRequests) {
       const eligibility = validateBookingEligibility({
         user: req.session.user,
@@ -4241,6 +4377,8 @@ app.post("/api/bookings", requireLogin, (req, res) => {
       if (!eligibility.valid) {
         return sendBookingEligibilityError(res, eligibility);
       }
+
+      eligibilityByBookingDate.set(preparedBookingRequest.bookingDate, eligibility);
     }
 
     const duplicateBooking = preparedBookingRequests
@@ -4318,6 +4456,16 @@ app.post("/api/bookings", requireLogin, (req, res) => {
       savedBookings.push(newBooking);
     }
 
+    const administrativeOverrideAudits = savedBookings
+      .map(savedBooking => recordAdministrativeOverrideAudit({
+        req,
+        operation: BOOKING_OPERATIONS.CREATE,
+        eligibility: eligibilityByBookingDate.get(savedBooking.bookingDate),
+        newBooking: savedBooking,
+        reason: getAdministrativeOverrideReason(req.body, BOOKING_OPERATIONS.CREATE)
+      }))
+      .filter(result => result.recorded);
+
     res.json({
       success: true,
       message: isRecurring
@@ -4325,7 +4473,13 @@ app.post("/api/bookings", requireLogin, (req, res) => {
         : "Booking saved with resource allocation.",
       booking: savedBookings[0],
       bookings: savedBookings,
-      recurringGroupId
+      recurringGroupId,
+      administrativeOverrideAudit: administrativeOverrideAudits.length > 0
+        ? {
+            recorded: true,
+            events: administrativeOverrideAudits
+          }
+        : { recorded: false }
     });
   } catch (error) {
     console.error("Booking save error:", error);
@@ -4615,13 +4769,23 @@ app.put("/api/bookings/:bookingId", requireLogin, (req, res) => {
     targetBookings.push(finalUpdatedBooking);
     writeBookingsToFile(targetBookingsFile, targetBookings);
 
+    const administrativeOverrideAudit = recordAdministrativeOverrideAudit({
+      req,
+      operation: BOOKING_OPERATIONS.MODIFY,
+      eligibility,
+      previousBooking: existingBooking,
+      newBooking: finalUpdatedBooking,
+      reason: getAdministrativeOverrideReason(req.body, BOOKING_OPERATIONS.MODIFY)
+    });
+
     res.json({
       success: true,
       message:
         updatedBookingRequest.bookingDate === originalBookingDate
           ? "Booking updated successfully."
           : "Booking updated and moved to the correct monthly file.",
-      booking: finalUpdatedBooking
+      booking: finalUpdatedBooking,
+      administrativeOverrideAudit
     });
   } catch (error) {
     console.error("Update booking error:", error);
