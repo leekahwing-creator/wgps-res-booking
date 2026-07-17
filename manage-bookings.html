@@ -1182,6 +1182,10 @@
       return day === 0 || day === 6;
     }
 
+    function getTodayDate() {
+      return formatLocalDateForInput(new Date());
+    }
+
     function getNextAvailableBookingDate() {
       const date = new Date();
       date.setDate(date.getDate() + 1);
@@ -1191,6 +1195,65 @@
       }
 
       return formatLocalDateForInput(date);
+    }
+
+    function getEarliestModifyDate() {
+      const today = getTodayDate();
+      return isAdminUser && !isWeekend(today)
+        ? today
+        : getNextAvailableBookingDate();
+    }
+
+    function getCurrentMinutes() {
+      const now = new Date();
+      return (now.getHours() * 60) + now.getMinutes();
+    }
+
+    function timeToMinutes(value) {
+      const [hours, minutes] = String(value || '').split(':').map(Number);
+      if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+      return (hours * 60) + minutes;
+    }
+
+    function validateModifyBooking(updatedBooking) {
+      if (!updatedBooking.bookingDate) {
+        return { valid: false, message: 'Please select a booking date.' };
+      }
+
+      const today = getTodayDate();
+      const nextAvailableDate = getNextAvailableBookingDate();
+
+      if (updatedBooking.bookingDate < today) {
+        return { valid: false, message: 'Past bookings cannot be created or restored.' };
+      }
+
+      if (!isAdminUser && updatedBooking.bookingDate < nextAvailableDate) {
+        return {
+          valid: false,
+          message: `Same-day booking changes are restricted to administrators. The earliest available booking date is ${formatDate(nextAvailableDate)}.`
+        };
+      }
+
+      if (isWeekend(updatedBooking.bookingDate)) {
+        return { valid: false, message: 'Bookings can only be made from Monday to Friday. Please select a weekday.' };
+      }
+
+      if (!updatedBooking.startTime || !updatedBooking.endTime) {
+        return { valid: false, message: 'Please select both a start time and an end time.' };
+      }
+
+      const startMinutes = timeToMinutes(updatedBooking.startTime);
+      const endMinutes = timeToMinutes(updatedBooking.endTime);
+
+      if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
+        return { valid: false, message: 'End time must be later than start time.' };
+      }
+
+      if (updatedBooking.bookingDate === today && startMinutes <= getCurrentMinutes()) {
+        return { valid: false, message: 'The selected same-day start time has already elapsed. Please choose a later time slot.' };
+      }
+
+      return { valid: true };
     }
 
     function generateTimeOptions(selectedValue = '') {
@@ -1224,8 +1287,11 @@
     }
 
     function getDateInputAttributes(selectedDate) {
-      const earliestDate = getNextAvailableBookingDate();
-      return `min="${earliestDate}" value="${selectedDate || earliestDate}"`;
+      const earliestDate = getEarliestModifyDate();
+      const effectiveDate = selectedDate && selectedDate >= earliestDate
+        ? selectedDate
+        : earliestDate;
+      return `min="${earliestDate}" value="${effectiveDate}"`;
     }
 
     function getResourceList(booking) {
@@ -1563,18 +1629,9 @@
             .map(({ type, quantity }) => ({ type, quantity }))
         };
 
-        if (!updatedBooking.bookingDate || updatedBooking.bookingDate < getNextAvailableBookingDate()) {
-          showStatus('error', `Same-day booking is not allowed. The earliest available booking date is ${formatDate(getNextAvailableBookingDate())}.`);
-          return;
-        }
-
-        if (isWeekend(updatedBooking.bookingDate)) {
-          showStatus('error', 'Bookings can only be made from Monday to Friday. Please select a weekday.');
-          return;
-        }
-
-        if (updatedBooking.startTime && updatedBooking.endTime && updatedBooking.endTime <= updatedBooking.startTime) {
-          showStatus('error', 'End time must be later than start time.');
+        const validation = validateModifyBooking(updatedBooking);
+        if (!validation.valid) {
+          showStatus('error', validation.message);
           return;
         }
 
