@@ -4011,6 +4011,153 @@ app.post("/api/admin/import/bookings/commit", requireLogin, requireAdmin, (req, 
   }
 });
 
+
+/* ---------------- ADR-026: BOOKING ELIGIBILITY ---------------- */
+
+const BOOKING_OPERATIONS = Object.freeze({
+  CREATE: "CREATE",
+  MODIFY: "MODIFY",
+  IMPORT: "IMPORT",
+  ADMIN_OVERRIDE: "ADMIN_OVERRIDE"
+});
+
+function getSingaporeDateTimeParts(now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Singapore",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23"
+  }).formatToParts(now);
+
+  const values = Object.fromEntries(
+    parts.filter(part => part.type !== "literal").map(part => [part.type, part.value])
+  );
+
+  return {
+    date: `${values.year}-${values.month}-${values.day}`,
+    time: `${values.hour}:${values.minute}`
+  };
+}
+
+function isValidIsoDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ""))) return false;
+  const [year, month, day] = String(value).split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day;
+}
+
+function isBookingWeekend(bookingDate) {
+  const [year, month, day] = String(bookingDate).split("-").map(Number);
+  const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  return weekday === 0 || weekday === 6;
+}
+
+function isValidBookingTime(value) {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(String(value || ""));
+}
+
+function validateBookingEligibility({
+  user,
+  operation = BOOKING_OPERATIONS.CREATE,
+  bookingDate,
+  startTime,
+  endTime,
+  originalBookingDate = "",
+  now = new Date()
+} = {}) {
+  const normalisedOperation = String(operation || "").toUpperCase();
+  const allowedOperations = new Set(Object.values(BOOKING_OPERATIONS));
+  const role = normaliseUserRole(user?.role);
+  const isAdmin = role === "Admin";
+  const current = getSingaporeDateTimeParts(now);
+  const errors = [];
+
+  if (!allowedOperations.has(normalisedOperation)) {
+    errors.push({
+      code: "INVALID_OPERATION",
+      message: "The booking operation is not supported."
+    });
+  }
+
+  if (!isValidIsoDate(bookingDate)) {
+    errors.push({
+      code: "INVALID_BOOKING_DATE",
+      message: "A valid booking date is required."
+    });
+  } else {
+    if (isBookingWeekend(bookingDate)) {
+      errors.push({
+        code: "WEEKEND_NOT_ALLOWED",
+        message: "Bookings can only be made from Monday to Friday."
+      });
+    }
+
+    if (bookingDate < current.date) {
+      errors.push({
+        code: "PAST_DATE_NOT_ALLOWED",
+        message: "Bookings cannot be created or moved to a past date."
+      });
+    }
+
+    if (bookingDate === current.date && !isAdmin) {
+      errors.push({
+        code: "SAME_DAY_NOT_ALLOWED",
+        message: "Same-day booking is available only to administrators. Please select a future weekday."
+      });
+    }
+
+    if (bookingDate === current.date && isAdmin && isValidBookingTime(startTime) && startTime <= current.time) {
+      errors.push({
+        code: "ELAPSED_START_TIME",
+        message: `The selected start time (${startTime}) has already elapsed. Choose a later time today.`
+      });
+    }
+  }
+
+  if (!isValidBookingTime(startTime) || !isValidBookingTime(endTime)) {
+    errors.push({
+      code: "INVALID_BOOKING_TIME",
+      message: "Valid start and end times are required."
+    });
+  } else if (endTime <= startTime) {
+    errors.push({
+      code: "INVALID_TIME_RANGE",
+      message: "End time must be later than start time."
+    });
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    message: errors.map(error => error.message).join(" "),
+    context: {
+      operation: normalisedOperation,
+      role,
+      isAdmin,
+      currentDate: current.date,
+      currentTime: current.time,
+      bookingDate: String(bookingDate || ""),
+      originalBookingDate: String(originalBookingDate || ""),
+      sameDay: String(bookingDate || "") === current.date
+    }
+  };
+}
+
+function sendBookingEligibilityError(res, eligibility) {
+  return res.status(400).json({
+    success: false,
+    code: eligibility.errors[0]?.code || "BOOKING_NOT_ELIGIBLE",
+    message: eligibility.message || "The booking is not eligible.",
+    validationErrors: eligibility.errors,
+    validationContext: eligibility.context
+  });
+}
+
 /* ---------------- BOOKING ROUTES ---------------- */
 
 app.post("/api/bookings", requireLogin, (req, res) => {
@@ -4081,6 +4228,20 @@ app.post("/api/bookings", requireLogin, (req, res) => {
       delete singleBookingRequest.recurrence;
       return singleBookingRequest;
     });
+
+    for (const preparedBookingRequest of preparedBookingRequests) {
+      const eligibility = validateBookingEligibility({
+        user: req.session.user,
+        operation: BOOKING_OPERATIONS.CREATE,
+        bookingDate: preparedBookingRequest.bookingDate,
+        startTime: preparedBookingRequest.startTime,
+        endTime: preparedBookingRequest.endTime
+      });
+
+      if (!eligibility.valid) {
+        return sendBookingEligibilityError(res, eligibility);
+      }
+    }
 
     const duplicateBooking = preparedBookingRequests
       .map(request => findDuplicateBooking(request))
@@ -4368,6 +4529,19 @@ app.put("/api/bookings/:bookingId", requireLogin, (req, res) => {
       modifiedByUserId: req.session.user.userId,
       modifiedByName: req.session.user.name
     }));
+
+    const eligibility = validateBookingEligibility({
+      user: req.session.user,
+      operation: BOOKING_OPERATIONS.MODIFY,
+      bookingDate: updatedBookingRequest.bookingDate,
+      startTime: updatedBookingRequest.startTime,
+      endTime: updatedBookingRequest.endTime,
+      originalBookingDate
+    });
+
+    if (!eligibility.valid) {
+      return sendBookingEligibilityError(res, eligibility);
+    }
 
     const additionalResourceErrors = validateAdditionalResourceRequests(updatedBookingRequest);
     if (additionalResourceErrors.length > 0) {
