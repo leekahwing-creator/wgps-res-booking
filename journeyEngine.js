@@ -1280,6 +1280,208 @@ function createJourneyEngine(dependencies = {}) {
   }
 
   /**
+   * ADR-024 Phase 3.3 — Dispatch Readiness and Execution Queue.
+   *
+   * Converts the advisory Phase 3.2 work plan into a deterministic dispatch
+   * view for Operations Centre consumers. The queue remains non-destructive:
+   * it does not claim jobs, alter booking status, or record completion.
+   */
+  function buildDispatchQueue(bookings = [], bookingDate = "", options = {}) {
+    const workPlan = buildOperationalWorkPlan(bookings, bookingDate, options);
+    const validation = buildValidationReport(bookings, bookingDate, options);
+    const nowMinutes = Number.isFinite(Number(options.currentMinutes))
+      ? Math.max(0, Math.min(24 * 60 - 1, Number(options.currentMinutes)))
+      : (() => {
+          const now = options.currentDateTime ? new Date(options.currentDateTime) : new Date();
+          return Number.isNaN(now.getTime()) ? 0 : now.getHours() * 60 + now.getMinutes();
+        })();
+    const dispatchLeadMinutes = Number.isFinite(Number(options.dispatchLeadMinutes))
+      ? Math.max(0, Number(options.dispatchLeadMinutes))
+      : 15;
+    const overdueGraceMinutes = Number.isFinite(Number(options.overdueGraceMinutes))
+      ? Math.max(0, Number(options.overdueGraceMinutes))
+      : 5;
+    const waveWindowMinutes = Number.isFinite(Number(options.waveWindowMinutes))
+      ? Math.max(1, Number(options.waveWindowMinutes))
+      : 15;
+
+    const findingByBooking = new Map();
+    toArray(validation.findings).forEach(finding => {
+      [finding.bookingId, finding.previousBookingId, finding.nextBookingId]
+        .map(value => String(value || ""))
+        .filter(Boolean)
+        .forEach(id => {
+          if (!findingByBooking.has(id)) findingByBooking.set(id, []);
+          findingByBooking.get(id).push(finding);
+        });
+    });
+
+    const statusPriority = status => ({
+      OVERDUE: 1,
+      DUE_NOW: 2,
+      READY: 3,
+      UPCOMING: 4,
+      BLOCKED: 5,
+      CONFLICT: 6
+    }[status] || 99);
+
+    const queue = toArray(workPlan.jobs).map(job => {
+      const linkedFindings = Array.from(new Map(
+        toArray(job.linkedBookingIds)
+          .flatMap(id => findingByBooking.get(String(id || "")) || [])
+          .map(item => [item.findingId, item])
+      ).values());
+      const blockingFindings = linkedFindings.filter(item => item.severity === "ERROR");
+      const cautionFindings = linkedFindings.filter(item => item.severity === "WARNING");
+      const plannedStart = Number(job.plannedStartMinutes || 0);
+      const plannedEnd = Number(job.plannedEndMinutes || plannedStart);
+      const minutesUntilStart = plannedStart - nowMinutes;
+      const assignmentConflict = String(job.assignmentStatus || "") === "Conflict";
+
+      let dispatchStatus = "UPCOMING";
+      let readinessReason = "Movement is outside the dispatch lead window.";
+      if (blockingFindings.length) {
+        dispatchStatus = "BLOCKED";
+        readinessReason = "Journey validation contains a blocking error.";
+      } else if (assignmentConflict) {
+        dispatchStatus = "CONFLICT";
+        readinessReason = job.conflictReason || "No technician assignment is available.";
+      } else if (nowMinutes > plannedEnd + overdueGraceMinutes) {
+        dispatchStatus = "OVERDUE";
+        readinessReason = "The planned completion window has elapsed.";
+      } else if (nowMinutes >= plannedStart && nowMinutes <= plannedEnd + overdueGraceMinutes) {
+        dispatchStatus = "DUE_NOW";
+        readinessReason = "The movement is within its active execution window.";
+      } else if (minutesUntilStart <= dispatchLeadMinutes) {
+        dispatchStatus = "READY";
+        readinessReason = "The movement is within the configured dispatch lead window.";
+      }
+
+      const urgencyScore = Math.max(0, 100 - Math.max(0, minutesUntilStart))
+        + (dispatchStatus === "OVERDUE" ? 100 : 0)
+        + (dispatchStatus === "DUE_NOW" ? 50 : 0)
+        + (job.movementClass === "Deployment" ? 10 : 0);
+
+      return {
+        queueItemId: `DQ-${String(job.jobId || "").replace(/^OWJ-/, "")}`,
+        jobId: job.jobId,
+        bookingDate,
+        dispatchStatus,
+        readinessReason,
+        priorityRank: 0,
+        urgencyScore,
+        movementClass: job.movementClass,
+        fromLocation: job.fromLocation,
+        toLocation: job.toLocation,
+        requiredTime: job.requiredTime,
+        plannedStartMinutes: plannedStart,
+        plannedEndMinutes: plannedEnd,
+        minutesUntilStart,
+        assignedTechnicianId: job.assignedTechnicianId || "",
+        assignedTechnicianName: job.assignedTechnicianName || "",
+        assignmentStatus: job.assignmentStatus,
+        resources: job.resources,
+        linkedChainIds: job.linkedChainIds,
+        linkedBookingIds: job.linkedBookingIds,
+        cautionFindingIds: cautionFindings.map(item => item.findingId),
+        blockingFindingIds: blockingFindings.map(item => item.findingId),
+        dispatchEligible: ["READY", "DUE_NOW", "OVERDUE"].includes(dispatchStatus)
+      };
+    });
+
+    queue.sort((a, b) => {
+      const statusCompare = statusPriority(a.dispatchStatus) - statusPriority(b.dispatchStatus);
+      if (statusCompare !== 0) return statusCompare;
+      if (a.plannedStartMinutes !== b.plannedStartMinutes) return a.plannedStartMinutes - b.plannedStartMinutes;
+      if (a.urgencyScore !== b.urgencyScore) return b.urgencyScore - a.urgencyScore;
+      return String(a.jobId).localeCompare(String(b.jobId));
+    });
+    queue.forEach((item, index) => { item.priorityRank = index + 1; });
+
+    const waves = [];
+    queue
+      .filter(item => item.dispatchEligible)
+      .forEach(item => {
+        const existing = waves.find(wave =>
+          wave.assignedTechnicianId === item.assignedTechnicianId &&
+          Math.abs(wave.anchorStartMinutes - item.plannedStartMinutes) <= waveWindowMinutes
+        );
+        if (existing) {
+          existing.queueItemIds.push(item.queueItemId);
+          existing.jobIds.push(item.jobId);
+          existing.resourceCount += toArray(item.resources).length;
+          existing.windowEndMinutes = Math.max(existing.windowEndMinutes, item.plannedEndMinutes);
+        } else {
+          waves.push({
+            waveId: `DW-${String(waves.length + 1).padStart(3, "0")}`,
+            assignedTechnicianId: item.assignedTechnicianId,
+            assignedTechnicianName: item.assignedTechnicianName,
+            anchorStartMinutes: item.plannedStartMinutes,
+            windowStartMinutes: item.plannedStartMinutes,
+            windowEndMinutes: item.plannedEndMinutes,
+            queueItemIds: [item.queueItemId],
+            jobIds: [item.jobId],
+            resourceCount: toArray(item.resources).length
+          });
+        }
+      });
+
+    const byTechnician = new Map();
+    queue.forEach(item => {
+      const key = item.assignedTechnicianId || "UNASSIGNED";
+      if (!byTechnician.has(key)) {
+        byTechnician.set(key, {
+          technicianId: item.assignedTechnicianId || "",
+          technicianName: item.assignedTechnicianName || "Unassigned",
+          queueItems: [],
+          ready: 0,
+          dueNow: 0,
+          overdue: 0,
+          blocked: 0,
+          conflicts: 0
+        });
+      }
+      const group = byTechnician.get(key);
+      group.queueItems.push(item.queueItemId);
+      if (item.dispatchStatus === "READY") group.ready += 1;
+      if (item.dispatchStatus === "DUE_NOW") group.dueNow += 1;
+      if (item.dispatchStatus === "OVERDUE") group.overdue += 1;
+      if (item.dispatchStatus === "BLOCKED") group.blocked += 1;
+      if (item.dispatchStatus === "CONFLICT") group.conflicts += 1;
+    });
+
+    return {
+      bookingDate,
+      generatedAt: new Date().toISOString(),
+      currentMinutes: nowMinutes,
+      policy: {
+        dispatchLeadMinutes,
+        overdueGraceMinutes,
+        waveWindowMinutes,
+        mutationMode: "Advisory dispatch queue only",
+        automaticClaiming: false,
+        sourceOfTruth: "ADR-024 Journey Engine"
+      },
+      summary: {
+        queueItems: queue.length,
+        dispatchEligible: queue.filter(item => item.dispatchEligible).length,
+        ready: queue.filter(item => item.dispatchStatus === "READY").length,
+        dueNow: queue.filter(item => item.dispatchStatus === "DUE_NOW").length,
+        overdue: queue.filter(item => item.dispatchStatus === "OVERDUE").length,
+        upcoming: queue.filter(item => item.dispatchStatus === "UPCOMING").length,
+        blocked: queue.filter(item => item.dispatchStatus === "BLOCKED").length,
+        conflicts: queue.filter(item => item.dispatchStatus === "CONFLICT").length,
+        dispatchWaves: waves.length
+      },
+      queue,
+      dispatchWaves: waves,
+      technicianQueues: Array.from(byTechnician.values()),
+      validation,
+      operationalWorkPlan: workPlan
+    };
+  }
+
+  /**
    * ADR-024 Phase 3 — Intelligent Journey Optimisation.
    *
    * Produces an advisory, deterministic optimisation plan from the same
@@ -1733,6 +1935,7 @@ function createJourneyEngine(dependencies = {}) {
     getNextStep,
     buildJourneyChains,
     buildOperationalWorkPlan,
+    buildDispatchQueue,
     buildOptimizationPlan,
     buildValidationReport,
     buildOperationalRecommendations,
