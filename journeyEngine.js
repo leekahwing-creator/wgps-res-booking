@@ -1006,6 +1006,280 @@ function createJourneyEngine(dependencies = {}) {
   }
 
   /**
+   * ADR-024 Phase 3.2 — Operational Route Consolidation and Workload Plan.
+   *
+   * Converts Phase 3.1 resource chains into deterministic operational jobs,
+   * consolidates compatible movements, and distributes those jobs across an
+   * optional technician roster. The result remains advisory: no booking,
+   * journey, claim or staff record is mutated.
+   */
+  function buildOperationalWorkPlan(bookings = [], bookingDate = "", options = {}) {
+    const maximumIdleGapMinutes = Number.isFinite(Number(options.maximumIdleGapMinutes))
+      ? Math.max(0, Number(options.maximumIdleGapMinutes))
+      : 30;
+    const minimumTransferMinutes = Number.isFinite(Number(options.minimumTransferMinutes))
+      ? Math.max(0, Number(options.minimumTransferMinutes))
+      : 0;
+    const consolidationWindowMinutes = Number.isFinite(Number(options.consolidationWindowMinutes))
+      ? Math.max(0, Number(options.consolidationWindowMinutes))
+      : 10;
+    const maximumResourcesPerJob = Number.isFinite(Number(options.maximumResourcesPerJob))
+      ? Math.max(1, Math.floor(Number(options.maximumResourcesPerJob)))
+      : 4;
+    const estimatedMinutesPerMovement = Number.isFinite(Number(options.estimatedMinutesPerMovement))
+      ? Math.max(1, Number(options.estimatedMinutesPerMovement))
+      : 8;
+
+    const rosterInput = toArray(options.technicians || options.staff || []);
+    const technicians = rosterInput.map((item, index) => {
+      if (typeof item === "string") {
+        return {
+          technicianId: item,
+          technicianName: item,
+          availableFrom: "00:00",
+          availableUntil: "23:59",
+          maximumConcurrentJobs: 1,
+          sequence: index + 1
+        };
+      }
+      const id = String(item?.technicianId || item?.staffId || item?.id || `TECH-${index + 1}`);
+      return {
+        technicianId: id,
+        technicianName: String(item?.technicianName || item?.staffName || item?.name || id),
+        availableFrom: String(item?.availableFrom || "00:00"),
+        availableUntil: String(item?.availableUntil || "23:59"),
+        maximumConcurrentJobs: Number.isFinite(Number(item?.maximumConcurrentJobs))
+          ? Math.max(1, Math.floor(Number(item.maximumConcurrentJobs)))
+          : 1,
+        sequence: index + 1
+      };
+    });
+
+    const chainResult = buildJourneyChains(bookings, bookingDate, {
+      maximumIdleGapMinutes,
+      minimumTransferMinutes
+    });
+
+    const movementCandidates = [];
+    toArray(chainResult.chains).forEach(chain => {
+      toArray(chain.movements).forEach((movement, index) => {
+        // Resource Continuity represents custody remaining at the same venue;
+        // it is deliberately excluded because no physical technician movement
+        // is required.
+        if (String(movement.movementClass || "") === "Resource Continuity") return;
+        const requiredMinutes = timeToMinutes(movement.requiredTime);
+        if (requiredMinutes === null) return;
+        movementCandidates.push({
+          candidateId: `${chain.chainId}-MOV-${index + 1}`,
+          chainId: chain.chainId,
+          resourceId: chain.resourceId,
+          resourceName: chain.resourceName,
+          movementClass: String(movement.movementClass || ""),
+          fromLocation: String(movement.fromLocation || ""),
+          toLocation: String(movement.toLocation || ""),
+          requiredTime: String(movement.requiredTime || ""),
+          requiredMinutes,
+          bookingId: String(movement.bookingId || ""),
+          confidence: chain.confidence || null
+        });
+      });
+    });
+
+    movementCandidates.sort((a, b) => {
+      if (a.requiredMinutes !== b.requiredMinutes) return a.requiredMinutes - b.requiredMinutes;
+      const route = `${a.fromLocation}|${a.toLocation}|${a.movementClass}`
+        .localeCompare(`${b.fromLocation}|${b.toLocation}|${b.movementClass}`);
+      if (route !== 0) return route;
+      return a.resourceName.localeCompare(b.resourceName);
+    });
+
+    const groupedJobs = [];
+    movementCandidates.forEach(candidate => {
+      const compatible = groupedJobs.find(job =>
+        job.movementClass === candidate.movementClass &&
+        job.fromLocation === candidate.fromLocation &&
+        job.toLocation === candidate.toLocation &&
+        Math.abs(job.requiredMinutes - candidate.requiredMinutes) <= consolidationWindowMinutes &&
+        job.resources.length < maximumResourcesPerJob
+      );
+
+      if (compatible) {
+        compatible.resources.push({
+          resourceId: candidate.resourceId,
+          resourceName: candidate.resourceName,
+          chainId: candidate.chainId,
+          bookingId: candidate.bookingId
+        });
+        compatible.linkedChainIds = Array.from(new Set([...compatible.linkedChainIds, candidate.chainId]));
+        compatible.linkedBookingIds = Array.from(new Set([...compatible.linkedBookingIds, candidate.bookingId].filter(Boolean)));
+        compatible.windowStartMinutes = Math.min(compatible.windowStartMinutes, candidate.requiredMinutes);
+        compatible.windowEndMinutes = Math.max(compatible.windowEndMinutes, candidate.requiredMinutes);
+        return;
+      }
+
+      groupedJobs.push({
+        movementClass: candidate.movementClass,
+        fromLocation: candidate.fromLocation,
+        toLocation: candidate.toLocation,
+        requiredTime: candidate.requiredTime,
+        requiredMinutes: candidate.requiredMinutes,
+        windowStartMinutes: candidate.requiredMinutes,
+        windowEndMinutes: candidate.requiredMinutes,
+        resources: [{
+          resourceId: candidate.resourceId,
+          resourceName: candidate.resourceName,
+          chainId: candidate.chainId,
+          bookingId: candidate.bookingId
+        }],
+        linkedChainIds: [candidate.chainId],
+        linkedBookingIds: candidate.bookingId ? [candidate.bookingId] : []
+      });
+    });
+
+    const technicianState = technicians.map(technician => ({
+      ...technician,
+      assignedJobs: [],
+      estimatedWorkMinutes: 0,
+      lastAvailableMinute: timeToMinutes(technician.availableFrom) ?? 0
+    }));
+    const unassignedJobs = [];
+    const auditTrail = [];
+
+    const movementPriority = movementClass => {
+      if (movementClass === "Deployment") return 1;
+      if (movementClass === "Direct Transfer") return 2;
+      if (movementClass === "Resource Continuity") return 3;
+      return 4;
+    };
+
+    groupedJobs.sort((a, b) => {
+      if (a.requiredMinutes !== b.requiredMinutes) return a.requiredMinutes - b.requiredMinutes;
+      const priority = movementPriority(a.movementClass) - movementPriority(b.movementClass);
+      if (priority !== 0) return priority;
+      return `${a.fromLocation}|${a.toLocation}`.localeCompare(`${b.fromLocation}|${b.toLocation}`);
+    });
+
+    const jobs = groupedJobs.map((job, index) => {
+      const durationMinutes = Math.max(
+        estimatedMinutesPerMovement,
+        estimatedMinutesPerMovement + Math.max(0, job.resources.length - 1) * Math.ceil(estimatedMinutesPerMovement / 2)
+      );
+      const startMinutes = Math.max(0, job.requiredMinutes - durationMinutes);
+      const endMinutes = job.requiredMinutes;
+      const jobId = `OWJ-${String(index + 1).padStart(4, "0")}`;
+      const enriched = {
+        jobId,
+        bookingDate,
+        movementClass: job.movementClass,
+        fromLocation: job.fromLocation,
+        toLocation: job.toLocation,
+        requiredTime: job.requiredTime,
+        plannedStartMinutes: startMinutes,
+        plannedEndMinutes: endMinutes,
+        estimatedDurationMinutes: durationMinutes,
+        consolidationCount: job.resources.length,
+        resources: job.resources,
+        linkedChainIds: job.linkedChainIds,
+        linkedBookingIds: job.linkedBookingIds,
+        assignmentStatus: technicians.length ? "Unassigned" : "Roster not supplied",
+        assignedTechnicianId: "",
+        assignedTechnicianName: "",
+        conflictReason: ""
+      };
+
+      if (!technicianState.length) return enriched;
+
+      const eligible = technicianState
+        .filter(technician => {
+          const availableFrom = timeToMinutes(technician.availableFrom) ?? 0;
+          const availableUntil = timeToMinutes(technician.availableUntil) ?? (24 * 60 - 1);
+          if (startMinutes < availableFrom || endMinutes > availableUntil) return false;
+          const overlapping = technician.assignedJobs.filter(existing =>
+            startMinutes < existing.plannedEndMinutes && endMinutes > existing.plannedStartMinutes
+          ).length;
+          return overlapping < technician.maximumConcurrentJobs;
+        })
+        .sort((a, b) => {
+          if (a.estimatedWorkMinutes !== b.estimatedWorkMinutes) return a.estimatedWorkMinutes - b.estimatedWorkMinutes;
+          if (a.assignedJobs.length !== b.assignedJobs.length) return a.assignedJobs.length - b.assignedJobs.length;
+          return a.sequence - b.sequence;
+        });
+
+      if (!eligible.length) {
+        enriched.assignmentStatus = "Conflict";
+        enriched.conflictReason = "No technician is available within the planned movement window.";
+        unassignedJobs.push(enriched);
+        auditTrail.push({
+          auditId: `OWA-${String(auditTrail.length + 1).padStart(5, "0")}`,
+          eventType: "JOB_UNASSIGNED",
+          jobId,
+          reason: enriched.conflictReason
+        });
+        return enriched;
+      }
+
+      const selected = eligible[0];
+      enriched.assignmentStatus = "Assigned";
+      enriched.assignedTechnicianId = selected.technicianId;
+      enriched.assignedTechnicianName = selected.technicianName;
+      selected.assignedJobs.push(enriched);
+      selected.estimatedWorkMinutes += durationMinutes;
+      selected.lastAvailableMinute = Math.max(selected.lastAvailableMinute, endMinutes);
+      auditTrail.push({
+        auditId: `OWA-${String(auditTrail.length + 1).padStart(5, "0")}`,
+        eventType: "JOB_ASSIGNED",
+        jobId,
+        technicianId: selected.technicianId,
+        technicianName: selected.technicianName,
+        reason: "Selected by lowest estimated workload, then fewest assigned jobs, then roster order."
+      });
+      return enriched;
+    });
+
+    const technicianWorkloads = technicianState.map(technician => ({
+      technicianId: technician.technicianId,
+      technicianName: technician.technicianName,
+      assignedJobs: technician.assignedJobs.length,
+      assignedResourceMovements: technician.assignedJobs.reduce((sum, job) => sum + job.resources.length, 0),
+      estimatedWorkMinutes: technician.estimatedWorkMinutes,
+      utilisationStatus: technician.assignedJobs.length ? "Assigned" : "Available"
+    }));
+
+    const totalResourceMovements = jobs.reduce((sum, job) => sum + job.resources.length, 0);
+    const consolidatedJobs = jobs.filter(job => job.consolidationCount > 1).length;
+    const jobsAvoidedByConsolidation = Math.max(0, totalResourceMovements - jobs.length);
+
+    return {
+      bookingDate,
+      policy: {
+        maximumIdleGapMinutes,
+        minimumTransferMinutes,
+        consolidationWindowMinutes,
+        maximumResourcesPerJob,
+        estimatedMinutesPerMovement,
+        assignmentMode: technicians.length ? "Deterministic advisory assignment" : "Unassigned operational plan",
+        mutationMode: "Advisory only",
+        sourceOfTruth: "ADR-024 Journey Engine"
+      },
+      summary: {
+        chainsConsumed: chainResult.summary.chainsCreated,
+        resourceMovements: totalResourceMovements,
+        operationalJobs: jobs.length,
+        consolidatedJobs,
+        jobsAvoidedByConsolidation,
+        techniciansAvailable: technicians.length,
+        jobsAssigned: jobs.filter(job => job.assignmentStatus === "Assigned").length,
+        jobsWithConflicts: jobs.filter(job => job.assignmentStatus === "Conflict").length
+      },
+      jobs,
+      technicianWorkloads,
+      unassignedJobs,
+      auditTrail,
+      journeyChains: chainResult
+    };
+  }
+
+  /**
    * ADR-024 Phase 3 — Intelligent Journey Optimisation.
    *
    * Produces an advisory, deterministic optimisation plan from the same
@@ -1120,6 +1394,10 @@ function createJourneyEngine(dependencies = {}) {
       maximumIdleGapMinutes: directTransferWindowMinutes,
       minimumTransferMinutes: options.minimumTransferMinutes
     });
+    const operationalWorkPlan = buildOperationalWorkPlan(bookings, bookingDate, {
+      ...options,
+      maximumIdleGapMinutes: directTransferWindowMinutes
+    });
 
     return {
       bookingDate,
@@ -1141,7 +1419,8 @@ function createJourneyEngine(dependencies = {}) {
       },
       opportunities,
       resourcePlans: resourcePlans.sort((a, b) => String(a.resourceName).localeCompare(String(b.resourceName))),
-      journeyChains
+      journeyChains,
+      operationalWorkPlan
     };
   }
 
@@ -1453,6 +1732,7 @@ function createJourneyEngine(dependencies = {}) {
     getCurrentLocation,
     getNextStep,
     buildJourneyChains,
+    buildOperationalWorkPlan,
     buildOptimizationPlan,
     buildValidationReport,
     buildOperationalRecommendations,
