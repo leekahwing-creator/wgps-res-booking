@@ -4980,10 +4980,19 @@ app.get("/api/de/bookings", requireLogin, requireDEOrAdmin, (req, res) => {
     const formattedBookings = bookings.map(booking =>
       formatDeploymentBookingForResponse(booking, users, provenanceByBookingId)
     );
-    const operations = getJourneyEngine().buildOperationalTimelineAndJourneys(
+    const engine = getJourneyEngine();
+    const operations = engine.buildOperationalTimelineAndJourneys(
       formattedBookings,
       bookingDate
     );
+
+    // ADR-024 Phase 3.5: expose the completed Phase 3 intelligence through one
+    // stable Operations Centre response contract. These models are advisory and
+    // do not mutate bookings, allocations, claims, assignments or completion.
+    const journeyOptimization = engine.buildOptimizationPlan(formattedBookings, bookingDate);
+    const journeyValidation = engine.buildValidationReport(formattedBookings, bookingDate);
+    const journeyOperationalRecommendations = engine.buildOperationalRecommendations(formattedBookings, bookingDate);
+    const operationalForecast = journeyOptimization.operationalForecast || {};
 
     res.json({
       success: true,
@@ -4991,6 +5000,14 @@ app.get("/api/de/bookings", requireLogin, requireDEOrAdmin, (req, res) => {
       operationalTimeline: operations.timeline,
       resourceJourneys: operations.resourceJourneys,
       operationalSummary: operations.summary,
+      journeyOptimization,
+      journeyValidation,
+      journeyOperationalRecommendations,
+      journeyChains: journeyOptimization.journeyChains || {},
+      operationalWorkPlan: journeyOptimization.operationalWorkPlan || {},
+      dispatchQueue: operationalForecast.dispatchQueue || {},
+      operationalForecast,
+      operationsCentreContractVersion: "3.5.0",
       bookingIdentityIntegrity: {
         valid: duplicateBookingIds.length === 0,
         duplicateBookingIds

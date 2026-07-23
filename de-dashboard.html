@@ -1543,6 +1543,35 @@
       padding-right: 3px;
     }
 
+
+    /* ADR-024 Phase 3.5 — Operations Centre Experience Refresh */
+    .command-centre { margin:18px 24px 0; display:grid; gap:14px; }
+    .command-kpis { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:10px; }
+    .command-kpi { min-width:0; padding:14px; border:1px solid var(--border); border-radius:16px; background:#fff; box-shadow:0 8px 20px rgba(15,23,42,.04); }
+    .command-kpi span { display:block; color:var(--muted); font-size:.68rem; font-weight:900; text-transform:uppercase; letter-spacing:.035em; }
+    .command-kpi strong { display:block; margin-top:6px; font-size:clamp(1.15rem,2vw,1.65rem); overflow-wrap:anywhere; }
+    .command-kpi small { display:block; margin-top:5px; color:var(--muted); font-size:.72rem; line-height:1.3; }
+    .command-kpi.risk-low strong { color:#166534; }.command-kpi.risk-medium strong { color:#92400e; }.command-kpi.risk-high strong,.command-kpi.risk-critical strong { color:#991b1b; }
+    .command-layout { display:grid; grid-template-columns:minmax(0,1.35fr) minmax(300px,.65fr); gap:14px; }
+    .command-panel { min-width:0; border:1px solid var(--border); border-radius:18px; background:#f8fafc; overflow:hidden; }
+    .command-panel-header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:14px 16px; border-bottom:1px solid var(--border); background:#fff; }
+    .command-panel-header h2 { margin:0; font-size:1rem; }.command-panel-header p { margin:4px 0 0; color:var(--muted); font-size:.78rem; line-height:1.4; }
+    .command-list { display:grid; gap:9px; padding:12px; max-height:430px; overflow:auto; }
+    .dispatch-item,.risk-item,.chain-item,.capacity-item { padding:11px; border:1px solid #e2e8f0; border-radius:13px; background:#fff; }
+    .dispatch-heading,.risk-heading,.chain-heading,.capacity-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+    .dispatch-heading strong,.risk-heading strong,.chain-heading strong,.capacity-heading strong { display:block; }.dispatch-heading small,.risk-heading small,.chain-heading small,.capacity-heading small { display:block; margin-top:3px; color:var(--muted); font-size:.73rem; line-height:1.35; }
+    .dispatch-route { margin-top:8px; color:#334155; font-size:.8rem; font-weight:800; }
+    .dispatch-resources { margin-top:6px; color:var(--muted); font-size:.74rem; }
+    .dispatch-badge,.risk-badge { flex:0 0 auto; padding:4px 7px; border-radius:999px; font-size:.64rem; font-weight:900; }
+    .dispatch-badge.ready,.dispatch-badge.due-now { background:#dcfce7;color:#166534; }.dispatch-badge.overdue,.dispatch-badge.blocked,.dispatch-badge.conflict { background:#fee2e2;color:#991b1b; }.dispatch-badge.upcoming { background:#e2e8f0;color:#334155; }
+    .risk-badge.low { background:#dcfce7;color:#166534; }.risk-badge.medium { background:#fef3c7;color:#92400e; }.risk-badge.high,.risk-badge.critical { background:#fee2e2;color:#991b1b; }
+    .command-secondary-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+    .chain-route { display:flex; flex-wrap:wrap; align-items:center; gap:5px; margin-top:9px; color:#334155; font-size:.78rem; font-weight:800; }.chain-arrow { color:var(--primary); }
+    .capacity-bar { height:8px; margin-top:9px; border-radius:999px; background:#e2e8f0; overflow:hidden; }.capacity-fill { height:100%; border-radius:inherit; background:var(--primary); }
+    .peak-strip { display:flex; gap:6px; overflow:auto; padding:12px; }.peak-chip { flex:0 0 auto; min-width:112px; padding:10px; border:1px solid #e2e8f0; border-radius:12px; background:#fff; }.peak-chip strong,.peak-chip small { display:block; }.peak-chip small { margin-top:3px;color:var(--muted);font-size:.7rem; }
+    @media(max-width:1100px){.command-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.command-layout{grid-template-columns:1fr}}
+    @media(max-width:700px){.command-centre{margin:12px 12px 0}.command-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.command-secondary-grid{grid-template-columns:1fr}.command-list{max-height:none}}
+
   </style>
 </head>
 <body>
@@ -1628,6 +1657,19 @@
       </div>
 
       <div id="statusMessage" class="status" role="status" aria-live="polite"></div>
+
+      <section id="commandCentre" class="command-centre" aria-label="Operations Centre intelligence">
+        <div id="commandKpis" class="command-kpis"></div>
+        <div class="command-layout">
+          <section class="command-panel"><div class="command-panel-header"><div><h2>Live Dispatch Queue</h2><p>Priority-ranked advisory movements from the Journey Engine.</p></div><span id="dispatchQueueCount" class="count-pill">0</span></div><div id="dispatchQueueList" class="command-list"></div></section>
+          <section class="command-panel"><div class="command-panel-header"><div><h2>Operational Risks</h2><p>Forecast, capacity and validation conditions requiring attention.</p></div><span id="operationalRiskCount" class="count-pill">0</span></div><div id="operationalRiskList" class="command-list"></div></section>
+        </div>
+        <div class="command-secondary-grid">
+          <section class="command-panel"><div class="command-panel-header"><div><h2>Journey Chains</h2><p>Resource continuity, direct transfers and avoided returns.</p></div><span id="journeyChainCount" class="count-pill">0</span></div><div id="journeyChainList" class="command-list"></div></section>
+          <section class="command-panel"><div class="command-panel-header"><div><h2>Technician Capacity</h2><p>Advisory workload forecast when a roster is supplied.</p></div><span id="technicianCapacityCount" class="count-pill">0</span></div><div id="technicianCapacityList" class="command-list"></div></section>
+        </div>
+        <section class="command-panel"><div class="command-panel-header"><div><h2>Operational Load Forecast</h2><p>Movement demand by forecast window.</p></div></div><div id="peakPeriodStrip" class="peak-strip"></div></section>
+      </section>
 
       <section id="currentJobWorkspace" class="current-job-workspace" hidden aria-live="polite"></section>
 
@@ -1733,6 +1775,16 @@
     const statusMessage = document.getElementById('statusMessage');
     const lastUpdated = document.getElementById('lastUpdated');
     const currentJobWorkspace = document.getElementById('currentJobWorkspace');
+    const commandKpis = document.getElementById('commandKpis');
+    const dispatchQueueList = document.getElementById('dispatchQueueList');
+    const dispatchQueueCount = document.getElementById('dispatchQueueCount');
+    const operationalRiskList = document.getElementById('operationalRiskList');
+    const operationalRiskCount = document.getElementById('operationalRiskCount');
+    const journeyChainList = document.getElementById('journeyChainList');
+    const journeyChainCount = document.getElementById('journeyChainCount');
+    const technicianCapacityList = document.getElementById('technicianCapacityList');
+    const technicianCapacityCount = document.getElementById('technicianCapacityCount');
+    const peakPeriodStrip = document.getElementById('peakPeriodStrip');
     const operationsSummary = document.getElementById('operationsSummary');
     const journeyIntelligenceSummary = document.getElementById('journeyIntelligenceSummary');
     const journeyValidationHealth = document.getElementById('journeyValidationHealth');
@@ -1792,6 +1844,7 @@
     let latestJourneyOptimization = {};
     let latestJourneyValidation = {};
     let latestOperationalRecommendations = {};
+    let latestOperationalForecast = {};
     let activeDrawer = null;
     let lastDrawerTrigger = null;
 
@@ -2161,6 +2214,48 @@ return currentUser;
         .replace(/[^a-z0-9]+/g, '-');
     }
 
+
+    function renderCommandCentre(forecast = {}) {
+      const executive = forecast.executiveSummary || {};
+      const daily = forecast.dailyForecast || {};
+      const risk = String(executive.overallRisk || 'LOW').toUpperCase();
+      const kpis = [
+        ['Operational readiness', `${Number(executive.operationalReadinessPercent || 0)}%`, 'Predictive advisory score'],
+        ['Operational risk', risk, `${Array.isArray(forecast.risks) ? forecast.risks.length : 0} active indicators`],
+        ['Resources active', Number(executive.resourcesActive || 0), `${Number(executive.bookingsForecast || 0)} bookings`],
+        ['Journey chains', Number(executive.journeyChains || 0), `${Number(executive.returnsEliminated || 0)} returns eliminated`],
+        ['Operational jobs', Number(executive.operationalJobs || 0), `${Number(executive.assignmentConflicts || 0)} assignment conflicts`],
+        ['Estimated finish', executive.estimatedCompletionTime || '—', `${Number(daily.estimatedTechnicianWorkMinutes || 0)} work minutes`]
+      ];
+      commandKpis.innerHTML = kpis.map(([label,value,note], index) => `<div class="command-kpi ${index === 1 ? `risk-${risk.toLowerCase()}` : ''}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong><small>${escapeHtml(note)}</small></div>`).join('');
+
+      const dispatch = Array.isArray(forecast.dispatchQueue?.queue) ? forecast.dispatchQueue.queue : [];
+      dispatchQueueCount.textContent = dispatch.length;
+      dispatchQueueList.innerHTML = dispatch.length ? dispatch.slice(0,20).map(item => {
+        const resources = Array.isArray(item.resources) ? item.resources.map(r => r.resourceName || r.resourceId).filter(Boolean).join(', ') : '';
+        return `<article class="dispatch-item"><div class="dispatch-heading"><div><strong>#${Number(item.priorityRank || 0)} · ${escapeHtml(item.movementClass || 'Movement')}</strong><small>${escapeHtml(item.requiredTime || '—')} · ${escapeHtml(item.assignedTechnicianName || item.assignmentStatus || 'Unassigned')}</small></div><span class="dispatch-badge ${getStatusClass(item.dispatchStatus)}">${escapeHtml(item.dispatchStatus || 'UPCOMING')}</span></div><div class="dispatch-route">${escapeHtml(item.fromLocation || '—')} → ${escapeHtml(item.toLocation || '—')}</div><div class="dispatch-resources">${escapeHtml(resources || 'No resources listed')} · ${escapeHtml(item.readinessReason || '')}</div></article>`;
+      }).join('') : '<div class="empty-state">No advisory dispatch movements for this date.</div>';
+
+      const risks = Array.isArray(forecast.risks) ? forecast.risks : [];
+      operationalRiskCount.textContent = risks.length;
+      operationalRiskList.innerHTML = risks.length ? risks.map(item => `<article class="risk-item"><div class="risk-heading"><div><strong>${escapeHtml(item.title || item.riskType || 'Operational risk')}</strong><small>${escapeHtml(item.message || item.reason || item.description || '')}</small></div><span class="risk-badge ${String(item.severity || 'LOW').toLowerCase()}">${escapeHtml(item.severity || 'LOW')}</span></div></article>`).join('') : '<div class="empty-state">No forecast risks detected.</div>';
+
+      const chains = Array.isArray(forecast.journeyChains?.chains) ? forecast.journeyChains.chains : [];
+      journeyChainCount.textContent = chains.length;
+      journeyChainList.innerHTML = chains.length ? chains.slice(0,20).map(chain => {
+        const nodes = Array.isArray(chain.nodes) ? chain.nodes : [];
+        const route = [chain.homeLocation, ...nodes.map(node => node.location), chain.homeLocation].filter(Boolean);
+        return `<article class="chain-item"><div class="chain-heading"><div><strong>${escapeHtml(chain.resourceName || chain.resourceId || 'Resource')}</strong><small>${Number(chain.bookingCount || nodes.length)} bookings · ${Number(chain.avoidedReturns || 0)} returns avoided · ${escapeHtml(chain.confidence?.level || 'High')} confidence</small></div><span class="operational-badge direct-transfer">${escapeHtml(chain.chainId || 'Chain')}</span></div><div class="chain-route">${route.map((stop,index)=>`${index ? '<span class="chain-arrow">→</span>' : ''}<span>${escapeHtml(stop)}</span>`).join('')}</div></article>`;
+      }).join('') : '<div class="empty-state">No journey chains for this date.</div>';
+
+      const capacity = Array.isArray(forecast.technicianCapacity) ? forecast.technicianCapacity : [];
+      technicianCapacityCount.textContent = capacity.length;
+      technicianCapacityList.innerHTML = capacity.length ? capacity.map(item => `<article class="capacity-item"><div class="capacity-heading"><div><strong>${escapeHtml(item.technicianName || item.technicianId || 'Technician')}</strong><small>${Number(item.assignedJobs || 0)} jobs · ${Number(item.estimatedWorkMinutes || 0)} minutes · finish ${escapeHtml(item.estimatedCompletionTime || '—')}</small></div><span class="operational-badge ${Number(item.capacityPercent || 0) >= 100 ? 'overdue' : 'ready'}">${Number(item.capacityPercent || 0)}%</span></div><div class="capacity-bar"><div class="capacity-fill" style="width:${Math.min(100,Math.max(0,Number(item.capacityPercent || 0)))}%"></div></div></article>`).join('') : '<div class="empty-state">No technician roster was supplied. The work plan remains unassigned and advisory.</div>';
+
+      const peaks = Array.isArray(forecast.peakPeriods) ? forecast.peakPeriods : [];
+      peakPeriodStrip.innerHTML = peaks.length ? peaks.map(item => `<div class="peak-chip"><strong>${escapeHtml(item.windowLabel || item.startTime || 'Window')}</strong><small>${escapeHtml(item.loadLevel || 'NORMAL')} · ${Number(item.movementCount || item.resourceMovements || 0)} movements</small></div>`).join('') : '<div class="empty-state" style="width:100%">No operational load windows generated.</div>';
+    }
+
     function renderOperationsSummary(summary = {}) {
       const items = [
         ['Resources today', summary.totalResources || 0],
@@ -2424,7 +2519,9 @@ return currentUser;
       latestJourneyOptimization = result.journeyOptimization || {};
       latestJourneyValidation = result.journeyValidation || {};
       latestOperationalRecommendations = result.journeyOperationalRecommendations || {};
+      latestOperationalForecast = result.operationalForecast || result.journeyOptimization?.operationalForecast || {};
 
+      renderCommandCentre(latestOperationalForecast);
       renderOperationsSummary(latestOperationalSummary);
       renderJourneyIntelligence(latestJourneyOptimization, latestJourneyValidation);
       renderOperationalRecommendations(latestOperationalRecommendations);
