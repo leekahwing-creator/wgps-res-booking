@@ -249,16 +249,43 @@ function allocateResources(bookingRequest) {
   const usedResourceIds = new Set(bookedResourceIds);
   const additionalRequests = normaliseAdditionalResources(bookingRequest.additionalResources);
 
-  const selectedDeviceResources = selectResourcesForRequest(
-    allResources,
-    usedResourceIds,
-    resource =>
+  const preferredResourceId = String(
+    bookingRequest.matchedResourceId || bookingRequest.preferredResourceId || ""
+  ).trim();
+
+  let selectedDeviceResources = [];
+
+  // ADR-027: preserve a specifically identified legacy physical resource when
+  // it remains available, compatible and large enough for the request. The
+  // Journey Engine reservation state above remains authoritative.
+  if (preferredResourceId && !usedResourceIds.has(preferredResourceId)) {
+    const preferredResource = allResources.find(resource =>
+      String(resource.id || "") === preferredResourceId &&
+      resource.status === "Available" &&
       normaliseResourceCategory(resource) !== "Accessory" &&
       resource.deviceType === bookingRequest.deviceType &&
       resourceSupportsSoftware(resource, bookingRequest.softwareRequirements || bookingRequest.softwareRequirement) &&
-      resourceSupportsAdditionalResources(resource, additionalRequests),
-    Number(bookingRequest.devicesRequired)
-  );
+      resourceSupportsAdditionalResources(resource, additionalRequests)
+    );
+
+    if (preferredResource && Number(preferredResource.capacity || 0) >= Number(bookingRequest.devicesRequired)) {
+      selectedDeviceResources = [preferredResource];
+      usedResourceIds.add(preferredResourceId);
+    }
+  }
+
+  if (selectedDeviceResources.length === 0) {
+    selectedDeviceResources = selectResourcesForRequest(
+      allResources,
+      usedResourceIds,
+      resource =>
+        normaliseResourceCategory(resource) !== "Accessory" &&
+        resource.deviceType === bookingRequest.deviceType &&
+        resourceSupportsSoftware(resource, bookingRequest.softwareRequirements || bookingRequest.softwareRequirement) &&
+        resourceSupportsAdditionalResources(resource, additionalRequests),
+      Number(bookingRequest.devicesRequired)
+    );
+  }
 
   const deviceAllocation = buildAllocationBlock(selectedDeviceResources);
   const deviceCanFulfil =
@@ -291,7 +318,9 @@ function allocateResources(bookingRequest) {
     allocation: {
       ...deviceAllocation,
       allocationMethod: deviceCanFulfil && accessoriesCanFulfil
-        ? "Automatic Allocation"
+        ? (preferredResourceId && selectedDeviceResources.some(resource => String(resource.id || "") === preferredResourceId)
+            ? "Canonical Legacy Resource Allocation"
+            : "Automatic Allocation")
         : "Partial Allocation",
       additionalResources: {
         resource: additionalAllocations

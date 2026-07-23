@@ -2460,9 +2460,67 @@ function getResourceAliasEntries() {
     .sort((a, b) => b.alias.length - a.alias.length);
 }
 
+function extractCanonicalLegacyResourceIdentity(value) {
+  const text = normaliseResourceLookupText(value);
+  const deviceFamily = /ipad/.test(text)
+    ? "ipad"
+    : (/laptop|notebook|chromebook/.test(text) ? "laptop" : "");
+  const cartMatch = text.match(/\bcart\s*(\d+)\b/);
+  const bagMatch = text.match(/\b(?:bag|set)\s*([a-z])\b/);
+
+  return {
+    text,
+    deviceFamily,
+    cartNumber: cartMatch ? cartMatch[1] : "",
+    bagLetter: bagMatch ? bagMatch[1].toLowerCase() : "",
+    keyboard: /\bkeyboard\b/.test(text),
+    quantity: extractQuantityFromLegacyResourceItem(value, 0)
+  };
+}
+
+function getCanonicalResourceIdentity(resource = {}) {
+  const combined = `${resource.name || ""} ${resource.id || ""} ${resource.deviceType || ""}`;
+  const identity = extractCanonicalLegacyResourceIdentity(combined);
+  return {
+    ...identity,
+    capacity: Number(resource.capacity) || 0,
+    keyboard: /keyboard/i.test(String(resource.name || "")) || /keyboard/i.test(String(resource.deviceType || ""))
+  };
+}
+
 function findRegisteredResourceMatch(resourceText) {
-  const text = normaliseResourceLookupText(resourceText);
+  const sourceIdentity = extractCanonicalLegacyResourceIdentity(resourceText);
+  const text = sourceIdentity.text;
   if (!text) return null;
+
+  const availableResources = readResourcesFromXML()
+    .map(formatResourceForResponse)
+    .filter(resource => resource.status === "Available");
+
+  // ADR-027: a unique physical identifier is authoritative. Additional legacy
+  // qualifiers such as "with Keyboard" and "(iPad 40pcs)" must not obscure
+  // an explicit cart/bag identity already registered in resources.xml.
+  const identityCandidates = availableResources.filter(resource => {
+    const candidate = getCanonicalResourceIdentity(resource);
+    if (sourceIdentity.deviceFamily && candidate.deviceFamily !== sourceIdentity.deviceFamily) return false;
+    if (sourceIdentity.cartNumber) return candidate.cartNumber === sourceIdentity.cartNumber;
+    if (sourceIdentity.bagLetter) return candidate.bagLetter === sourceIdentity.bagLetter;
+    return false;
+  });
+
+  if (identityCandidates.length === 1) {
+    const resource = identityCandidates[0];
+    const identityLabel = sourceIdentity.cartNumber
+      ? `cart ${sourceIdentity.cartNumber}`
+      : `bag ${sourceIdentity.bagLetter.toUpperCase()}`;
+    return {
+      resource,
+      score: 1,
+      resolution: `Canonical physical resource match (${identityLabel})`,
+      matchMethod: "canonical-identity",
+      canonicalIdentity: identityLabel
+    };
+  }
 
   const entries = getResourceAliasEntries();
   let bestMatch = null;
@@ -2475,9 +2533,13 @@ function findRegisteredResourceMatch(resourceText) {
     if (text === entry.alias) {
       score = 1;
     } else if (text.includes(entry.alias)) {
-      score = Math.min(0.95, entry.alias.length / Math.max(text.length, 1));
+      // Containment is a strong signal even where descriptive suffixes make the
+      // source considerably longer than the registered alias.
+      score = entry.alias.includes("cart ") || entry.alias.includes("bag ")
+        ? 0.92
+        : Math.min(0.9, 0.55 + (entry.alias.length / Math.max(text.length, 1)) * 0.35);
     } else if (entry.alias.includes(text) && text.length >= 7) {
-      score = Math.min(0.9, text.length / Math.max(entry.alias.length, 1));
+      score = Math.min(0.88, text.length / Math.max(entry.alias.length, 1));
     }
 
     if (score > bestScore) {
@@ -2490,7 +2552,8 @@ function findRegisteredResourceMatch(resourceText) {
     return {
       resource: bestMatch,
       score: bestScore,
-      resolution: bestScore >= 0.95 ? "Matched registered resource" : "Matched registered resource by alias"
+      resolution: bestScore >= 0.95 ? "Matched registered resource" : "Matched registered resource by canonical alias",
+      matchMethod: "canonical-alias"
     };
   }
 
