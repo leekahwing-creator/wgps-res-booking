@@ -716,6 +716,296 @@ function createJourneyEngine(dependencies = {}) {
   }
 
   /**
+   * ADR-024 Phase 3.1 — Journey Chain Optimisation Engine.
+   *
+   * Builds deterministic resource-continuity chains without mutating booking
+   * records. A chain begins at the resource home location, follows eligible
+   * sequential bookings, and ends with a recovery return. Chain breaks remain
+   * explicit and auditable so Operations Centre consumers can explain why an
+   * otherwise sequential booking was not linked.
+   */
+  function buildJourneyChains(bookings = [], bookingDate = "", options = {}) {
+    const resources = readResourcesFromXML().map(formatResourceForResponse);
+    const resourceById = new Map(resources.map(resource => [String(resource.id || ""), resource]));
+    const maximumIdleGapMinutes = Number.isFinite(Number(options.maximumIdleGapMinutes))
+      ? Math.max(0, Number(options.maximumIdleGapMinutes))
+      : 30;
+    const minimumTransferMinutes = Number.isFinite(Number(options.minimumTransferMinutes))
+      ? Math.max(0, Number(options.minimumTransferMinutes))
+      : 0;
+
+    const active = toArray(bookings)
+      .filter(booking => booking.status !== "Deleted" && booking.status !== "Cancelled")
+      .filter(booking => !bookingDate || String(booking.bookingDate || "") === String(bookingDate))
+      .filter(booking => bookingRequiresDeployment(booking))
+      .filter(booking => bookingHasDEManagedResources(booking, resourceById));
+
+    const byResource = new Map();
+    active.forEach(booking => {
+      getDEManagedAllocatedResourceIds(booking, resourceById).forEach(resourceId => {
+        const id = String(resourceId || "");
+        if (!id) return;
+        if (!byResource.has(id)) byResource.set(id, []);
+        byResource.get(id).push(booking);
+      });
+    });
+
+    const chains = [];
+    const auditEvents = [];
+    const rejectedLinks = [];
+
+    const bookingIdOf = booking => String(booking?.["@_id"] || booking?.bookingId || "");
+    const hasManualBreak = booking => {
+      const values = [
+        booking?.journeyChainBreak,
+        booking?.manualJourneyBreak,
+        booking?.operationalOverride?.breakJourneyChain,
+        booking?.journeyOverride?.breakChain
+      ];
+      return values.some(value => value === true || String(value || "").toLowerCase() === "true");
+    };
+
+    const confidenceForLink = (gapMinutes, sameLocation) => {
+      if (gapMinutes === 0) return { level: "High", score: 100, reason: "Back-to-back bookings for the same physical resource." };
+      if (gapMinutes <= Math.min(15, maximumIdleGapMinutes)) {
+        return { level: "High", score: 95, reason: sameLocation ? "Short idle gap at the same location." : "Short transfer gap within the direct-handover policy." };
+      }
+      if (gapMinutes <= maximumIdleGapMinutes) {
+        return { level: "Medium", score: 80, reason: "Sequential bookings remain within the configured idle-gap policy." };
+      }
+      return { level: "Low", score: 40, reason: "Gap exceeds the configured chaining policy." };
+    };
+
+    byResource.forEach((sequence, resourceId) => {
+      sequence.sort((a, b) => {
+        const timeCompare = `${a.startTime || ""} ${a.endTime || ""}`.localeCompare(`${b.startTime || ""} ${b.endTime || ""}`);
+        if (timeCompare !== 0) return timeCompare;
+        return bookingIdOf(a).localeCompare(bookingIdOf(b));
+      });
+
+      const resource = resourceById.get(resourceId) || {};
+      const resourceName = resource.name || resourceId;
+      const homeLocation = getResourceHomeLocation(resource);
+      let currentChain = null;
+
+      const startChain = (booking, index, reason) => {
+        const chainId = `JC-${String(resourceId).replace(/[^A-Za-z0-9_-]/g, "-")}-${String(chains.length + 1).padStart(3, "0")}`;
+        currentChain = {
+          chainId,
+          bookingDate: String(booking.bookingDate || bookingDate || ""),
+          resourceId,
+          resourceName,
+          homeLocation,
+          status: "Optimised",
+          startReason: reason,
+          confidence: { level: "High", score: 100, reason: "Physical resource identity is authoritative." },
+          nodes: [],
+          links: [],
+          movements: [],
+          auditTrail: []
+        };
+        chains.push(currentChain);
+        const event = {
+          auditId: `JCA-${String(auditEvents.length + 1).padStart(5, "0")}`,
+          eventType: "CHAIN_CREATED",
+          chainId,
+          resourceId,
+          bookingId: bookingIdOf(booking),
+          reason,
+          sequenceIndex: index + 1
+        };
+        auditEvents.push(event);
+        currentChain.auditTrail.push(event);
+      };
+
+      sequence.forEach((booking, index) => {
+        const bookingId = bookingIdOf(booking);
+        const node = {
+          nodeId: `${resourceId}-NODE-${index + 1}`,
+          sequence: 0,
+          bookingId,
+          startTime: String(booking.startTime || ""),
+          endTime: String(booking.endTime || ""),
+          location: String(booking.location || ""),
+          deploymentStatus: normaliseDeploymentStatus(booking)
+        };
+
+        if (!currentChain) {
+          startChain(booking, index, "First eligible booking for the resource on the selected date.");
+          node.sequence = 1;
+          currentChain.nodes.push(node);
+          currentChain.movements.push({
+            movementClass: "Deployment",
+            fromLocation: homeLocation,
+            toLocation: node.location,
+            requiredTime: node.startTime,
+            bookingId
+          });
+          return;
+        }
+
+        const previous = sequence[index - 1];
+        const previousId = bookingIdOf(previous);
+        const previousEnd = timeToMinutes(previous?.endTime);
+        const currentStart = timeToMinutes(booking.startTime);
+        const gapMinutes = previousEnd !== null && currentStart !== null ? currentStart - previousEnd : null;
+        const sameLocation = String(previous?.location || "") === String(booking.location || "");
+        const manualBreak = hasManualBreak(previous) || hasManualBreak(booking);
+        const previousFailed = normaliseDeploymentStatus(previous) === "Unable to Deploy";
+
+        let eligible = true;
+        let breakCode = "";
+        let breakReason = "";
+
+        if (gapMinutes === null) {
+          eligible = false;
+          breakCode = "INVALID_TIME";
+          breakReason = "Booking times could not be interpreted safely.";
+        } else if (gapMinutes < 0) {
+          eligible = false;
+          breakCode = "OVERLAP";
+          breakReason = "Bookings overlap and cannot form a sequential journey chain.";
+        } else if (manualBreak) {
+          eligible = false;
+          breakCode = "MANUAL_OVERRIDE";
+          breakReason = "A manual operational override requires the chain to break.";
+        } else if (previousFailed) {
+          eligible = false;
+          breakCode = "FAILED_PREVIOUS_DEPLOYMENT";
+          breakReason = "The previous deployment did not complete, so its destination cannot be used as a pickup location.";
+        } else if (gapMinutes > maximumIdleGapMinutes) {
+          eligible = false;
+          breakCode = "IDLE_GAP_EXCEEDED";
+          breakReason = `Idle gap of ${gapMinutes} minutes exceeds the ${maximumIdleGapMinutes}-minute policy.`;
+        } else if (!sameLocation && gapMinutes < minimumTransferMinutes) {
+          eligible = false;
+          breakCode = "INSUFFICIENT_TRANSFER_TIME";
+          breakReason = `Transfer gap of ${gapMinutes} minutes is below the ${minimumTransferMinutes}-minute minimum.`;
+        }
+
+        if (!eligible) {
+          currentChain.movements.push({
+            movementClass: "Recovery Return",
+            fromLocation: String(previous?.location || ""),
+            toLocation: homeLocation,
+            requiredTime: String(previous?.endTime || ""),
+            bookingId: previousId,
+            reason: breakReason
+          });
+          const rejection = {
+            auditId: `JCA-${String(auditEvents.length + 1).padStart(5, "0")}`,
+            eventType: "CHAIN_LINK_REJECTED",
+            chainId: currentChain.chainId,
+            resourceId,
+            previousBookingId: previousId,
+            nextBookingId: bookingId,
+            gapMinutes,
+            code: breakCode,
+            reason: breakReason
+          };
+          auditEvents.push(rejection);
+          rejectedLinks.push(rejection);
+          currentChain.auditTrail.push(rejection);
+
+          startChain(booking, index, breakReason);
+          node.sequence = 1;
+          currentChain.nodes.push(node);
+          currentChain.movements.push({
+            movementClass: "Deployment",
+            fromLocation: homeLocation,
+            toLocation: node.location,
+            requiredTime: node.startTime,
+            bookingId
+          });
+          return;
+        }
+
+        const confidence = confidenceForLink(gapMinutes, sameLocation);
+        const link = {
+          linkId: `${currentChain.chainId}-LINK-${currentChain.links.length + 1}`,
+          previousBookingId: previousId,
+          nextBookingId: bookingId,
+          fromLocation: String(previous?.location || homeLocation),
+          toLocation: node.location,
+          gapMinutes,
+          movementClass: sameLocation ? "Resource Continuity" : "Direct Transfer",
+          confidence
+        };
+        currentChain.links.push(link);
+        node.sequence = currentChain.nodes.length + 1;
+        currentChain.nodes.push(node);
+        currentChain.movements.push({
+          movementClass: link.movementClass,
+          fromLocation: link.fromLocation,
+          toLocation: link.toLocation,
+          requiredTime: node.startTime,
+          bookingId,
+          gapMinutes
+        });
+        if (confidence.score < currentChain.confidence.score) currentChain.confidence = confidence;
+
+        const event = {
+          auditId: `JCA-${String(auditEvents.length + 1).padStart(5, "0")}`,
+          eventType: "CHAIN_LINK_CREATED",
+          chainId: currentChain.chainId,
+          resourceId,
+          previousBookingId: previousId,
+          nextBookingId: bookingId,
+          gapMinutes,
+          movementClass: link.movementClass,
+          confidence: confidence.level,
+          reason: confidence.reason,
+          estimatedMovementsSaved: 1
+        };
+        auditEvents.push(event);
+        currentChain.auditTrail.push(event);
+      });
+
+      if (currentChain && currentChain.nodes.length) {
+        const lastNode = currentChain.nodes[currentChain.nodes.length - 1];
+        currentChain.movements.push({
+          movementClass: "Recovery Return",
+          fromLocation: lastNode.location,
+          toLocation: homeLocation,
+          requiredTime: lastNode.endTime,
+          bookingId: lastNode.bookingId,
+          reason: "End of journey chain."
+        });
+      }
+    });
+
+    chains.forEach(chain => {
+      chain.bookingCount = chain.nodes.length;
+      chain.directTransfers = chain.links.filter(link => link.movementClass === "Direct Transfer").length;
+      chain.continuityLinks = chain.links.length;
+      chain.avoidedReturns = chain.links.length;
+      chain.estimatedMovementsSaved = chain.links.length;
+    });
+
+    return {
+      bookingDate,
+      policy: {
+        maximumIdleGapMinutes,
+        minimumTransferMinutes,
+        mutationMode: "Advisory only",
+        sourceOfTruth: "ADR-024 Journey Engine"
+      },
+      summary: {
+        resourcesAnalysed: byResource.size,
+        bookingsAnalysed: active.length,
+        chainsCreated: chains.length,
+        linksCreated: chains.reduce((sum, chain) => sum + chain.links.length, 0),
+        rejectedLinks: rejectedLinks.length,
+        avoidedReturns: chains.reduce((sum, chain) => sum + chain.avoidedReturns, 0),
+        estimatedMovementsSaved: chains.reduce((sum, chain) => sum + chain.estimatedMovementsSaved, 0)
+      },
+      chains,
+      rejectedLinks,
+      auditTrail: auditEvents
+    };
+  }
+
+  /**
    * ADR-024 Phase 3 — Intelligent Journey Optimisation.
    *
    * Produces an advisory, deterministic optimisation plan from the same
@@ -826,6 +1116,11 @@ function createJourneyEngine(dependencies = {}) {
       ? Math.round((estimatedMovementReduction / baselineMovements) * 100)
       : 0;
 
+    const journeyChains = buildJourneyChains(bookings, bookingDate, {
+      maximumIdleGapMinutes: directTransferWindowMinutes,
+      minimumTransferMinutes: options.minimumTransferMinutes
+    });
+
     return {
       bookingDate,
       policy: {
@@ -845,7 +1140,8 @@ function createJourneyEngine(dependencies = {}) {
         opportunities: opportunities.length
       },
       opportunities,
-      resourcePlans: resourcePlans.sort((a, b) => String(a.resourceName).localeCompare(String(b.resourceName)))
+      resourcePlans: resourcePlans.sort((a, b) => String(a.resourceName).localeCompare(String(b.resourceName))),
+      journeyChains
     };
   }
 
@@ -1156,6 +1452,7 @@ function createJourneyEngine(dependencies = {}) {
     getTimeline,
     getCurrentLocation,
     getNextStep,
+    buildJourneyChains,
     buildOptimizationPlan,
     buildValidationReport,
     buildOperationalRecommendations,
