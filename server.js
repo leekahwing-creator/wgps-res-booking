@@ -3163,6 +3163,73 @@ function parseLegacyResourceDeploymentSegments(row) {
   }));
 }
 
+function normaliseCompactLegacyTime(value) {
+  const text = String(value || "").trim().replace(/[.:]/g, "");
+  if (!/^\d{3,4}$/.test(text)) return "";
+  const padded = text.padStart(4, "0");
+  const hour = Number(padded.slice(0, 2));
+  const minute = Number(padded.slice(2));
+  if (hour > 23 || minute > 59) return "";
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function parseCompoundLocationTimeRemarks(row) {
+  const remarksText = normaliseImportValue(getImportValue(row, [
+    "Booking Remarks", "Booking Remark", "Remarks", "Remark", "bookingRemarks"
+  ]));
+  if (!remarksText) return [];
+
+  const knownLocations = getKnownLocationNames();
+  const segments = [];
+  const lines = remarksText
+    .split(/\r?\n|\s*;\s*/)
+    .map(line => line.trim())
+    .filter(Boolean);
+
+  lines.forEach(line => {
+    const match = line.match(/^\s*(?:class(?:room)?\s*)?(P?\s*[1-6]\s*[A-G]{1,6}|[A-Za-z][A-Za-z0-9 .&'()\/-]{1,40}?)\s*[:,-]?\s*(\d{1,2}(?::|\.)?\d{2}|\d{3,4})\s*[-–—]\s*(\d{1,2}(?::|\.)?\d{2}|\d{3,4})\s*$/i);
+    if (!match) return;
+
+    const rawLocation = match[1].replace(/^P\s*/i, "").replace(/\s+/g, "").toUpperCase();
+    const startTime = normaliseCompactLegacyTime(match[2]);
+    const endTime = normaliseCompactLegacyTime(match[3]);
+    if (!rawLocation || !startTime || !endTime || startTime >= endTime) return;
+
+    const knownLocation = findKnownLocationByCandidate(rawLocation, knownLocations);
+    segments.push({
+      segmentIndex: segments.length + 1,
+      locationText: knownLocation || rawLocation,
+      startTime,
+      endTime,
+      periodLabel: "",
+      segmentationReason: "compound booking remarks location/time instruction",
+      sourceLine: line
+    });
+  });
+
+  if (segments.length <= 1) return [];
+
+  const ordered = segments.slice().sort((a, b) => a.startTime.localeCompare(b.startTime));
+  for (let index = 1; index < ordered.length; index += 1) {
+    if (ordered[index].startTime < ordered[index - 1].endTime) return [];
+  }
+
+  const groupSeed = [
+    normaliseImportDate(getImportValue(row, ["Booking Date", "Date", "bookingDate", "BookingDate"])),
+    remarksText,
+    normaliseImportValue(getImportValue(row, ["Resources", "Resource", "Device Type", "Resource Type", "Main Resource", "deviceType"])),
+    normaliseImportValue(getImportValue(row, ["Booked For", "Booked By", "Requester", "Requester Email"]))
+  ].join("|");
+  const groupId = `LEGACY-GROUP-${crypto.createHash("sha256").update(groupSeed).digest("hex").slice(0, 16)}`;
+
+  return ordered.map((segment, index) => ({
+    ...segment,
+    segmentIndex: index + 1,
+    segmentTotal: ordered.length,
+    compoundImportGroupId: groupId
+  }));
+}
+
 function buildLegacySegmentRow(sourceRow, resourceSegment, timeSegment) {
   const segmentRow = { ...sourceRow };
 
@@ -3175,6 +3242,10 @@ function buildLegacySegmentRow(sourceRow, resourceSegment, timeSegment) {
 
   if (timeSegment) {
     segmentRow.__legacyTimeSegment = timeSegment;
+    if (timeSegment.locationText) {
+      segmentRow.__legacyLocationOverride = timeSegment.locationText;
+      segmentRow.__legacyCompoundSegment = timeSegment;
+    }
   }
 
   return segmentRow;
@@ -3218,12 +3289,12 @@ function mapLegacyBookingRow(row, index, users) {
     "Timeslots", "Timeslot", "Time Slots", "Time", "Start Time", "Start", "startTime", "StartTime"
   ]));
   const injectedSegment = row.__legacyTimeSegment || null;
-  const startTime = normaliseImportTime(getImportValue(row, [
+  const startTime = injectedSegment?.startTime || normaliseImportTime(getImportValue(row, [
     "Start Time", "Start", "startTime", "StartTime"
-  ])) || injectedSegment?.startTime || timeslotParse.startTime;
-  const endTime = normaliseImportTime(getImportValue(row, [
+  ])) || timeslotParse.startTime;
+  const endTime = injectedSegment?.endTime || normaliseImportTime(getImportValue(row, [
     "End Time", "End", "endTime", "EndTime"
-  ])) || injectedSegment?.endTime || timeslotParse.endTime;
+  ])) || timeslotParse.endTime;
 
   const locationResolution = extractLegacyLocation(row);
   let location = locationResolution.location;
@@ -3322,6 +3393,10 @@ function mapLegacyBookingRow(row, index, users) {
     warnings.push(row.__legacyResourceSegment.resolution);
   }
 
+  if (row.__legacyCompoundSegment) {
+    warnings.push(`Compound legacy booking expanded into segment ${row.__legacyCompoundSegment.segmentIndex} of ${row.__legacyCompoundSegment.segmentTotal}.`);
+  }
+
   const mappedBooking = {
     userId: matchedUser?.userId || "",
     importedRequesterName: requesterName || matchedUser?.name || "",
@@ -3344,6 +3419,10 @@ function mapLegacyBookingRow(row, index, users) {
     importRowNumber: index + 1,
     importSegmentLabel: buildImportSegmentLabel(index, row),
     legacyPeriodLabel: injectedSegment?.periodLabel || "",
+    compoundImportGroupId: row.__legacyCompoundSegment?.compoundImportGroupId || "",
+    compoundImportSegmentNumber: row.__legacyCompoundSegment?.segmentIndex || "",
+    compoundImportSegmentTotal: row.__legacyCompoundSegment?.segmentTotal || "",
+    compoundImportSourceLine: row.__legacyCompoundSegment?.sourceLine || "",
     legacyResourceSegmentLabel: row.__legacyResourceSegment ? `Resource ${row.__legacyResourceSegment.segmentIndex} of ${row.__legacyResourceSegment.segmentTotal}` : "",
     legacyResourceText,
     matchedResourceId: legacyResourceInference.matchedResourceId || "",
@@ -3807,7 +3886,9 @@ function classifyImportDecision(row = {}) {
     /accessory-only legacy row .* merged into device row .* unique overlapping/i,
     /parallel device rows .* consolidated into one operational booking/i,
     /merged accessories from legacy row/i,
-    /collection-only resource/i
+    /collection-only resource/i,
+    /compound legacy booking expanded into segment/i,
+    /canonical physical resource match/i
   ];
 
   const hasQualifiedInference = qualifiedAutoPatterns.some(pattern => pattern.test(combinedText));
@@ -3846,6 +3927,17 @@ function previewLegacyBookingRows(rows, dateRange = {}) {
   const users = getUsersFromXML();
   let allRows = toArray(rows).flatMap((row, index) => {
     const sourceRow = row || {};
+    const compoundSegments = parseCompoundLocationTimeRemarks(sourceRow);
+    if (compoundSegments.length > 1) {
+      return compoundSegments.map(timeSegment => {
+        const mapped = mapLegacyBookingRow(buildLegacySegmentRow(sourceRow, null, timeSegment), index, users);
+        mapped.mappedBooking.operationalSegmentNumber = timeSegment.segmentIndex;
+        mapped.mappedBooking.operationalSegmentTotal = timeSegment.segmentTotal;
+        mapped.mappedBooking.operationalSegmentationReason = timeSegment.segmentationReason;
+        return mapped;
+      });
+    }
+
     const resourceSegments = parseLegacyResourceDeploymentSegments(sourceRow);
     const timeSegments = parseLegacyTimeslotSegments(getImportValue(sourceRow, [
       "Timeslots", "Timeslot", "Time Slots", "Time", "Start Time", "Start", "startTime", "StartTime"
