@@ -1482,6 +1482,238 @@ function createJourneyEngine(dependencies = {}) {
   }
 
   /**
+   * ADR-024 Phase 3.4 — Predictive Operational Intelligence.
+   *
+   * Produces a deterministic pre-operation forecast from the Phase 3.1–3.3
+   * chain, work-plan, dispatch and validation models. The forecast is advisory:
+   * it does not mutate bookings, allocations, assignments or job state.
+   */
+  function buildOperationalForecast(bookings = [], bookingDate = "", options = {}) {
+    const resources = readResourcesFromXML().map(formatResourceForResponse);
+    const resourceById = new Map(resources.map(resource => [String(resource.id || ""), resource]));
+    const peakWindowMinutes = Number.isFinite(Number(options.peakWindowMinutes))
+      ? Math.max(5, Math.floor(Number(options.peakWindowMinutes)))
+      : 15;
+    const highLoadThreshold = Number.isFinite(Number(options.highLoadThreshold))
+      ? Math.max(1, Math.floor(Number(options.highLoadThreshold)))
+      : 5;
+    const criticalLoadThreshold = Number.isFinite(Number(options.criticalLoadThreshold))
+      ? Math.max(highLoadThreshold + 1, Math.floor(Number(options.criticalLoadThreshold)))
+      : 9;
+    const technicianCapacityWarningPercent = Number.isFinite(Number(options.technicianCapacityWarningPercent))
+      ? Math.max(1, Number(options.technicianCapacityWarningPercent))
+      : 80;
+    const technicianCapacityCriticalPercent = Number.isFinite(Number(options.technicianCapacityCriticalPercent))
+      ? Math.max(technicianCapacityWarningPercent, Number(options.technicianCapacityCriticalPercent))
+      : 100;
+    const resourceUtilisationWarningPercent = Number.isFinite(Number(options.resourceUtilisationWarningPercent))
+      ? Math.max(1, Number(options.resourceUtilisationWarningPercent))
+      : 85;
+
+    const active = toArray(bookings)
+      .filter(booking => booking.status !== "Deleted" && booking.status !== "Cancelled")
+      .filter(booking => !bookingDate || String(booking.bookingDate || "") === String(bookingDate))
+      .filter(booking => bookingRequiresDeployment(booking))
+      .filter(booking => bookingHasDEManagedResources(booking, resourceById));
+
+    const chains = buildJourneyChains(active, bookingDate, options);
+    const workPlan = buildOperationalWorkPlan(active, bookingDate, options);
+    const dispatchQueue = buildDispatchQueue(active, bookingDate, options);
+    const validation = buildValidationReport(active, bookingDate, options);
+
+    const byResource = new Map();
+    active.forEach(booking => {
+      getDEManagedAllocatedResourceIds(booking, resourceById).forEach(resourceId => {
+        const id = String(resourceId || "");
+        if (!id) return;
+        if (!byResource.has(id)) byResource.set(id, []);
+        byResource.get(id).push(booking);
+      });
+    });
+
+    const resourceUtilisation = [];
+    byResource.forEach((sequence, resourceId) => {
+      sequence.sort((a, b) => `${a.startTime || ""} ${a.endTime || ""}`.localeCompare(`${b.startTime || ""} ${b.endTime || ""}`));
+      const resource = resourceById.get(resourceId) || {};
+      let bookedMinutes = 0;
+      let idleMinutes = 0;
+      let firstStart = null;
+      let lastEnd = null;
+      sequence.forEach((booking, index) => {
+        const start = timeToMinutes(booking.startTime);
+        const end = timeToMinutes(booking.endTime);
+        if (start === null || end === null || end <= start) return;
+        bookedMinutes += end - start;
+        firstStart = firstStart === null ? start : Math.min(firstStart, start);
+        lastEnd = lastEnd === null ? end : Math.max(lastEnd, end);
+        if (index > 0) {
+          const previousEnd = timeToMinutes(sequence[index - 1]?.endTime);
+          if (previousEnd !== null && start > previousEnd) idleMinutes += start - previousEnd;
+        }
+      });
+      const operationalSpanMinutes = firstStart !== null && lastEnd !== null ? Math.max(1, lastEnd - firstStart) : 0;
+      const utilisationPercent = operationalSpanMinutes
+        ? Math.min(100, Math.round((bookedMinutes / operationalSpanMinutes) * 100))
+        : 0;
+      const resourceChains = toArray(chains.chains).filter(chain => String(chain.resourceId) === resourceId);
+      resourceUtilisation.push({
+        resourceId,
+        resourceName: String(resource.name || resourceId),
+        category: normaliseResourceCategory(resource.category),
+        homeLocation: getResourceHomeLocation(resource),
+        bookings: sequence.length,
+        bookedMinutes,
+        idleMinutes,
+        operationalSpanMinutes,
+        utilisationPercent,
+        directTransfers: resourceChains.reduce((sum, chain) => sum + Number(chain.directTransfers || 0), 0),
+        recoveryReturns: resourceChains.length,
+        journeyChains: resourceChains.length,
+        utilisationStatus: utilisationPercent >= resourceUtilisationWarningPercent ? "HIGH" : utilisationPercent >= 60 ? "MODERATE" : "NORMAL"
+      });
+    });
+    resourceUtilisation.sort((a, b) => b.utilisationPercent - a.utilisationPercent || a.resourceName.localeCompare(b.resourceName));
+
+    const jobs = toArray(workPlan.jobs);
+    const validRequiredMinutes = jobs
+      .map(job => Number(job.requiredMinutes ?? timeToMinutes(job.requiredTime)))
+      .filter(Number.isFinite);
+    const firstMinute = validRequiredMinutes.length ? Math.floor(Math.min(...validRequiredMinutes) / peakWindowMinutes) * peakWindowMinutes : 0;
+    const lastMinute = validRequiredMinutes.length ? Math.ceil((Math.max(...validRequiredMinutes) + 1) / peakWindowMinutes) * peakWindowMinutes : 0;
+    const peakPeriods = [];
+    for (let start = firstMinute; start < lastMinute; start += peakWindowMinutes) {
+      const end = start + peakWindowMinutes;
+      const windowJobs = jobs.filter(job => {
+        const required = Number(job.requiredMinutes ?? timeToMinutes(job.requiredTime));
+        return Number.isFinite(required) && required >= start && required < end;
+      });
+      if (!windowJobs.length) continue;
+      const resourceCount = windowJobs.reduce((sum, job) => sum + toArray(job.resources).length, 0);
+      const loadLevel = resourceCount >= criticalLoadThreshold ? "CRITICAL" : resourceCount >= highLoadThreshold ? "HIGH" : "NORMAL";
+      peakPeriods.push({
+        periodId: `PL-${String(peakPeriods.length + 1).padStart(3, "0")}`,
+        startMinutes: start,
+        endMinutes: end,
+        startTime: `${String(Math.floor(start / 60)).padStart(2, "0")}:${String(start % 60).padStart(2, "0")}`,
+        endTime: `${String(Math.floor(end / 60)).padStart(2, "0")}:${String(end % 60).padStart(2, "0")}`,
+        operationalJobs: windowJobs.length,
+        resourceMovements: resourceCount,
+        technicianAssignments: new Set(windowJobs.map(job => job.assignedTechnicianId).filter(Boolean)).size,
+        loadLevel,
+        jobIds: windowJobs.map(job => job.jobId)
+      });
+    }
+    peakPeriods.sort((a, b) => b.resourceMovements - a.resourceMovements || a.startMinutes - b.startMinutes);
+
+    const rosterInput = toArray(options.technicians || options.staff || []);
+    const rosterById = new Map(rosterInput.map((item, index) => {
+      const id = typeof item === "string" ? item : String(item?.technicianId || item?.staffId || item?.id || `TECH-${index + 1}`);
+      return [String(id), typeof item === "string" ? { technicianId: id, technicianName: id, availableFrom: "00:00", availableUntil: "23:59" } : item];
+    }));
+    const technicianCapacity = toArray(workPlan.technicianWorkloads).map(workload => {
+      const roster = rosterById.get(String(workload.technicianId || "")) || {};
+      const availableFrom = timeToMinutes(roster.availableFrom || "00:00") ?? 0;
+      const availableUntil = timeToMinutes(roster.availableUntil || "23:59") ?? (24 * 60 - 1);
+      const availableMinutes = Math.max(1, availableUntil - availableFrom);
+      const assignedJobs = jobs.filter(job => String(job.assignedTechnicianId || "") === String(workload.technicianId || ""));
+      const expectedCompletionMinutes = assignedJobs.length
+        ? Math.max(...assignedJobs.map(job => Number(job.plannedEndMinutes || 0)))
+        : availableFrom;
+      const capacityPercent = Math.round((Number(workload.estimatedWorkMinutes || 0) / availableMinutes) * 100);
+      const capacityStatus = capacityPercent >= technicianCapacityCriticalPercent ? "CRITICAL" : capacityPercent >= technicianCapacityWarningPercent ? "HIGH" : capacityPercent >= 60 ? "MODERATE" : "NORMAL";
+      return {
+        technicianId: workload.technicianId,
+        technicianName: workload.technicianName,
+        assignedJobs: workload.assignedJobs,
+        assignedResourceMovements: workload.assignedResourceMovements,
+        estimatedWorkMinutes: workload.estimatedWorkMinutes,
+        availableMinutes,
+        capacityPercent,
+        capacityStatus,
+        expectedCompletionMinutes,
+        expectedCompletionTime: `${String(Math.floor(expectedCompletionMinutes / 60)).padStart(2, "0")}:${String(expectedCompletionMinutes % 60).padStart(2, "0")}`
+      };
+    });
+
+    const risks = [];
+    const addRisk = (severity, code, title, detail = {}) => risks.push({
+      riskId: `ORISK-${String(risks.length + 1).padStart(4, "0")}`,
+      severity,
+      code,
+      title,
+      ...detail
+    });
+    technicianCapacity.forEach(item => {
+      if (item.capacityStatus === "CRITICAL") addRisk("CRITICAL", "TECHNICIAN_OVER_CAPACITY", `${item.technicianName} exceeds forecast capacity.`, { technicianId: item.technicianId, capacityPercent: item.capacityPercent });
+      else if (item.capacityStatus === "HIGH") addRisk("HIGH", "TECHNICIAN_HIGH_CAPACITY", `${item.technicianName} is forecast near capacity.`, { technicianId: item.technicianId, capacityPercent: item.capacityPercent });
+    });
+    peakPeriods.filter(period => period.loadLevel !== "NORMAL").forEach(period => addRisk(period.loadLevel, "PEAK_OPERATIONAL_LOAD", `High operational load forecast from ${period.startTime} to ${period.endTime}.`, { periodId: period.periodId, resourceMovements: period.resourceMovements }));
+    resourceUtilisation.filter(item => item.utilisationPercent >= resourceUtilisationWarningPercent).forEach(item => addRisk("HIGH", "RESOURCE_HIGH_UTILISATION", `${item.resourceName} has high forecast utilisation.`, { resourceId: item.resourceId, utilisationPercent: item.utilisationPercent }));
+    if (workPlan.summary.jobsWithConflicts > 0) addRisk("CRITICAL", "UNASSIGNED_OPERATIONAL_JOBS", "One or more operational jobs cannot be assigned to the supplied roster.", { jobsWithConflicts: workPlan.summary.jobsWithConflicts });
+    if (validation.summary.errors > 0) addRisk("CRITICAL", "JOURNEY_VALIDATION_ERRORS", "Journey validation contains blocking errors.", { errors: validation.summary.errors });
+    if (validation.summary.warnings > 0) addRisk("MEDIUM", "JOURNEY_VALIDATION_WARNINGS", "Journey validation contains operational cautions.", { warnings: validation.summary.warnings });
+
+    const riskRank = { LOW: 1, MEDIUM: 2, HIGH: 3, CRITICAL: 4 };
+    const overallRisk = risks.reduce((level, risk) => riskRank[risk.severity] > riskRank[level] ? risk.severity : level, "LOW");
+    const scoreDeduction =
+      validation.summary.errors * 20 +
+      validation.summary.warnings * 5 +
+      workPlan.summary.jobsWithConflicts * 15 +
+      risks.filter(item => item.severity === "CRITICAL").length * 10 +
+      risks.filter(item => item.severity === "HIGH").length * 5;
+    const operationalReadinessPercent = Math.max(0, Math.min(100, 100 - scoreDeduction));
+    const estimatedCompletionMinutes = jobs.length ? Math.max(...jobs.map(job => Number(job.plannedEndMinutes || 0))) : 0;
+
+    return {
+      bookingDate,
+      generatedAt: new Date().toISOString(),
+      policy: {
+        peakWindowMinutes,
+        highLoadThreshold,
+        criticalLoadThreshold,
+        technicianCapacityWarningPercent,
+        technicianCapacityCriticalPercent,
+        resourceUtilisationWarningPercent,
+        mutationMode: "Predictive advisory only",
+        sourceOfTruth: "ADR-024 Journey Engine"
+      },
+      executiveSummary: {
+        operationalReadinessPercent,
+        overallRisk,
+        resourcesActive: resourceUtilisation.length,
+        bookingsForecast: active.length,
+        journeyChains: chains.summary.chainsCreated,
+        returnsEliminated: chains.summary.avoidedReturns,
+        operationalJobs: workPlan.summary.operationalJobs,
+        jobsAssigned: workPlan.summary.jobsAssigned,
+        assignmentConflicts: workPlan.summary.jobsWithConflicts,
+        peakPeriods: peakPeriods.filter(item => item.loadLevel !== "NORMAL").length,
+        averageTechnicianCapacityPercent: technicianCapacity.length
+          ? Math.round(technicianCapacity.reduce((sum, item) => sum + item.capacityPercent, 0) / technicianCapacity.length)
+          : 0,
+        estimatedCompletionMinutes,
+        estimatedCompletionTime: `${String(Math.floor(estimatedCompletionMinutes / 60)).padStart(2, "0")}:${String(estimatedCompletionMinutes % 60).padStart(2, "0")}`
+      },
+      dailyForecast: {
+        deployments: jobs.filter(job => job.movementClass === "Deployment").length,
+        directTransfers: jobs.filter(job => job.movementClass === "Direct Transfer").length,
+        recoveryReturns: jobs.filter(job => job.movementClass === "Recovery Return").length,
+        groupedJobs: workPlan.summary.consolidatedJobs,
+        jobsAvoidedByConsolidation: workPlan.summary.jobsAvoidedByConsolidation,
+        estimatedTechnicianWorkMinutes: technicianCapacity.reduce((sum, item) => sum + item.estimatedWorkMinutes, 0)
+      },
+      resourceUtilisation,
+      peakPeriods,
+      technicianCapacity,
+      risks: risks.sort((a, b) => riskRank[b.severity] - riskRank[a.severity] || a.riskId.localeCompare(b.riskId)),
+      validation,
+      dispatchQueue,
+      operationalWorkPlan: workPlan,
+      journeyChains: chains
+    };
+  }
+
+  /**
    * ADR-024 Phase 3 — Intelligent Journey Optimisation.
    *
    * Produces an advisory, deterministic optimisation plan from the same
@@ -1622,7 +1854,8 @@ function createJourneyEngine(dependencies = {}) {
       opportunities,
       resourcePlans: resourcePlans.sort((a, b) => String(a.resourceName).localeCompare(String(b.resourceName))),
       journeyChains,
-      operationalWorkPlan
+      operationalWorkPlan,
+      operationalForecast: buildOperationalForecast(bookings, bookingDate, options)
     };
   }
 
@@ -1936,6 +2169,7 @@ function createJourneyEngine(dependencies = {}) {
     buildJourneyChains,
     buildOperationalWorkPlan,
     buildDispatchQueue,
+    buildOperationalForecast,
     buildOptimizationPlan,
     buildValidationReport,
     buildOperationalRecommendations,
