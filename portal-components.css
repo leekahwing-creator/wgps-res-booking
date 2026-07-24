@@ -1,0 +1,330 @@
+/* ICT Resource Booking Portal — Portal Design System
+   File: portal-components.css
+   Version: 1.0.0
+   Layer: Shared components
+*/
+
+.pds-card {
+  min-width: 0;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: var(--pds-radius-xl);
+  background: var(--pds-surface);
+  box-shadow: var(--pds-shadow-card);
+}
+
+.pds-card--subtle {
+  background: var(--pds-surface-subtle);
+  box-shadow: none;
+}
+
+.pds-card--interactive {
+  transition: transform var(--pds-transition-fast), border-color var(--pds-transition-fast), box-shadow var(--pds-transition-fast);
+}
+
+.pds-card--interactive:hover {
+  transform: translateY(-1px);
+  border-color: rgba(15, 118, 110, 0.35);
+  box-shadow: 0 14px 30px rgba(15, 118, 110, 0.1);
+}
+
+.pds-card__header,
+.pds-card__body,
+.pds-card__footer {
+  padding: var(--pds-space-6);
+}
+
+.pds-card__header {
+  border-bottom: 1px solid var(--pds-border);
+}
+
+.pds-card__footer {
+  border-top: 1px solid var(--pds-border);
+}
+
+.pds-stack {
+  display: grid;
+  gap: var(--pds-space-4);
+}
+
+.pds-inline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--pds-space-3);
+}
+
+.pds-toolbar {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--pds-space-3);
+}
+
+.pds-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pds-space-2);
+  min-width: 0;
+}
+
+.pds-field label,
+.pds-label {
+  color: #1e293b;
+  font-size: var(--pds-font-size-sm);
+  font-weight: 800;
+}
+
+.pds-input,
+.pds-select,
+.pds-textarea,
+.pds-field input,
+.pds-field select,
+.pds-field textarea {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid var(--pds-border);
+  border-radius: var(--pds-radius-md);
+  padding: 11px 13px;
+  background: var(--pds-surface);
+  color: var(--pds-text);
+  outline: none;
+  transition: border-color var(--pds-transition), box-shadow var(--pds-transition);
+}
+
+.pds-textarea,
+.pds-field textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+
+.pds-input:focus,
+.pds-select:focus,
+.pds-textarea:focus,
+.pds-field input:focus,
+.pds-field select:focus,
+.pds-field textarea:focus {
+  border-color: var(--pds-primary);
+  box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.14);
+}
+
+.pds-help {
+  color: var(--pds-muted);
+  font-size: var(--pds-font-size-xs);
+  line-height: 1.4;
+}
+
+.pds-btn {
+  min-height: 44px;
+  border: 0;
+  border-radius: var(--pds-radius-md);
+  padding: 0 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--pds-text-secondary);
+  background: var(--pds-surface-muted);
+  font-weight: 900;
+  line-height: 1;
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform var(--pds-transition-fast), background var(--pds-transition-fast), color var(--pds-transition-fast), box-shadow var(--pds-transition-fast);
+}
+
+.pds-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.pds-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pds-btn--primary {
+  background: var(--pds-primary);
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(15, 118, 110, 0.18);
+}
+
+.pds-btn--primary:hover:not(:disabled) {
+  background: var(--pds-primary-hover);
+}
+
+.pds-btn--secondary {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.pds-btn--quiet {
+  border: 1px solid var(--pds-border);
+  background: #fff;
+}
+
+.pds-btn--danger {
+  background: var(--pds-danger-bg);
+  color: var(--pds-danger);
+}
+
+.pds-btn--success {
+  background: var(--pds-success-bg);
+  color: var(--pds-success);
+}
+
+.pds-btn--icon {
+  width: 44px;
+  padding: 0;
+}
+
+.pds-status {
+  display: none;
+  padding: 13px 14px;
+  border-radius: var(--pds-radius-md);
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.pds-status.is-visible,
+.pds-status.success,
+.pds-status.warning,
+.pds-status.error,
+.pds-status.info {
+  display: block;
+}
+
+.pds-status.success { background: var(--pds-success-bg); color: var(--pds-success); }
+.pds-status.warning { background: var(--pds-warning-bg); color: var(--pds-warning); }
+.pds-status.error { background: var(--pds-danger-bg); color: var(--pds-danger); }
+.pds-status.info { background: var(--pds-info-bg); color: var(--pds-info); }
+
+.pds-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 5px 9px;
+  border-radius: var(--pds-radius-pill);
+  background: var(--pds-surface-muted);
+  color: var(--pds-text-secondary);
+  font-size: var(--pds-font-size-xs);
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.pds-badge--primary { background: var(--pds-primary-light); color: var(--pds-primary-dark); }
+.pds-badge--success { background: var(--pds-success-bg); color: var(--pds-success); }
+.pds-badge--warning { background: var(--pds-warning-bg); color: var(--pds-warning); }
+.pds-badge--danger { background: var(--pds-danger-bg); color: var(--pds-danger); }
+
+.pds-tabs {
+  display: inline-flex;
+  gap: 8px;
+  padding: 6px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.pds-tab {
+  min-height: 42px;
+  border: 0;
+  border-radius: 12px;
+  padding: 0 14px;
+  background: transparent;
+  color: #334155;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.pds-tab[aria-selected="true"],
+.pds-tab.active {
+  background: var(--pds-primary);
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(15, 118, 110, 0.18);
+}
+
+.pds-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.pds-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.pds-table th,
+.pds-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.pds-table th {
+  background: var(--pds-surface-subtle);
+  color: var(--pds-muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.pds-empty-state {
+  padding: 28px;
+  border: 1px dashed var(--pds-border-strong);
+  border-radius: var(--pds-radius-lg);
+  background: var(--pds-surface-subtle);
+  color: var(--pds-muted);
+  text-align: center;
+}
+
+.pds-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: none;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.pds-overlay.open {
+  display: block;
+}
+
+.pds-modal {
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  margin: 24px auto;
+  overflow: hidden;
+  border-radius: var(--pds-radius-xl);
+  background: var(--pds-surface);
+  box-shadow: var(--pds-shadow-modal);
+}
+
+.pds-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: min(480px, 100vw);
+  height: 100dvh;
+  background: var(--pds-surface);
+  box-shadow: -24px 0 70px rgba(15, 23, 42, 0.24);
+}
+
+@media (max-width: 680px) {
+  .pds-toolbar,
+  .pds-tabs {
+    width: 100%;
+  }
+
+  .pds-tabs {
+    flex-direction: column;
+  }
+
+  .pds-btn {
+    min-height: 46px;
+  }
+}

@@ -1,0 +1,165 @@
+/* ICT Resource Booking Portal — Portal Design System
+   File: portal-theme.css
+   Version: 1.0.0
+   Layer: Theme / tokens / global foundations
+*/
+
+:root {
+  color-scheme: light;
+
+  --pds-primary: #0f766e;
+  --pds-primary-hover: #115e59;
+  --pds-primary-dark: #115e59;
+  --pds-primary-light: #ccfbf1;
+  --pds-primary-soft: #f0fdfa;
+
+  --pds-text: #0f172a;
+  --pds-text-secondary: #334155;
+  --pds-muted: #64748b;
+  --pds-border: #dbe4ee;
+  --pds-border-strong: #cbd5e1;
+  --pds-surface: #ffffff;
+  --pds-surface-subtle: #f8fafc;
+  --pds-surface-muted: #f1f5f9;
+  --pds-canvas: #f8fafc;
+
+  --pds-success: #166534;
+  --pds-success-bg: #dcfce7;
+  --pds-warning: #92400e;
+  --pds-warning-bg: #fef3c7;
+  --pds-danger: #dc2626;
+  --pds-danger-dark: #b91c1c;
+  --pds-danger-bg: #fee2e2;
+  --pds-info: #1d4ed8;
+  --pds-info-bg: #dbeafe;
+
+  --pds-font-family: Arial, Helvetica, sans-serif;
+  --pds-font-size-xs: 0.75rem;
+  --pds-font-size-sm: 0.875rem;
+  --pds-font-size-md: 1rem;
+  --pds-font-size-lg: 1.125rem;
+  --pds-font-size-xl: 1.35rem;
+  --pds-font-size-2xl: clamp(1.65rem, 3vw, 2.35rem);
+
+  --pds-line-tight: 1.15;
+  --pds-line-normal: 1.45;
+  --pds-line-relaxed: 1.65;
+
+  --pds-space-1: 0.25rem;
+  --pds-space-2: 0.5rem;
+  --pds-space-3: 0.75rem;
+  --pds-space-4: 1rem;
+  --pds-space-5: 1.25rem;
+  --pds-space-6: 1.5rem;
+  --pds-space-7: 1.75rem;
+  --pds-space-8: 2rem;
+  --pds-space-10: 2.5rem;
+  --pds-space-12: 3rem;
+
+  --pds-radius-sm: 10px;
+  --pds-radius-md: 14px;
+  --pds-radius-lg: 18px;
+  --pds-radius-xl: 22px;
+  --pds-radius-pill: 999px;
+
+  --pds-shadow-subtle: 0 8px 22px rgba(15, 23, 42, 0.045);
+  --pds-shadow-card: 0 18px 45px rgba(15, 23, 42, 0.08);
+  --pds-shadow-overlay: 0 22px 55px rgba(15, 23, 42, 0.16);
+  --pds-shadow-modal: 0 30px 80px rgba(15, 23, 42, 0.28);
+
+  --pds-transition-fast: 140ms ease;
+  --pds-transition: 200ms ease;
+
+  --pds-shell-max: 1280px;
+  --pds-content-max: 1120px;
+  --pds-page-gutter: 18px;
+
+  /* Legacy compatibility aliases during migration */
+  --primary: var(--pds-primary);
+  --primary-dark: var(--pds-primary-dark);
+  --primary-light: var(--pds-primary-light);
+  --text: var(--pds-text);
+  --muted: var(--pds-muted);
+  --border: var(--pds-border);
+  --card: var(--pds-surface);
+  --danger: var(--pds-danger);
+  --warning: var(--pds-warning);
+  --success: var(--pds-success);
+  --shadow: var(--pds-shadow-card);
+  --radius: var(--pds-radius-xl);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  background: var(--pds-canvas);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--pds-font-family);
+  font-size: var(--pds-font-size-md);
+  line-height: var(--pds-line-normal);
+  color: var(--pds-text);
+  background: linear-gradient(135deg, #ecfeff 0%, #f8fafc 48%, #eef2ff 100%);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+}
+
+img,
+svg {
+  max-width: 100%;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+:focus-visible {
+  outline: 3px solid rgba(15, 118, 110, 0.32);
+  outline-offset: 2px;
+}
+
+.pds-sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+@media (max-width: 520px) {
+  :root {
+    --pds-page-gutter: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
