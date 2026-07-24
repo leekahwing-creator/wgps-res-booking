@@ -2560,6 +2560,49 @@ function findRegisteredResourceMatch(resourceText) {
   return null;
 }
 
+function findRegisteredDeviceResourceMatches(resourceText) {
+  const deviceItems = splitLegacyResourceItems(resourceText)
+    .filter(item => legacyResourceItemIsDevice(item));
+
+  const resolvedItems = deviceItems.map(item => {
+    const match = findRegisteredResourceMatch(item);
+    const resource = match?.resource;
+    const validDeviceMatch = resource && resource.category !== "Accessory";
+    const quantity = validDeviceMatch
+      ? extractQuantityFromLegacyResourceItem(item, Number(resource.capacity) || 0)
+      : extractQuantityFromLegacyResourceItem(item, 0);
+
+    return {
+      sourceText: item,
+      matched: Boolean(validDeviceMatch),
+      resource: validDeviceMatch ? resource : null,
+      resourceId: validDeviceMatch ? String(resource.id || "") : "",
+      resourceName: validDeviceMatch ? String(resource.name || "") : "",
+      quantity,
+      resolution: validDeviceMatch ? String(match.resolution || "") : "No registered resource match"
+    };
+  });
+
+  const deduplicated = [];
+  const seenResourceIds = new Set();
+  resolvedItems.forEach(item => {
+    if (!item.resourceId) {
+      deduplicated.push(item);
+      return;
+    }
+    if (seenResourceIds.has(item.resourceId)) return;
+    seenResourceIds.add(item.resourceId);
+    deduplicated.push(item);
+  });
+
+  return {
+    deviceItemCount: deviceItems.length,
+    resolvedCount: deduplicated.filter(item => item.matched).length,
+    unresolvedItems: deduplicated.filter(item => !item.matched).map(item => item.sourceText),
+    items: deduplicated
+  };
+}
+
 function extractLegacyDeviceQuantityFromResource(resourceText, fallback = 1) {
   const text = normaliseImportValue(resourceText);
   if (!text) return fallback;
@@ -2667,10 +2710,14 @@ function inferLegacyResource(resourceText) {
     deviceType: "",
     devicesRequired: 0,
     matchedResourceId: "",
+    matchedResourceIds: [],
+    matchedLegacyResources: [],
     matchedResourceName: "",
     matchedResourceCategory: "",
     matchedResourceFulfilmentMode: "Deployment",
     matchedResourceDeploymentRequired: true,
+    canonicalResourceResolutionIncomplete: false,
+    canonicalResourceResolutionMessage: "",
     resourceResolution: "",
     accessoryResources: [],
     softwareRequirement: "None",
@@ -2686,8 +2733,8 @@ function inferLegacyResource(resourceText) {
 
   const nonIctPatterns = [
     /library\s*visits?/,
-    /\blibrary\b/,
-    /\bmrl\b/,
+    /library/,
+    /mrl/,
     /meeting\s*room/,
     /conference\s*room/,
     /seminar\s*room/,
@@ -2695,8 +2742,8 @@ function inferLegacyResource(resourceText) {
     /training\s*room/,
     /computer\s*lab/,
     /science\s*lab/,
-    /\blab\s*[0-9a-z]?\b/,
-    /\bhall\b/,
+    /lab\s*[0-9a-z]?/,
+    /hall/,
     /auditorium/,
     /classroom\s*visit/
   ];
@@ -2708,30 +2755,79 @@ function inferLegacyResource(resourceText) {
     return result;
   }
 
-  const registeredMatch = findRegisteredResourceMatch(resourceText);
-  if (registeredMatch?.resource) {
-    const resource = registeredMatch.resource;
-    result.isICT = true;
-    result.deviceType = resource.category === "Accessory" ? "" : resource.deviceType;
-    result.devicesRequired = Number(resource.capacity) || 1;
-    result.matchedResourceId = resource.id || "";
-    result.matchedResourceName = resource.name || "";
-    result.matchedResourceCategory = resource.category || "";
-    result.matchedResourceFulfilmentMode = normaliseFulfilmentMode(resource.fulfilmentMode || resource.fulfillmentMode, resource);
-    result.matchedResourceDeploymentRequired = resourceRequiresDeployment(resource);
-    result.resourceResolution = registeredMatch.resolution;
+  const deviceMatches = findRegisteredDeviceResourceMatches(resourceText);
 
-    if (resource.category === "Accessory") {
-      result.accessoryResources.push({ type: resource.deviceType, quantity: Number(resource.capacity) || 1 });
+  if (deviceMatches.deviceItemCount > 1) {
+    const resolved = deviceMatches.items.filter(item => item.matched);
+    result.isICT = true;
+
+    if (resolved.length > 0) {
+      const deviceTypes = Array.from(new Set(resolved.map(item => item.resource.deviceType).filter(Boolean)));
+      result.deviceType = deviceTypes.length === 1 ? deviceTypes[0] : "";
+      result.matchedResourceIds = resolved.map(item => item.resourceId);
+      result.matchedResourceId = resolved.length === 1 ? resolved[0].resourceId : "";
+      result.matchedLegacyResources = resolved.map(item => ({
+        resourceId: item.resourceId,
+        resourceName: item.resourceName,
+        quantity: Number(item.quantity || item.resource.capacity || 0),
+        capacity: Number(item.resource.capacity || 0),
+        resolution: item.resolution
+      }));
+      result.matchedResourceName = resolved.map(item => item.resourceName).join(", ");
+      result.matchedResourceCategory = "Device";
+      result.devicesRequired = result.matchedLegacyResources.reduce(
+        (sum, item) => sum + Number(item.quantity || item.capacity || 0),
+        0
+      );
+
+      const fulfilmentModes = Array.from(new Set(resolved.map(item =>
+        normaliseFulfilmentMode(item.resource.fulfilmentMode || item.resource.fulfillmentMode, item.resource)
+      )));
+      result.matchedResourceFulfilmentMode = fulfilmentModes.length === 1 ? fulfilmentModes[0] : "Deployment";
+      result.matchedResourceDeploymentRequired = resolved.some(item => resourceRequiresDeployment(item.resource));
     }
-  } else if (/ipad/.test(text)) {
-    result.isICT = true;
-    result.deviceType = /keyboard/.test(text) ? "iPad with Keyboard" : "iPad";
-    result.resourceResolution = "Generic device type detected; no registered resource name matched";
-  } else if (/laptop|notebook|chromebook/.test(text)) {
-    result.isICT = true;
-    result.deviceType = "Laptop";
-    result.resourceResolution = "Generic device type detected; no registered resource name matched";
+
+    if (deviceMatches.resolvedCount !== deviceMatches.deviceItemCount || !result.deviceType) {
+      result.canonicalResourceResolutionIncomplete = true;
+      result.canonicalResourceResolutionMessage = `Canonical resource resolution incomplete: ${deviceMatches.resolvedCount} of ${deviceMatches.deviceItemCount} device resources matched${deviceMatches.unresolvedItems.length ? `; unresolved: ${deviceMatches.unresolvedItems.join(", ")}` : ""}.`;
+      result.resourceResolution = result.canonicalResourceResolutionMessage;
+    } else {
+      result.resourceResolution = `Canonical physical resource set matched (${result.matchedResourceIds.join(", ")})`;
+    }
+  } else {
+    const registeredMatch = findRegisteredResourceMatch(resourceText);
+    if (registeredMatch?.resource) {
+      const resource = registeredMatch.resource;
+      result.isICT = true;
+      result.deviceType = resource.category === "Accessory" ? "" : resource.deviceType;
+      result.devicesRequired = Number(resource.capacity) || 1;
+      result.matchedResourceId = resource.id || "";
+      result.matchedResourceIds = resource.category === "Accessory" ? [] : [resource.id || ""].filter(Boolean);
+      result.matchedLegacyResources = resource.category === "Accessory" ? [] : [{
+        resourceId: resource.id || "",
+        resourceName: resource.name || "",
+        quantity: Number(resource.capacity) || 1,
+        capacity: Number(resource.capacity) || 0,
+        resolution: registeredMatch.resolution
+      }];
+      result.matchedResourceName = resource.name || "";
+      result.matchedResourceCategory = resource.category || "";
+      result.matchedResourceFulfilmentMode = normaliseFulfilmentMode(resource.fulfilmentMode || resource.fulfillmentMode, resource);
+      result.matchedResourceDeploymentRequired = resourceRequiresDeployment(resource);
+      result.resourceResolution = registeredMatch.resolution;
+
+      if (resource.category === "Accessory") {
+        result.accessoryResources.push({ type: resource.deviceType, quantity: Number(resource.capacity) || 1 });
+      }
+    } else if (/ipad/.test(text)) {
+      result.isICT = true;
+      result.deviceType = /keyboard/.test(text) ? "iPad with Keyboard" : "iPad";
+      result.resourceResolution = "Generic device type detected; no registered resource name matched";
+    } else if (/laptop|notebook|chromebook/.test(text)) {
+      result.isICT = true;
+      result.deviceType = "Laptop";
+      result.resourceResolution = "Generic device type detected; no registered resource name matched";
+    }
   }
 
   const legacyResourceAccessories = inferLegacyAccessoriesFromResourceText(resourceText);
@@ -2745,7 +2841,7 @@ function inferLegacyResource(resourceText) {
   }
 
   const unknownIctPatterns = [
-    /\bswivl\b/,
+    /swivl/,
     /visuali[sz]er/,
     /camera/,
     /tripod/,
@@ -3370,6 +3466,10 @@ function mapLegacyBookingRow(row, index, users) {
     errors.push(legacyResourceInference.reason);
   }
 
+  if (legacyResourceInference.canonicalResourceResolutionIncomplete) {
+    warnings.push(legacyResourceInference.canonicalResourceResolutionMessage);
+  }
+
   if (!bookingDate) errors.push("Booking date is required.");
   if (!startTime) errors.push("Start time is required.");
   if (!endTime) errors.push("End time is required.");
@@ -3426,6 +3526,12 @@ function mapLegacyBookingRow(row, index, users) {
     legacyResourceSegmentLabel: row.__legacyResourceSegment ? `Resource ${row.__legacyResourceSegment.segmentIndex} of ${row.__legacyResourceSegment.segmentTotal}` : "",
     legacyResourceText,
     matchedResourceId: legacyResourceInference.matchedResourceId || "",
+    matchedResourceIds: {
+      resourceId: toArray(legacyResourceInference.matchedResourceIds).filter(Boolean)
+    },
+    matchedLegacyResources: {
+      resource: toArray(legacyResourceInference.matchedLegacyResources)
+    },
     matchedResourceName: legacyResourceInference.matchedResourceName || "",
     matchedResourceCategory: legacyResourceInference.matchedResourceCategory || "",
     matchedResourceFulfilmentMode: legacyResourceInference.matchedResourceFulfilmentMode || fulfilmentMode,
@@ -3854,7 +3960,8 @@ function classifyImportDecision(row = {}) {
     /custom descriptive location/i,
     /no location detected/i,
     /unknown device/i,
-    /no device/i
+    /no device/i,
+    /canonical resource resolution incomplete/i
   ];
 
   const reviewReasons = warnings.filter(warning => reviewPatterns.some(pattern => pattern.test(warning)));
@@ -4056,6 +4163,15 @@ function saveImportedBooking(mappedBooking, importerUser) {
 
   let allocationResult = allocateResources(bookingRequest);
   let reallocationUpdates = [];
+
+  if (allocationResult.canonicalSetFailure) {
+    return {
+      skipped: true,
+      reason: "Canonical legacy resource set could not be preserved at commit time.",
+      canonicalSetFailure: allocationResult.canonicalSetFailure,
+      importRowNumber: bookingRequest.importRowNumber
+    };
+  }
 
   if (allocationResult.status !== "Confirmed") {
     const conflictResolution = resolveConflict(bookingRequest);

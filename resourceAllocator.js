@@ -225,6 +225,22 @@ function buildAllocationBlock(selectedResources, method = "Automatic Allocation"
   };
 }
 
+function normalisePreferredResourceIds(bookingRequest = {}) {
+  const candidates = [
+    bookingRequest.matchedResourceIds,
+    bookingRequest.preferredResourceIds,
+    bookingRequest.matchedResourceId,
+    bookingRequest.preferredResourceId
+  ];
+
+  const ids = candidates
+    .flatMap(value => toArray(value?.resourceId || value))
+    .map(value => String(value || "").trim())
+    .filter(Boolean);
+
+  return Array.from(new Set(ids));
+}
+
 function selectResourcesForRequest(allResources, usedResourceIds, predicate, quantityRequired) {
   const availableResources = allResources
     .filter(resource => resource.status === "Available")
@@ -248,33 +264,60 @@ function allocateResources(bookingRequest) {
   const bookedResourceIds = getBookedResourceIds(bookingRequest);
   const usedResourceIds = new Set(bookedResourceIds);
   const additionalRequests = normaliseAdditionalResources(bookingRequest.additionalResources);
-
-  const preferredResourceId = String(
-    bookingRequest.matchedResourceId || bookingRequest.preferredResourceId || ""
-  ).trim();
+  const preferredResourceIds = normalisePreferredResourceIds(bookingRequest);
+  const hasCanonicalPreference = preferredResourceIds.length > 0;
 
   let selectedDeviceResources = [];
+  let canonicalSetFailure = null;
 
-  // ADR-027: preserve a specifically identified legacy physical resource when
-  // it remains available, compatible and large enough for the request. The
-  // Journey Engine reservation state above remains authoritative.
-  if (preferredResourceId && !usedResourceIds.has(preferredResourceId)) {
-    const preferredResource = allResources.find(resource =>
-      String(resource.id || "") === preferredResourceId &&
-      resource.status === "Available" &&
-      normaliseResourceCategory(resource) !== "Accessory" &&
-      resource.deviceType === bookingRequest.deviceType &&
-      resourceSupportsSoftware(resource, bookingRequest.softwareRequirements || bookingRequest.softwareRequirement) &&
-      resourceSupportsAdditionalResources(resource, additionalRequests)
+  // HF-001 / ADR-027: preserve the complete explicitly identified legacy
+  // physical-resource set atomically. Never silently retain only a subset.
+  if (hasCanonicalPreference) {
+    const preferredResources = preferredResourceIds
+      .map(resourceId => allResources.find(resource => String(resource.id || "") === resourceId))
+      .filter(Boolean);
+
+    const missingResourceIds = preferredResourceIds.filter(resourceId =>
+      !preferredResources.some(resource => String(resource.id || "") === resourceId)
     );
 
-    if (preferredResource && Number(preferredResource.capacity || 0) >= Number(bookingRequest.devicesRequired)) {
-      selectedDeviceResources = [preferredResource];
-      usedResourceIds.add(preferredResourceId);
+    const incompatibleResourceIds = preferredResources
+      .filter(resource =>
+        resource.status !== "Available" ||
+        normaliseResourceCategory(resource) === "Accessory" ||
+        resource.deviceType !== bookingRequest.deviceType ||
+        !resourceSupportsSoftware(resource, bookingRequest.softwareRequirements || bookingRequest.softwareRequirement) ||
+        !resourceSupportsAdditionalResources(resource, additionalRequests)
+      )
+      .map(resource => String(resource.id || ""));
+
+    const reservedResourceIds = preferredResourceIds.filter(resourceId => usedResourceIds.has(resourceId));
+    const preferredCapacity = preferredResources.reduce(
+      (total, resource) => total + Number(resource.capacity || 0),
+      0
+    );
+
+    if (
+      missingResourceIds.length === 0 &&
+      incompatibleResourceIds.length === 0 &&
+      reservedResourceIds.length === 0 &&
+      preferredCapacity >= Number(bookingRequest.devicesRequired)
+    ) {
+      selectedDeviceResources = preferredResources;
+      selectedDeviceResources.forEach(resource => usedResourceIds.add(String(resource.id)));
+    } else {
+      canonicalSetFailure = {
+        requestedResourceIds: preferredResourceIds,
+        missingResourceIds,
+        incompatibleResourceIds,
+        reservedResourceIds,
+        requestedQuantity: Number(bookingRequest.devicesRequired),
+        availableCanonicalCapacity: preferredCapacity
+      };
     }
   }
 
-  if (selectedDeviceResources.length === 0) {
+  if (!hasCanonicalPreference && selectedDeviceResources.length === 0) {
     selectedDeviceResources = selectResourcesForRequest(
       allResources,
       usedResourceIds,
@@ -287,8 +330,11 @@ function allocateResources(bookingRequest) {
     );
   }
 
-  const deviceAllocation = buildAllocationBlock(selectedDeviceResources);
-  const deviceCanFulfil =
+  const deviceAllocation = buildAllocationBlock(
+    selectedDeviceResources,
+    hasCanonicalPreference ? "Canonical Legacy Resource Allocation" : "Automatic Allocation"
+  );
+  const deviceCanFulfil = !canonicalSetFailure &&
     Number(deviceAllocation.totalAllocatedCapacity) >= Number(bookingRequest.devicesRequired);
 
   const additionalAllocations = additionalRequests.map(request => {
@@ -312,16 +358,16 @@ function allocateResources(bookingRequest) {
   });
 
   const accessoriesCanFulfil = additionalAllocations.every(item => item.fulfilled !== false);
+  const confirmed = deviceCanFulfil && accessoriesCanFulfil;
 
   return {
-    status: deviceCanFulfil && accessoriesCanFulfil ? "Confirmed" : "Unable to Fulfil",
+    status: confirmed ? "Confirmed" : "Unable to Fulfil",
+    canonicalSetFailure,
     allocation: {
       ...deviceAllocation,
-      allocationMethod: deviceCanFulfil && accessoriesCanFulfil
-        ? (preferredResourceId && selectedDeviceResources.some(resource => String(resource.id || "") === preferredResourceId)
-            ? "Canonical Legacy Resource Allocation"
-            : "Automatic Allocation")
-        : "Partial Allocation",
+      allocationMethod: confirmed
+        ? (hasCanonicalPreference ? "Canonical Legacy Resource Allocation" : "Automatic Allocation")
+        : (canonicalSetFailure ? "Canonical Legacy Resource Allocation Unavailable" : "Partial Allocation"),
       additionalResources: {
         resource: additionalAllocations
       }
