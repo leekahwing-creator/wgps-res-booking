@@ -204,3 +204,89 @@
   .pds-migrated .mobile-workspace-panel { display:grid; gap:8px; padding-bottom:10px; border-bottom:1px solid #e2e8f0; }
   .pds-migrated .mobile-workspace-panel .workspace-select-shell { width:100%; }
 }
+
+
+/* Release 1.5B HF1 — Registry restoration and navigation hardening */
+.portal-nav-v2:not(.nav-ready) .nav-main > *,
+.portal-nav-v2:not(.nav-ready) .mobile-drawer-links > *,
+.portal-nav-v2:not(.nav-ready) .more-dropdown { display: none !important; }
+
+.portal-nav-v2.nav-initializing .nav-main::before,
+.portal-nav-v2:not(.nav-ready):not(.nav-failed) .nav-main::before {
+  content: "Loading navigation…";
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: .82rem;
+  font-weight: 800;
+}
+
+.portal-nav-v2 .portal-nav-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  background: #fff7f7;
+  color: #b91c1c;
+  font-size: .82rem;
+  font-weight: 850;
+}
+
+.portal-nav-v2.nav-ready .nav-main::before { content: none !important; display: none !important; }
+.portal-nav-v2.nav-ready .more-dropdown,
+.portal-nav-v2.nav-ready .more-menu,
+.portal-nav-v2.nav-ready .desktop-extra,
+.portal-nav-v2.nav-ready [data-role-link],
+.portal-nav-v2.nav-ready [data-mobile-role-link] { display: none !important; }
+
+.portal-nav-v2 {
+  grid-template-columns: minmax(280px, 1fr) minmax(300px, 420px) minmax(340px, 1fr);
+  column-gap: clamp(22px, 2.4vw, 42px);
+}
+.portal-nav-v2 .nav-brand { justify-self: start; }
+.portal-nav-v2 .nav-main { justify-self: center; width: 100%; }
+.portal-nav-v2 .nav-user-zone { justify-self: end; }
+
+.global-workspace-control {
+  width: 100%;
+  grid-template-columns: auto minmax(190px, 1fr);
+  column-gap: 14px;
+}
+.workspace-switcher-label {
+  font-size: .74rem;
+  letter-spacing: .045em;
+  text-transform: uppercase;
+}
+.workspace-select-shell,
+.workspace-select { width: 100%; min-width: 0; }
+
+.portal-workspace-nav,
+.portal-header-subnav {
+  margin-top: 16px;
+  padding-top: 11px;
+  padding-bottom: 11px;
+  background: linear-gradient(180deg, #f0fdfa 0%, #f8fafc 100%);
+  border-top-color: #cde9e5;
+}
+.portal-workspace-nav .workspace-page-links { gap: 8px; }
+.portal-workspace-nav .nav-link {
+  min-height: 42px;
+  padding: 0 15px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+}
+.portal-workspace-nav .nav-link:not(.active):hover {
+  border-color: #bfe4df;
+  background: #e8f7f5;
+}
+
+@media (max-width: 1180px) and (min-width: 901px) {
+  .portal-nav-v2 { grid-template-columns: minmax(220px, 1fr) minmax(260px, 340px) minmax(280px, 1fr); }
+}

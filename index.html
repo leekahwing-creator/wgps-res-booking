@@ -2285,14 +2285,14 @@
 </style>
 
   <!-- R1.5B Portal Design System: load after page-local legacy styles so shared layers own the shell. -->
-  <link rel="stylesheet" href="portal-theme.css?v=1.5b.0" />
-  <link rel="stylesheet" href="portal-components.css?v=1.5b.0" />
-  <link rel="stylesheet" href="portal-shell.css?v=1.5b.0" />
-  <link rel="stylesheet" href="portal-workspaces.css?v=1.5b.0" />
+  <link rel="stylesheet" href="portal-theme.css?v=1.5b.hf1" />
+  <link rel="stylesheet" href="portal-components.css?v=1.5b.hf1" />
+  <link rel="stylesheet" href="portal-shell.css?v=1.5b.hf1" />
+  <link rel="stylesheet" href="portal-workspaces.css?v=1.5b.hf1" />
 </head>
-<body class="portal-app pds-migrated" data-pds-release="1.5B">
+<body class="portal-app pds-migrated" data-pds-release="1.5B-HF1">
   <main class="page">
-    <nav class="portal-nav portal-nav-v2" aria-label="Portal navigation">
+    <nav class="portal-nav portal-nav-v2 nav-initializing" aria-label="Portal navigation" aria-busy="true">
       <button id="mobileMenuButton" class="mobile-menu-button" type="button" aria-label="Open navigation menu">☰</button>
 
       <a class="nav-brand" href="index.html" aria-label="ICT Resource Booking Portal home">
@@ -2575,7 +2575,8 @@
     </section>
   </main>
 
-  <script src="portalNavigation.js?v=1.5b.0"></script>
+  <script src="portalRegistry.js?v=1.5b.hf1"></script>
+  <script src="portalNavigation.js?v=1.5b.hf1"></script>
   <script src="bookingAdvisor.js"></script>
   <script>
 

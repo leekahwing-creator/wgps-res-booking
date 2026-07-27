@@ -21,9 +21,26 @@
 
   let currentContext = null;
 
-  function requireRegistry() {
+  function setFailureState(nav, message) {
+    if (!nav) return;
+    nav.classList.remove(CLASSNAMES.ready);
+    nav.classList.add('nav-failed');
+    nav.setAttribute('aria-busy', 'false');
+    const host = nav.querySelector(SELECTORS.desktopHost);
+    if (host) {
+      host.replaceChildren();
+      const notice = document.createElement('span');
+      notice.className = 'portal-nav-status';
+      notice.setAttribute('role', 'status');
+      notice.textContent = message || 'Navigation unavailable';
+      host.appendChild(notice);
+    }
+  }
+
+  function requireRegistry(nav) {
     if (!window.PortalRegistry) {
       console.error('PortalRegistry is required before portalNavigation.js.');
+      setFailureState(nav, 'Navigation unavailable');
       return false;
     }
     return true;
@@ -243,7 +260,15 @@
 
   function configurePortalNavigation(user, activePage, options) {
     const nav = document.querySelector((options && options.navigationSelector) || SELECTORS.navigation);
-    if (!nav || !user || !requireRegistry()) return null;
+    if (!nav || !user || !requireRegistry(nav)) return null;
+
+    nav.classList.remove('nav-failed');
+    nav.classList.add('nav-initializing');
+    nav.setAttribute('aria-busy', 'true');
+    nav.querySelectorAll('.more-dropdown, .more-menu, [data-role-link], [data-mobile-role-link]').forEach(element => {
+      if (!element.closest('.mobile-drawer-links') && !element.closest('.nav-main')) return;
+      element.hidden = true;
+    });
 
     const role = window.PortalRegistry.normalizeRole(user.role);
     const workspaces = window.PortalRegistry.getAccessibleWorkspaces(role);
@@ -269,7 +294,9 @@
     nav.dataset.portalWorkspace = currentWorkspace.id;
     nav.dataset.portalWorkspaceCount = String(workspaces.length);
     nav.classList.remove('nav-compact');
+    nav.classList.remove('nav-initializing');
     nav.classList.add('nav-two-tier', CLASSNAMES.ready);
+    nav.setAttribute('aria-busy', 'false');
 
     currentContext = Object.freeze({ user, activePage, role, workspaces, currentWorkspace, nav, workspaceNavigation });
     synchronizeShell(user, activePage, role, currentWorkspace);
