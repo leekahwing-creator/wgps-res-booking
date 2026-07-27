@@ -1,0 +1,25 @@
+/* ICT Resource Booking Portal — Release 1.5B
+   File: portal-workspaces.css
+   Version: 1.0.0
+   Ownership: spacing boundary between persistent shell and workspace content.
+*/
+
+.pds-migrated .portal-nav-v2 + * { margin-top: 0; }
+.pds-migrated .hero,
+.pds-migrated .card,
+.pds-migrated .aum-shell { position: relative; z-index: 1; }
+
+/* Keep workspace content visually distinct from persistent application chrome. */
+.pds-migrated .hero,
+.pds-migrated .aum-shell,
+.pds-migrated main.page > .card { scroll-margin-top: 24px; }
+
+/* Deployment and Administration pages use a wider canvas than Booking. */
+.pds-migrated:has(.command-centre) .page,
+.pds-migrated:has(.aum-shell) .page { --pds-shell-max: 1760px; }
+
+@media (max-width: 900px) {
+  .pds-migrated .hero,
+  .pds-migrated .aum-shell,
+  .pds-migrated main.page > .card { scroll-margin-top: 16px; }
+}

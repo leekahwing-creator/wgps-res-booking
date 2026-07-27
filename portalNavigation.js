@@ -1,7 +1,7 @@
 (function (window, document) {
   'use strict';
 
-  const VERSION = '2.1.2-hf2';
+  const VERSION = '2.2.0-r15b';
   const SELECTORS = Object.freeze({
     navigation: '.portal-nav-v2, [data-portal-navigation]',
     desktopHost: '.nav-main, [data-portal-workspace-control]',
@@ -46,15 +46,6 @@
     if (nav) nav.classList.remove(CLASSNAMES.mobileOpen);
   }
 
-  function closeAllWorkspaceMenus(except) {
-    document.querySelectorAll('.workspace-picker.is-open').forEach(picker => {
-      if (picker === except) return;
-      picker.classList.remove('is-open');
-      const button = picker.querySelector('.workspace-picker-button');
-      if (button) button.setAttribute('aria-expanded', 'false');
-    });
-  }
-
   function createPageLink(page, activePage, role, mobile) {
     const link = document.createElement('a');
     link.href = page.href;
@@ -77,76 +68,29 @@
     return link;
   }
 
-  function createWorkspacePicker(workspaces, selectedWorkspaceId, role, className) {
-    const picker = document.createElement('div');
-    picker.className = `workspace-picker${className ? ` ${className}` : ''}`;
+  function createWorkspaceSelect(workspaces, selectedWorkspaceId, role, className) {
+    const shell = document.createElement('span');
+    shell.className = `workspace-select-shell${className ? ` ${className}-shell` : ''}`;
 
-    const selectedWorkspace = workspaces.find(item => item.id === selectedWorkspaceId) || workspaces[0];
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'workspace-picker-button';
-    button.setAttribute('aria-haspopup', 'listbox');
-    button.setAttribute('aria-expanded', 'false');
-    button.innerHTML = `<span class="workspace-picker-value"></span><span class="workspace-picker-chevron" aria-hidden="true"></span>`;
-    button.querySelector('.workspace-picker-value').textContent = selectedWorkspace ? selectedWorkspace.label : '';
-
-    const menu = document.createElement('div');
-    menu.className = 'workspace-picker-menu';
-    menu.setAttribute('role', 'listbox');
-    menu.setAttribute('aria-label', 'Select workspace');
-    menu.tabIndex = -1;
+    const select = document.createElement('select');
+    select.className = `${CLASSNAMES.workspaceSelect}${className ? ` ${className}` : ''}`;
+    select.setAttribute('aria-label', 'Select workspace');
 
     workspaces.forEach(workspace => {
-      const option = document.createElement('button');
-      option.type = 'button';
-      option.className = 'workspace-picker-option';
-      option.dataset.workspaceId = workspace.id;
-      option.setAttribute('role', 'option');
-      option.setAttribute('aria-selected', workspace.id === selectedWorkspaceId ? 'true' : 'false');
-      option.innerHTML = `<span class="workspace-picker-option-icon" aria-hidden="true"></span><span class="workspace-picker-option-label"></span>`;
-      option.querySelector('.workspace-picker-option-icon').textContent = workspace.icon || '•';
-      option.querySelector('.workspace-picker-option-label').textContent = workspace.label;
-      option.addEventListener('click', () => {
-        picker.classList.remove('is-open');
-        button.setAttribute('aria-expanded', 'false');
-        if (workspace.id === selectedWorkspaceId) return;
-        const page = window.PortalRegistry.getLandingPage(role, workspace.id);
-        if (page && page.href) window.location.assign(page.href);
-      });
-      menu.appendChild(option);
+      const option = document.createElement('option');
+      option.value = workspace.id;
+      option.textContent = workspace.label;
+      option.selected = workspace.id === selectedWorkspaceId;
+      select.appendChild(option);
     });
 
-    button.addEventListener('click', event => {
-      event.stopPropagation();
-      const opening = !picker.classList.contains('is-open');
-      closeAllWorkspaceMenus(picker);
-      picker.classList.toggle('is-open', opening);
-      button.setAttribute('aria-expanded', opening ? 'true' : 'false');
-      if (opening) menu.focus({ preventScroll: true });
+    select.addEventListener('change', () => {
+      const page = window.PortalRegistry.getLandingPage(role, select.value);
+      if (page && page.href) window.location.assign(page.href);
     });
 
-    picker.addEventListener('keydown', event => {
-      const options = Array.from(menu.querySelectorAll('.workspace-picker-option'));
-      const activeIndex = options.indexOf(document.activeElement);
-      if (event.key === 'Escape') {
-        picker.classList.remove('is-open');
-        button.setAttribute('aria-expanded', 'false');
-        button.focus();
-      } else if (event.key === 'ArrowDown') {
-        event.preventDefault();
-        if (!picker.classList.contains('is-open')) button.click();
-        const next = activeIndex < 0 ? 0 : Math.min(activeIndex + 1, options.length - 1);
-        options[next] && options[next].focus();
-      } else if (event.key === 'ArrowUp') {
-        event.preventDefault();
-        if (!picker.classList.contains('is-open')) button.click();
-        const next = activeIndex < 0 ? options.length - 1 : Math.max(activeIndex - 1, 0);
-        options[next] && options[next].focus();
-      }
-    });
-
-    picker.append(button, menu);
-    return picker;
+    shell.appendChild(select);
+    return shell;
   }
 
   function determineCurrentWorkspace(workspaces, activePage) {
@@ -179,7 +123,7 @@
     control.className = CLASSNAMES.workspaceControl;
     control.dataset.portalComponent = 'workspace-control';
     control.appendChild(textElement('span', 'workspace-switcher-label', 'Workspace'));
-    control.appendChild(createWorkspacePicker(workspaces, currentWorkspace.id, role));
+    control.appendChild(createWorkspaceSelect(workspaces, currentWorkspace.id, role));
     host.appendChild(control);
   }
 
@@ -209,17 +153,13 @@
 
     if (workspaces.length === 1) bar.classList.add('single-workspace-nav');
 
-    const cue = document.createElement('div');
-    cue.className = 'workspace-nav-cue';
-    cue.innerHTML = '<span class="workspace-nav-cue-icon" aria-hidden="true">▦</span><span>Workspace pages</span>';
-
     const links = document.createElement('div');
     links.className = 'workspace-page-links';
     sortedPages(currentWorkspace).forEach(page => {
       links.appendChild(createPageLink(page, activePage, role, false));
     });
 
-    bar.append(cue, links);
+    bar.appendChild(links);
 
     const mobileDrawer = nav.querySelector('.mobile-drawer, [data-portal-mobile-drawer]');
     if (mobileDrawer) nav.insertBefore(bar, mobileDrawer);
@@ -237,8 +177,9 @@
       const panel = document.createElement('div');
       panel.className = 'mobile-workspace-panel';
       panel.appendChild(textElement('span', 'workspace-switcher-label', 'Workspace'));
-      panel.appendChild(createWorkspacePicker(workspaces, currentWorkspace.id, role, 'mobile-workspace-picker'));
+      panel.appendChild(createWorkspaceSelect(workspaces, currentWorkspace.id, role, 'mobile-workspace-select'));
       host.appendChild(panel);
+      host.appendChild(textElement('div', 'mobile-workspace-heading', currentWorkspace.label));
     }
 
     sortedPages(currentWorkspace).forEach(page => {
@@ -276,16 +217,8 @@
     if (nav.dataset.portalEscapeBound !== 'true') {
       nav.dataset.portalEscapeBound = 'true';
       document.addEventListener('keydown', event => {
-        if (event.key === 'Escape') {
-          closeMobileNavigation(nav);
-          closeAllWorkspaceMenus();
-        }
+        if (event.key === 'Escape') closeMobileNavigation(nav);
       });
-    }
-
-    if (document.documentElement.dataset.portalWorkspacePickerBound !== 'true') {
-      document.documentElement.dataset.portalWorkspacePickerBound = 'true';
-      document.addEventListener('click', () => closeAllWorkspaceMenus());
     }
   }
 
