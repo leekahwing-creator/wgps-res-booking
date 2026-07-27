@@ -1,7 +1,7 @@
 (function (window, document) {
   'use strict';
 
-  const VERSION = '2.0.0';
+  const VERSION = '2.1.0';
   const SELECTORS = Object.freeze({
     navigation: '.portal-nav-v2, [data-portal-navigation]',
     desktopHost: '.nav-main, [data-portal-workspace-control]',
@@ -14,7 +14,6 @@
     workspaceNavigation: 'portal-workspace-nav',
     workspaceControl: 'global-workspace-control',
     workspaceSelect: 'workspace-select',
-    workspacePill: 'workspace-context-pill',
     pageLink: 'nav-link',
     ready: 'nav-ready',
     mobileOpen: 'mobile-open'
@@ -61,7 +60,7 @@
     const icon = textElement('span', 'nav-icon', page.icon || '•');
     icon.setAttribute('aria-hidden', 'true');
     const label = role === 'Admin' && page.adminLabel ? page.adminLabel : page.label;
-    link.append(icon, document.createTextNode(label || page.id));
+    link.append(icon, textElement('span', 'nav-label', label || page.id));
 
     if (mobile) {
       link.addEventListener('click', () => closeMobileNavigation(link.closest(SELECTORS.navigation)));
@@ -102,22 +101,24 @@
     if (!host) return;
     host.replaceChildren();
 
+    const hasMultipleWorkspaces = workspaces.length > 1;
+    nav.classList.toggle('has-workspace-switcher', hasMultipleWorkspaces);
+    nav.classList.toggle('single-workspace', !hasMultipleWorkspaces);
+
+    if (!hasMultipleWorkspaces) {
+      host.hidden = true;
+      host.setAttribute('aria-hidden', 'true');
+      return;
+    }
+
+    host.hidden = false;
+    host.removeAttribute('aria-hidden');
+
     const control = document.createElement('div');
     control.className = CLASSNAMES.workspaceControl;
     control.dataset.portalComponent = 'workspace-control';
-
-    if (role === 'Admin' && workspaces.length > 1) {
-      control.appendChild(textElement('span', 'workspace-switcher-label', 'Workspace'));
-      control.appendChild(createWorkspaceSelect(workspaces, currentWorkspace.id, role));
-    } else {
-      control.appendChild(textElement('span', 'workspace-context-label', 'Workspace'));
-      const pill = document.createElement('span');
-      pill.className = CLASSNAMES.workspacePill;
-      pill.appendChild(textElement('span', '', currentWorkspace.icon || '•'));
-      pill.lastChild.setAttribute('aria-hidden', 'true');
-      pill.appendChild(document.createTextNode(currentWorkspace.label));
-      control.appendChild(pill);
-    }
+    control.appendChild(textElement('span', 'workspace-switcher-label', 'Workspace'));
+    control.appendChild(createWorkspaceSelect(workspaces, currentWorkspace.id, role));
     host.appendChild(control);
   }
 
@@ -127,25 +128,23 @@
     return Array.from(parent.children).find(element => element.matches(SELECTORS.workspaceNavigation)) || null;
   }
 
-  function renderWorkspaceNavigation(nav, role, currentWorkspace, activePage) {
+  function renderWorkspaceNavigation(nav, role, workspaces, currentWorkspace, activePage) {
     const existing = findWorkspaceNavigation(nav);
     if (existing) existing.remove();
 
     const bar = document.createElement('nav');
     bar.className = CLASSNAMES.workspaceNavigation;
     bar.dataset.portalWorkspaceNavigation = 'true';
-    bar.setAttribute('aria-label', `${currentWorkspace.label} workspace navigation`);
+    bar.dataset.workspaceCount = String(workspaces.length);
+    bar.setAttribute('aria-label', `${currentWorkspace.label} navigation`);
 
-    const identity = document.createElement('div');
-    identity.className = 'workspace-identity';
-
-    const icon = textElement('span', 'workspace-icon', currentWorkspace.icon || '•');
-    icon.setAttribute('aria-hidden', 'true');
-    const copy = document.createElement('span');
-    copy.className = 'workspace-copy';
-    copy.appendChild(textElement('span', 'workspace-eyebrow', 'Current workspace'));
-    copy.appendChild(textElement('span', 'workspace-name', currentWorkspace.label));
-    identity.append(icon, copy);
+    if (workspaces.length > 1) {
+      const title = textElement('span', 'workspace-nav-title', currentWorkspace.label);
+      title.setAttribute('aria-hidden', 'true');
+      bar.appendChild(title);
+    } else {
+      bar.classList.add('single-workspace-nav');
+    }
 
     const links = document.createElement('div');
     links.className = 'workspace-page-links';
@@ -153,7 +152,7 @@
       links.appendChild(createPageLink(page, activePage, role, false));
     });
 
-    bar.append(identity, links);
+    bar.appendChild(links);
     nav.insertAdjacentElement('afterend', bar);
     return bar;
   }
@@ -163,15 +162,15 @@
     if (!host) return;
     host.replaceChildren();
 
-    if (role === 'Admin' && workspaces.length > 1) {
+    if (workspaces.length > 1) {
       const panel = document.createElement('div');
       panel.className = 'mobile-workspace-panel';
       panel.appendChild(textElement('span', 'workspace-switcher-label', 'Workspace'));
       panel.appendChild(createWorkspaceSelect(workspaces, currentWorkspace.id, role, 'mobile-workspace-select'));
       host.appendChild(panel);
+      host.appendChild(textElement('div', 'mobile-workspace-heading', currentWorkspace.label));
     }
 
-    host.appendChild(textElement('div', 'mobile-workspace-heading', `${currentWorkspace.label} workspace`));
     sortedPages(currentWorkspace).forEach(page => {
       host.appendChild(createPageLink(page, activePage, role, true));
     });
@@ -246,45 +245,36 @@
     if (redirectIfUnauthorized(role, activePage)) return null;
 
     renderGlobalWorkspaceControl(nav, role, workspaces, currentWorkspace);
-    const workspaceNavigation = renderWorkspaceNavigation(nav, role, currentWorkspace, activePage);
+    const workspaceNavigation = renderWorkspaceNavigation(nav, role, workspaces, currentWorkspace, activePage);
     renderMobileNavigation(nav, role, workspaces, currentWorkspace, activePage);
     updateUserDisplay(nav, user);
     bindResponsiveControls(nav);
 
     const brand = nav.querySelector(SELECTORS.brand);
-    const landing = window.PortalRegistry.getLandingPage(role, role === 'Admin' ? currentWorkspace.id : undefined);
-    if (brand && landing && landing.href) brand.href = landing.href;
+    const landing = window.PortalRegistry.getLandingPage(role, workspaces.length > 1 ? currentWorkspace.id : undefined);
+    if (brand && landing) brand.href = landing.href;
 
     nav.dataset.portalRole = role;
     nav.dataset.portalWorkspace = currentWorkspace.id;
-    nav.dataset.portalNavigationVersion = VERSION;
+    nav.dataset.portalWorkspaceCount = String(workspaces.length);
     nav.classList.remove('nav-compact');
     nav.classList.add('nav-two-tier', CLASSNAMES.ready);
 
-    currentContext = { nav, user, activePage, role, workspaces, currentWorkspace, workspaceNavigation };
+    currentContext = Object.freeze({ user, activePage, role, workspaces, currentWorkspace, nav, workspaceNavigation });
     synchronizeShell(user, activePage, role, currentWorkspace);
-
-    document.dispatchEvent(new CustomEvent('portal:navigation:ready', {
-      detail: { role, activePage, workspace: currentWorkspace }
-    }));
     return currentContext;
   }
 
-  function refresh() {
+  function refresh(options) {
     if (!currentContext) return null;
-    return configurePortalNavigation(currentContext.user, currentContext.activePage);
-  }
-
-  function getContext() {
-    return currentContext;
+    return configurePortalNavigation(currentContext.user, currentContext.activePage, options);
   }
 
   const api = Object.freeze({
     version: VERSION,
     configure: configurePortalNavigation,
     refresh,
-    getContext,
-    closeMobile: () => currentContext && closeMobileNavigation(currentContext.nav)
+    getContext: () => currentContext
   });
 
   window.PortalNavigation = api;
