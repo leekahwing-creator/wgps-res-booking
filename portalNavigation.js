@@ -1,206 +1,56 @@
-(function () {
+(function (window, document) {
   'use strict';
 
-  const STYLE_ID = 'portal-navigation-v2-two-tier-runtime-styles';
-  const WORKSPACE_NAV_CLASS = 'portal-workspace-nav';
+  const VERSION = '2.0.0';
+  const SELECTORS = Object.freeze({
+    navigation: '.portal-nav-v2, [data-portal-navigation]',
+    desktopHost: '.nav-main, [data-portal-workspace-control]',
+    mobileHost: '.mobile-drawer-links, [data-portal-mobile-links]',
+    brand: '.nav-brand, [data-portal-brand]',
+    workspaceNavigation: '.portal-workspace-nav, [data-portal-workspace-navigation]'
+  });
 
-  function ensureRuntimeStyles() {
-    if (document.getElementById(STYLE_ID)) return;
+  const CLASSNAMES = Object.freeze({
+    workspaceNavigation: 'portal-workspace-nav',
+    workspaceControl: 'global-workspace-control',
+    workspaceSelect: 'workspace-select',
+    workspacePill: 'workspace-context-pill',
+    pageLink: 'nav-link',
+    ready: 'nav-ready',
+    mobileOpen: 'mobile-open'
+  });
 
-    const style = document.createElement('style');
-    style.id = STYLE_ID;
-    style.textContent = `
-      /* Portal V2.1 two-tier shell */
-      .portal-nav-v2 {
-        margin-bottom: 10px !important;
-        grid-template-columns: minmax(0, auto) minmax(180px, 1fr) auto !important;
-      }
+  let currentContext = null;
 
-      .portal-nav-v2 .nav-main {
-        justify-content: center !important;
-        overflow: hidden !important;
-      }
+  function requireRegistry() {
+    if (!window.PortalRegistry) {
+      console.error('PortalRegistry is required before portalNavigation.js.');
+      return false;
+    }
+    return true;
+  }
 
-      .portal-nav-v2 .global-workspace-control {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 10px;
-        min-width: 0;
-      }
+  function textElement(tag, className, text) {
+    const element = document.createElement(tag);
+    if (className) element.className = className;
+    element.textContent = text == null ? '' : String(text);
+    return element;
+  }
 
-      .portal-nav-v2 .workspace-switcher-label,
-      .portal-nav-v2 .workspace-context-label {
-        font-size: 11px;
-        font-weight: 900;
-        letter-spacing: .07em;
-        text-transform: uppercase;
-        color: #475569;
-        white-space: nowrap;
-      }
+  function sortedPages(workspace) {
+    return (workspace && Array.isArray(workspace.pages) ? workspace.pages : [])
+      .slice()
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
+  }
 
-      .portal-nav-v2 .workspace-select {
-        min-width: 165px;
-        max-width: 220px;
-        height: 42px;
-        border: 1px solid rgba(148,163,184,.48);
-        border-radius: 12px;
-        background: rgba(255,255,255,.98);
-        color: #15324a;
-        font: inherit;
-        font-weight: 850;
-        padding: 0 36px 0 12px;
-        cursor: pointer;
-      }
-
-      .portal-nav-v2 .workspace-context-pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        min-height: 42px;
-        padding: 0 14px;
-        border: 1px solid rgba(148,163,184,.35);
-        border-radius: 12px;
-        background: #f8fafc;
-        color: #334155;
-        font-weight: 900;
-        white-space: nowrap;
-      }
-
-      .${WORKSPACE_NAV_CLASS} {
-        display: grid;
-        grid-template-columns: auto minmax(0, 1fr);
-        align-items: center;
-        gap: 18px;
-        width: 100%;
-        margin: 0 0 22px;
-        padding: 11px 16px;
-        border: 1px solid rgba(226,232,240,.95);
-        border-radius: 16px;
-        background: rgba(255,255,255,.86);
-        box-shadow: 0 9px 24px rgba(15,23,42,.045);
-      }
-
-      .${WORKSPACE_NAV_CLASS} .workspace-identity {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        min-width: 0;
-        padding-right: 18px;
-        border-right: 1px solid var(--border, #dbe4ee);
-      }
-
-      .${WORKSPACE_NAV_CLASS} .workspace-icon {
-        width: 34px;
-        height: 34px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        flex: 0 0 auto;
-        border-radius: 11px;
-        background: var(--primary-light, #ccfbf1);
-        color: var(--primary-dark, #115e59);
-        font-weight: 900;
-      }
-
-      .${WORKSPACE_NAV_CLASS} .workspace-copy {
-        display: grid;
-        gap: 1px;
-        min-width: 0;
-      }
-
-      .${WORKSPACE_NAV_CLASS} .workspace-eyebrow {
-        color: #64748b;
-        font-size: .68rem;
-        font-weight: 900;
-        letter-spacing: .07em;
-        text-transform: uppercase;
-      }
-
-      .${WORKSPACE_NAV_CLASS} .workspace-name {
-        color: #0f172a;
-        font-size: .95rem;
-        font-weight: 900;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
-      .${WORKSPACE_NAV_CLASS} .workspace-page-links {
-        display: flex;
-        align-items: center;
-        gap: 7px;
-        min-width: 0;
-        overflow-x: auto;
-        scrollbar-width: thin;
-        padding: 1px 0;
-      }
-
-      .${WORKSPACE_NAV_CLASS} .workspace-page-links .nav-link {
-        flex: 0 0 auto;
-        border: 0;
-        text-decoration: none;
-        color: #334155;
-        font-weight: 900;
-        padding: 10px 12px;
-        border-radius: 12px;
-        background: transparent;
-        display: inline-flex;
-        align-items: center;
-        gap: 7px;
-        line-height: 1;
-        white-space: nowrap;
-        font-size: .88rem;
-      }
-
-      .${WORKSPACE_NAV_CLASS} .workspace-page-links .nav-link:hover,
-      .${WORKSPACE_NAV_CLASS} .workspace-page-links .nav-link.active {
-        background: var(--primary, #0f766e);
-        color: #fff;
-      }
-
-      .portal-nav-v2 .mobile-workspace-panel {
-        display: grid;
-        gap: 8px;
-        padding: 12px 14px 10px;
-        border-bottom: 1px solid rgba(148,163,184,.24);
-      }
-
-      .portal-nav-v2 .mobile-workspace-panel .workspace-select {
-        width: 100%;
-        max-width: none;
-      }
-
-      .portal-nav-v2 .mobile-workspace-heading {
-        padding: 12px 16px 6px;
-        font-size: 12px;
-        font-weight: 900;
-        letter-spacing: .06em;
-        text-transform: uppercase;
-        color: #64748b;
-      }
-
-      @media (max-width: 1100px) and (min-width: 901px) {
-        .portal-nav-v2 .workspace-switcher-label,
-        .portal-nav-v2 .workspace-context-label { display: none; }
-        .portal-nav-v2 .workspace-select { min-width: 145px; max-width: 180px; }
-        .${WORKSPACE_NAV_CLASS} { grid-template-columns: auto minmax(0,1fr); gap: 12px; }
-        .${WORKSPACE_NAV_CLASS} .workspace-identity { padding-right: 12px; }
-      }
-
-      @media (max-width: 900px) {
-        .portal-nav-v2 { margin-bottom: 22px !important; }
-        .portal-nav-v2 .nav-main { display: none !important; }
-        .${WORKSPACE_NAV_CLASS} { display: none !important; }
-      }
-    `;
-    document.head.appendChild(style);
+  function closeMobileNavigation(nav) {
+    if (nav) nav.classList.remove(CLASSNAMES.mobileOpen);
   }
 
   function createPageLink(page, activePage, role, mobile) {
     const link = document.createElement('a');
     link.href = page.href;
-    link.className = 'nav-link';
+    link.className = CLASSNAMES.pageLink;
     link.dataset.page = page.id;
 
     if (page.id === activePage) {
@@ -208,22 +58,20 @@
       link.setAttribute('aria-current', 'page');
     }
 
+    const icon = textElement('span', 'nav-icon', page.icon || '•');
+    icon.setAttribute('aria-hidden', 'true');
     const label = role === 'Admin' && page.adminLabel ? page.adminLabel : page.label;
-    link.innerHTML = `<span class="nav-icon">${page.icon || '•'}</span>${label}`;
+    link.append(icon, document.createTextNode(label || page.id));
 
     if (mobile) {
-      link.addEventListener('click', () => {
-        const nav = link.closest('.portal-nav-v2');
-        if (nav) nav.classList.remove('mobile-open');
-      });
+      link.addEventListener('click', () => closeMobileNavigation(link.closest(SELECTORS.navigation)));
     }
-
     return link;
   }
 
-  function createWorkspaceSelect(workspaces, selectedWorkspaceId, className) {
+  function createWorkspaceSelect(workspaces, selectedWorkspaceId, role, className) {
     const select = document.createElement('select');
-    select.className = `workspace-select${className ? ` ${className}` : ''}`;
+    select.className = `${CLASSNAMES.workspaceSelect}${className ? ` ${className}` : ''}`;
     select.setAttribute('aria-label', 'Select workspace');
 
     workspaces.forEach(workspace => {
@@ -235,109 +83,98 @@
     });
 
     select.addEventListener('change', () => {
-      const page = window.PortalRegistry.getLandingPage('Admin', select.value);
-      if (page && page.href) window.location.href = page.href;
+      const page = window.PortalRegistry.getLandingPage(role, select.value);
+      if (page && page.href) window.location.assign(page.href);
     });
-
     return select;
   }
 
   function determineCurrentWorkspace(workspaces, activePage) {
     const pageMatch = window.PortalRegistry.getPage(activePage);
-    if (pageMatch && workspaces.some(workspace => workspace.id === pageMatch.workspace.id)) {
+    if (pageMatch && pageMatch.workspace && workspaces.some(item => item.id === pageMatch.workspace.id)) {
       return pageMatch.workspace;
     }
     return workspaces[0] || null;
   }
 
   function renderGlobalWorkspaceControl(nav, role, workspaces, currentWorkspace) {
-    const host = nav.querySelector('.nav-main');
+    const host = nav.querySelector(SELECTORS.desktopHost);
     if (!host) return;
-    host.innerHTML = '';
+    host.replaceChildren();
 
     const control = document.createElement('div');
-    control.className = 'global-workspace-control';
+    control.className = CLASSNAMES.workspaceControl;
+    control.dataset.portalComponent = 'workspace-control';
 
     if (role === 'Admin' && workspaces.length > 1) {
-      const label = document.createElement('span');
-      label.className = 'workspace-switcher-label';
-      label.textContent = 'Workspace';
-      control.appendChild(label);
-      control.appendChild(createWorkspaceSelect(workspaces, currentWorkspace.id));
+      control.appendChild(textElement('span', 'workspace-switcher-label', 'Workspace'));
+      control.appendChild(createWorkspaceSelect(workspaces, currentWorkspace.id, role));
     } else {
-      const label = document.createElement('span');
-      label.className = 'workspace-context-label';
-      label.textContent = 'Workspace';
-
+      control.appendChild(textElement('span', 'workspace-context-label', 'Workspace'));
       const pill = document.createElement('span');
-      pill.className = 'workspace-context-pill';
-      pill.innerHTML = `<span aria-hidden="true">${currentWorkspace.icon || '•'}</span>${currentWorkspace.label}`;
-
-      control.appendChild(label);
+      pill.className = CLASSNAMES.workspacePill;
+      pill.appendChild(textElement('span', '', currentWorkspace.icon || '•'));
+      pill.lastChild.setAttribute('aria-hidden', 'true');
+      pill.appendChild(document.createTextNode(currentWorkspace.label));
       control.appendChild(pill);
     }
-
     host.appendChild(control);
   }
 
+  function findWorkspaceNavigation(nav) {
+    const parent = nav.parentElement;
+    if (!parent) return null;
+    return Array.from(parent.children).find(element => element.matches(SELECTORS.workspaceNavigation)) || null;
+  }
+
   function renderWorkspaceNavigation(nav, role, currentWorkspace, activePage) {
-    const existing = nav.parentElement && nav.parentElement.querySelector(`:scope > .${WORKSPACE_NAV_CLASS}`);
+    const existing = findWorkspaceNavigation(nav);
     if (existing) existing.remove();
 
     const bar = document.createElement('nav');
-    bar.className = WORKSPACE_NAV_CLASS;
+    bar.className = CLASSNAMES.workspaceNavigation;
+    bar.dataset.portalWorkspaceNavigation = 'true';
     bar.setAttribute('aria-label', `${currentWorkspace.label} workspace navigation`);
 
     const identity = document.createElement('div');
     identity.className = 'workspace-identity';
-    identity.innerHTML = `
-      <span class="workspace-icon" aria-hidden="true">${currentWorkspace.icon || '•'}</span>
-      <span class="workspace-copy">
-        <span class="workspace-eyebrow">Current workspace</span>
-        <span class="workspace-name">${currentWorkspace.label}</span>
-      </span>
-    `;
+
+    const icon = textElement('span', 'workspace-icon', currentWorkspace.icon || '•');
+    icon.setAttribute('aria-hidden', 'true');
+    const copy = document.createElement('span');
+    copy.className = 'workspace-copy';
+    copy.appendChild(textElement('span', 'workspace-eyebrow', 'Current workspace'));
+    copy.appendChild(textElement('span', 'workspace-name', currentWorkspace.label));
+    identity.append(icon, copy);
 
     const links = document.createElement('div');
     links.className = 'workspace-page-links';
+    sortedPages(currentWorkspace).forEach(page => {
+      links.appendChild(createPageLink(page, activePage, role, false));
+    });
 
-    currentWorkspace.pages
-      .slice()
-      .sort((a, b) => (a.order || 0) - (b.order || 0))
-      .forEach(page => links.appendChild(createPageLink(page, activePage, role, false)));
-
-    bar.appendChild(identity);
-    bar.appendChild(links);
+    bar.append(identity, links);
     nav.insertAdjacentElement('afterend', bar);
+    return bar;
   }
 
   function renderMobileNavigation(nav, role, workspaces, currentWorkspace, activePage) {
-    const host = nav.querySelector('.mobile-drawer-links');
+    const host = nav.querySelector(SELECTORS.mobileHost);
     if (!host) return;
-    host.innerHTML = '';
+    host.replaceChildren();
 
     if (role === 'Admin' && workspaces.length > 1) {
       const panel = document.createElement('div');
       panel.className = 'mobile-workspace-panel';
-
-      const label = document.createElement('span');
-      label.className = 'workspace-switcher-label';
-      label.textContent = 'Workspace';
-
-      panel.appendChild(label);
-      panel.appendChild(createWorkspaceSelect(workspaces, currentWorkspace.id, 'mobile-workspace-select'));
+      panel.appendChild(textElement('span', 'workspace-switcher-label', 'Workspace'));
+      panel.appendChild(createWorkspaceSelect(workspaces, currentWorkspace.id, role, 'mobile-workspace-select'));
       host.appendChild(panel);
     }
 
-    const heading = document.createElement('div');
-    heading.className = 'mobile-workspace-heading';
-    heading.textContent = `${currentWorkspace.label} workspace`;
-    host.appendChild(heading);
-
-    currentWorkspace.pages
-      .slice()
-      .sort((a, b) => (a.order || 0) - (b.order || 0))
-      .forEach(page => host.appendChild(createPageLink(page, activePage, role, true)));
+    host.appendChild(textElement('div', 'mobile-workspace-heading', `${currentWorkspace.label} workspace`));
+    sortedPages(currentWorkspace).forEach(page => {
+      host.appendChild(createPageLink(page, activePage, role, true));
+    });
   }
 
   function updateUserDisplay(nav, user) {
@@ -345,46 +182,58 @@
     const email = user.email || '';
     const initial = name.trim().charAt(0).toUpperCase() || 'U';
 
-    nav.querySelectorAll('[data-nav-name]').forEach(el => { el.textContent = name; });
-    nav.querySelectorAll('[data-nav-email]').forEach(el => { el.textContent = email; });
-    nav.querySelectorAll('[data-nav-initial]').forEach(el => { el.textContent = initial; });
+    nav.querySelectorAll('[data-nav-name]').forEach(element => { element.textContent = name; });
+    nav.querySelectorAll('[data-nav-email]').forEach(element => { element.textContent = email; });
+    nav.querySelectorAll('[data-nav-initial]').forEach(element => { element.textContent = initial; });
 
-    const legacyCurrentUserDisplay = document.getElementById('currentUserDisplay');
-    if (legacyCurrentUserDisplay) legacyCurrentUserDisplay.textContent = `Signed in as ${name}`;
+    const legacyDisplay = document.getElementById('currentUserDisplay');
+    if (legacyDisplay) legacyDisplay.textContent = `Signed in as ${name}`;
   }
 
   function bindResponsiveControls(nav) {
-    const mobileButton = nav.querySelector('#mobileMenuButton');
-    const mobileCloseButton = nav.querySelector('#mobileCloseButton');
+    const mobileButton = nav.querySelector('#mobileMenuButton, [data-portal-mobile-open]');
+    const mobileCloseButton = nav.querySelector('#mobileCloseButton, [data-portal-mobile-close]');
 
-    if (mobileButton && !mobileButton.dataset.bound) {
-      mobileButton.dataset.bound = 'true';
-      mobileButton.addEventListener('click', () => nav.classList.toggle('mobile-open'));
+    if (mobileButton && mobileButton.dataset.portalBound !== 'true') {
+      mobileButton.dataset.portalBound = 'true';
+      mobileButton.addEventListener('click', () => nav.classList.toggle(CLASSNAMES.mobileOpen));
     }
 
-    if (mobileCloseButton && !mobileCloseButton.dataset.bound) {
-      mobileCloseButton.dataset.bound = 'true';
-      mobileCloseButton.addEventListener('click', () => nav.classList.remove('mobile-open'));
+    if (mobileCloseButton && mobileCloseButton.dataset.portalBound !== 'true') {
+      mobileCloseButton.dataset.portalBound = 'true';
+      mobileCloseButton.addEventListener('click', () => closeMobileNavigation(nav));
     }
 
-    if (!nav.dataset.escapeBound) {
-      nav.dataset.escapeBound = 'true';
+    if (nav.dataset.portalEscapeBound !== 'true') {
+      nav.dataset.portalEscapeBound = 'true';
       document.addEventListener('keydown', event => {
-        if (event.key === 'Escape') nav.classList.remove('mobile-open');
+        if (event.key === 'Escape') closeMobileNavigation(nav);
       });
     }
   }
 
-  function configurePortalNavigation(user, activePage) {
-    const nav = document.querySelector('.portal-nav-v2');
-    if (!nav || !user) return;
-
-    if (!window.PortalRegistry) {
-      console.error('PortalRegistry is required before portalNavigation.js.');
-      return;
+  function redirectIfUnauthorized(role, activePage) {
+    if (window.PortalRegistry.canAccessPage(role, activePage)) return false;
+    const landing = window.PortalRegistry.getLandingPage(role);
+    if (landing && landing.href) {
+      window.location.replace(landing.href);
+      return true;
     }
+    return false;
+  }
 
-    ensureRuntimeStyles();
+  function synchronizeShell(user, activePage, role, workspace) {
+    if (!window.PortalShell) return;
+    window.PortalShell.initialize()
+      .setUser(user)
+      .setPage(activePage)
+      .setRole(role)
+      .setWorkspace(workspace);
+  }
+
+  function configurePortalNavigation(user, activePage, options) {
+    const nav = document.querySelector((options && options.navigationSelector) || SELECTORS.navigation);
+    if (!nav || !user || !requireRegistry()) return null;
 
     const role = window.PortalRegistry.normalizeRole(user.role);
     const workspaces = window.PortalRegistry.getAccessibleWorkspaces(role);
@@ -392,35 +241,52 @@
 
     if (!currentWorkspace) {
       console.error(`No enabled workspace is available for role ${role}.`);
-      return;
+      return null;
     }
-
-    if (!window.PortalRegistry.canAccessPage(role, activePage)) {
-      const landing = window.PortalRegistry.getLandingPage(role);
-      if (landing && landing.href) {
-        window.location.replace(landing.href);
-        return;
-      }
-    }
+    if (redirectIfUnauthorized(role, activePage)) return null;
 
     renderGlobalWorkspaceControl(nav, role, workspaces, currentWorkspace);
-    renderWorkspaceNavigation(nav, role, currentWorkspace, activePage);
+    const workspaceNavigation = renderWorkspaceNavigation(nav, role, currentWorkspace, activePage);
     renderMobileNavigation(nav, role, workspaces, currentWorkspace, activePage);
     updateUserDisplay(nav, user);
     bindResponsiveControls(nav);
 
-    const brand = nav.querySelector('.nav-brand');
-    const roleLanding = window.PortalRegistry.getLandingPage(
-      role,
-      role === 'Admin' ? currentWorkspace.id : undefined
-    );
-    if (brand && roleLanding) brand.href = roleLanding.href;
+    const brand = nav.querySelector(SELECTORS.brand);
+    const landing = window.PortalRegistry.getLandingPage(role, role === 'Admin' ? currentWorkspace.id : undefined);
+    if (brand && landing && landing.href) brand.href = landing.href;
 
     nav.dataset.portalRole = role;
     nav.dataset.portalWorkspace = currentWorkspace.id;
+    nav.dataset.portalNavigationVersion = VERSION;
     nav.classList.remove('nav-compact');
-    nav.classList.add('nav-two-tier', 'nav-ready');
+    nav.classList.add('nav-two-tier', CLASSNAMES.ready);
+
+    currentContext = { nav, user, activePage, role, workspaces, currentWorkspace, workspaceNavigation };
+    synchronizeShell(user, activePage, role, currentWorkspace);
+
+    document.dispatchEvent(new CustomEvent('portal:navigation:ready', {
+      detail: { role, activePage, workspace: currentWorkspace }
+    }));
+    return currentContext;
   }
 
+  function refresh() {
+    if (!currentContext) return null;
+    return configurePortalNavigation(currentContext.user, currentContext.activePage);
+  }
+
+  function getContext() {
+    return currentContext;
+  }
+
+  const api = Object.freeze({
+    version: VERSION,
+    configure: configurePortalNavigation,
+    refresh,
+    getContext,
+    closeMobile: () => currentContext && closeMobileNavigation(currentContext.nav)
+  });
+
+  window.PortalNavigation = api;
   window.configurePortalNavigation = configurePortalNavigation;
-})();
+})(window, document);
