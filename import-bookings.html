@@ -1348,10 +1348,17 @@
     .portal-nav-v2:not(.nav-ready) .more-dropdown { display: inline-flex !important; }
     .portal-nav-v2 { z-index: 80; }
   </style>
+
+  <!-- R1.5B HF2 Portal Design System -->
+  <link rel="stylesheet" href="portal-theme.css?v=1.5b.hf2" />
+  <link rel="stylesheet" href="portal-components.css?v=1.5b.hf2" />
+  <link rel="stylesheet" href="portal-shell.css?v=1.5b.hf2" />
+  <link rel="stylesheet" href="portal-workspaces.css?v=1.5b.hf2" />
+
 </head>
-<body>
+<body class="portal-app pds-migrated" data-pds-release="1.5B-HF2">
   <main class="page">
-<nav class="portal-nav portal-nav-v2" aria-label="Portal navigation">
+<nav class="portal-nav portal-nav-v2 nav-initializing" aria-label="Portal navigation" aria-busy="true">
       <button id="mobileMenuButton" class="mobile-menu-button" type="button" aria-label="Open navigation menu">☰</button>
 
       <a class="nav-brand" href="index.html" aria-label="ICT Resource Booking Portal home">
@@ -1488,10 +1495,11 @@
     </section>
   </main>
 
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="portalRegistry.js"></script>
-  <script src="portalNavigation.js"></script>
-  <script>
+  
+  <script src="portalRegistry.js?v=1.5b.hf2"></script>
+  <script src="portalNavigation.js?v=1.5b.hf2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
     const importText = document.getElementById('importText');
     const csvFile = document.getElementById('csvFile');
     const previewBtn = document.getElementById('previewBtn');
