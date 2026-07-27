@@ -1,7 +1,7 @@
 (function (window, document) {
   'use strict';
 
-  const VERSION = '2.1.0';
+  const VERSION = '2.1.1-hf1';
   const SELECTORS = Object.freeze({
     navigation: '.portal-nav-v2, [data-portal-navigation]',
     desktopHost: '.nav-main, [data-portal-workspace-control]',
@@ -69,6 +69,9 @@
   }
 
   function createWorkspaceSelect(workspaces, selectedWorkspaceId, role, className) {
+    const shell = document.createElement('span');
+    shell.className = `workspace-select-shell${className ? ` ${className}-shell` : ''}`;
+
     const select = document.createElement('select');
     select.className = `${CLASSNAMES.workspaceSelect}${className ? ` ${className}` : ''}`;
     select.setAttribute('aria-label', 'Select workspace');
@@ -85,7 +88,9 @@
       const page = window.PortalRegistry.getLandingPage(role, select.value);
       if (page && page.href) window.location.assign(page.href);
     });
-    return select;
+
+    shell.appendChild(select);
+    return shell;
   }
 
   function determineCurrentWorkspace(workspaces, activePage) {
@@ -123,28 +128,30 @@
   }
 
   function findWorkspaceNavigation(nav) {
+    return nav.querySelector(SELECTORS.workspaceNavigation);
+  }
+
+  function removeLegacySiblingNavigation(nav) {
     const parent = nav.parentElement;
-    if (!parent) return null;
-    return Array.from(parent.children).find(element => element.matches(SELECTORS.workspaceNavigation)) || null;
+    if (!parent) return;
+    Array.from(parent.children)
+      .filter(element => element !== nav && element.matches && element.matches(SELECTORS.workspaceNavigation))
+      .forEach(element => element.remove());
   }
 
   function renderWorkspaceNavigation(nav, role, workspaces, currentWorkspace, activePage) {
+    removeLegacySiblingNavigation(nav);
     const existing = findWorkspaceNavigation(nav);
     if (existing) existing.remove();
 
-    const bar = document.createElement('nav');
-    bar.className = CLASSNAMES.workspaceNavigation;
+    const bar = document.createElement('div');
+    bar.className = `${CLASSNAMES.workspaceNavigation} portal-header-subnav`;
     bar.dataset.portalWorkspaceNavigation = 'true';
     bar.dataset.workspaceCount = String(workspaces.length);
+    bar.setAttribute('role', 'navigation');
     bar.setAttribute('aria-label', `${currentWorkspace.label} navigation`);
 
-    if (workspaces.length > 1) {
-      const title = textElement('span', 'workspace-nav-title', currentWorkspace.label);
-      title.setAttribute('aria-hidden', 'true');
-      bar.appendChild(title);
-    } else {
-      bar.classList.add('single-workspace-nav');
-    }
+    if (workspaces.length === 1) bar.classList.add('single-workspace-nav');
 
     const links = document.createElement('div');
     links.className = 'workspace-page-links';
@@ -153,7 +160,11 @@
     });
 
     bar.appendChild(links);
-    nav.insertAdjacentElement('afterend', bar);
+
+    const mobileDrawer = nav.querySelector('.mobile-drawer, [data-portal-mobile-drawer]');
+    if (mobileDrawer) nav.insertBefore(bar, mobileDrawer);
+    else nav.appendChild(bar);
+
     return bar;
   }
 
