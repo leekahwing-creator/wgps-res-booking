@@ -1311,8 +1311,103 @@
   </style>
 
 
+
+  <!-- Release 2 WP-5 — Integrated operational experience -->
+  <style id="wp5-integrated-experience">
+    .wp5-context-banner{
+      margin:14px 24px 0;
+      padding:15px 16px;
+      display:grid;
+      grid-template-columns:minmax(0,1.2fr) minmax(320px,.8fr);
+      gap:14px;
+      align-items:center;
+      border:1px solid #bae6fd;
+      border-radius:18px;
+      background:linear-gradient(135deg,#f0fdfa 0%,#ffffff 52%,#eff6ff 100%);
+      box-shadow:0 10px 24px rgba(15,23,42,.045);
+    }
+    .wp5-context-kicker{
+      display:block;
+      color:var(--primary-dark);
+      font-size:.68rem;
+      font-weight:900;
+      letter-spacing:.055em;
+      text-transform:uppercase;
+    }
+    .wp5-context-copy h2{margin:4px 0 0;font-size:1.02rem;line-height:1.3}
+    .wp5-context-copy p{margin:5px 0 0;color:var(--muted);font-size:.8rem;line-height:1.4}
+    .wp5-context-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}
+    .wp5-context-metric{
+      min-width:0;
+      padding:9px;
+      border:1px solid #dbe4ee;
+      border-radius:12px;
+      background:rgba(255,255,255,.9);
+    }
+    .wp5-context-metric span,.wp5-context-metric strong{display:block}
+    .wp5-context-metric span{color:var(--muted);font-size:.62rem;font-weight:900;text-transform:uppercase}
+    .wp5-context-metric strong{margin-top:4px;font-size:.92rem;overflow-wrap:anywhere}
+    .wp5-context-metric.is-clear strong{color:#166534}
+    .wp5-context-metric.is-warning strong{color:#92400e}
+    .wp5-context-metric.is-critical strong{color:#991b1b}
+
+    .r2-section{transition:opacity .2s ease,transform .2s ease,box-shadow .2s ease,border-color .2s ease}
+    .r2-section.wp5-priority-current{border-color:#5eead4;box-shadow:0 12px 28px rgba(15,118,110,.08)}
+    .r2-section.wp5-priority-attention{border-color:#fecaca;box-shadow:0 10px 24px rgba(220,38,38,.06)}
+    .r2-section.wp5-priority-muted{opacity:.92}
+    .r2-job-card{transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease,opacity .2s ease}
+    .r2-job-card:hover{transform:translateY(-1px);box-shadow:0 13px 28px rgba(15,23,42,.08)}
+    .r2-job-card.wp5-newly-updated{animation:wp5-card-focus 1.4s ease}
+    .count-pill.wp5-count-updated{animation:wp5-count-pulse .45s ease}
+    .r2-section.wp5-refreshing{opacity:.72}
+    .r2-section.wp5-refresh-complete{animation:wp5-section-settle .45s ease}
+    @keyframes wp5-card-focus{
+      0%{box-shadow:0 0 0 0 rgba(15,118,110,.25);transform:translateY(-2px)}
+      60%{box-shadow:0 0 0 8px rgba(15,118,110,0)}
+      100%{box-shadow:0 9px 24px rgba(15,23,42,.055);transform:none}
+    }
+    @keyframes wp5-count-pulse{
+      0%{transform:scale(.92)}
+      60%{transform:scale(1.12)}
+      100%{transform:scale(1)}
+    }
+    @keyframes wp5-section-settle{
+      from{transform:translateY(3px);opacity:.8}
+      to{transform:none;opacity:1}
+    }
+    .wp5-skip-link{
+      position:fixed;
+      left:12px;
+      top:12px;
+      z-index:200;
+      transform:translateY(-160%);
+      padding:9px 12px;
+      border-radius:10px;
+      background:#0f172a;
+      color:#fff;
+      font-weight:900;
+      text-decoration:none;
+    }
+    .wp5-skip-link:focus{transform:none}
+    .r2-section-action[disabled]{opacity:.45;cursor:not-allowed}
+    .r2-workspace-body:focus{outline:none}
+    @media(max-width:900px){
+      .wp5-context-banner{grid-template-columns:1fr}
+      .wp5-context-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+    }
+    @media(max-width:640px){
+      .wp5-context-banner{margin:11px 12px 0;padding:12px}
+      .wp5-context-metrics{grid-template-columns:1fr 1fr}
+      .r2-job-card:hover{transform:none}
+    }
+    @media(prefers-reduced-motion:reduce){
+      *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+    }
+  </style>
+
 </head>
-<body class="portal-app pds-migrated" data-pds-release="R2-WP4-HF1-001">
+<body class="portal-app pds-migrated" data-pds-release="R2-WP5">
+  <a class="wp5-skip-link" href="#wp5OperationalContext">Skip to deployment workspace</a>
   <main class="page">
     <nav class="portal-nav portal-nav-v2 nav-initializing" aria-label="Portal navigation" aria-busy="true">
       <button id="mobileMenuButton" class="mobile-menu-button" type="button" aria-label="Open navigation menu">☰</button>
@@ -1374,13 +1469,13 @@
       </div>
     </nav>
 
-    <section class="card r2-workspace-card" data-r2-work-package="WP-4-HF1-001">
+    <section class="card r2-workspace-card" data-r2-work-package="WP-5">
       <header class="r2-workspace-header">
         <div>
           <h1>Deployment Workspace</h1>
           <p>Continue claimed work, discover available jobs, and resolve operational exceptions.</p>
         </div>
-        <span class="r2-workspace-badge">Release 2 · WP-4 HF1-001</span>
+        <span class="r2-workspace-badge">Release 2 · WP-5</span>
       </header>
 
       <div class="toolbar r2-toolbar">
@@ -1396,6 +1491,16 @@
           <div id="refreshState" class="r2-refresh-state"><span class="r2-refresh-dot"></span><span>Auto-refreshes every 15 seconds</span></div>
         </div>
       </div>
+
+
+      <section id="wp5OperationalContext" class="wp5-context-banner" aria-labelledby="wp5ContextTitle" aria-live="polite">
+        <div class="wp5-context-copy">
+          <span class="wp5-context-kicker">Operational picture</span>
+          <h2 id="wp5ContextTitle">Preparing workspace summary…</h2>
+          <p id="wp5ContextGuidance">Current work, upcoming demand and operational risks will be summarised here.</p>
+        </div>
+        <div id="wp5ContextMetrics" class="wp5-context-metrics" aria-label="Operational summary metrics"></div>
+      </section>
 
       <div id="workspaceLoadingBar" class="r2-loading-bar" hidden aria-hidden="true"></div>
       <div id="statusMessage" class="status" role="status" aria-live="polite"></div>
@@ -1508,6 +1613,11 @@
     const operationalAlertGuidance = document.getElementById('operationalAlertGuidance');
     const toastRegion = document.getElementById('toastRegion');
     const dailyBriefCards = document.getElementById('dailyBriefCards');
+    const wp5OperationalContext = document.getElementById('wp5OperationalContext');
+    const wp5ContextTitle = document.getElementById('wp5ContextTitle');
+    const wp5ContextGuidance = document.getElementById('wp5ContextGuidance');
+    const wp5ContextMetrics = document.getElementById('wp5ContextMetrics');
+
     const journeySearchSummary = document.getElementById('journeySearchSummary');
     const lastUpdated = document.getElementById('lastUpdated');
     const currentJobWorkspace = document.getElementById('currentJobWorkspace');
@@ -1585,6 +1695,9 @@
     let lastDrawerTrigger = null;
     let availableJobFilter = 'All';
     let lastLoadSucceeded = false;
+    let wp5PreviousCounts = {};
+    let wp5LastAction = null;
+
 
     function parseLocalDate(dateString) {
       const [year, month, day] = dateString.split('-').map(Number);
@@ -2359,6 +2472,111 @@ return currentUser;
       return `<div class="r2-empty-state"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(detail)}</small></div>`;
     }
 
+
+    function wp5GetMinutesUntil(timeValue) {
+      const match = String(timeValue || '').match(/^(\d{1,2}):(\d{2})$/);
+      if (!match) return null;
+      const now = new Date();
+      const target = new Date(now);
+      target.setHours(Number(match[1]), Number(match[2]), 0, 0);
+      return Math.round((target - now) / 60000);
+    }
+
+    function wp5BuildOperationalContext(bookings = [], summary = {}, validation = {}) {
+      const mine = bookings.filter(item =>
+        String(item.claimedByUserId || '') === String(currentUser?.userId || '') &&
+        classifyBookingLifecycle(item) === 'Active'
+      );
+      const pending = bookings.filter(item =>
+        classifyBookingLifecycle(item) === 'Active' &&
+        (item.deploymentStatus || 'Pending Deployment') === 'Pending Deployment'
+      );
+      const exceptions = bookings.filter(item => classifyBookingLifecycle(item) === 'Exceptions');
+      const overdue = Number(summary.overdue || 0);
+      const awaiting = Number(summary.awaitingReturn || 0);
+      const validationErrors = Number(validation?.summary?.errors || 0);
+
+      const upcoming = pending
+        .map(item => ({ item, minutes: wp5GetMinutesUntil(item.startTime) }))
+        .filter(entry => entry.minutes !== null && entry.minutes >= 0)
+        .sort((a,b) => a.minutes - b.minutes)[0];
+
+      const immediateRisk = exceptions.length + overdue + validationErrors;
+      const posture = immediateRisk > 0 ? 'Action required' : mine.length ? 'Work in progress' : pending.length ? 'Ready for deployment' : 'Operationally clear';
+      const postureClass = immediateRisk > 0 ? 'is-critical' : awaiting > 0 ? 'is-warning' : 'is-clear';
+
+      wp5ContextTitle.textContent = posture;
+      wp5ContextGuidance.textContent = immediateRisk > 0
+        ? 'Resolve exceptions and overdue resources before starting lower-priority work.'
+        : mine.length
+          ? 'Continue your claimed route, then take the next available job.'
+          : pending.length
+            ? 'No active route is assigned to you. Claim the next suitable job when ready.'
+            : 'There is no immediate operational work for the selected date.';
+
+      const nextDue = upcoming
+        ? (upcoming.minutes === 0 ? 'Due now' : `${upcoming.minutes} min`)
+        : 'None';
+
+      const journeyHealth = validation?.valid === false ? 'Review' : 'Good';
+      wp5ContextMetrics.innerHTML = [
+        ['My active', mine.length, mine.length ? 'is-warning' : 'is-clear'],
+        ['Next due', nextDue, upcoming && upcoming.minutes <= 15 ? 'is-warning' : 'is-clear'],
+        ['Intervention', exceptions.length + overdue + awaiting, postureClass],
+        ['Journey health', journeyHealth, validation?.valid === false ? 'is-critical' : 'is-clear']
+      ].map(([label,value,css]) =>
+        `<div class="wp5-context-metric ${css}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`
+      ).join('');
+
+      const activeSection = document.getElementById('r2ActiveTitle')?.closest('.r2-section');
+      const attentionSection = document.getElementById('r2AttentionTitle')?.closest('.r2-section');
+      const historySection = document.getElementById('r2HistoryTitle')?.closest('.r2-section');
+      activeSection?.classList.toggle('wp5-priority-current', mine.length > 0);
+      attentionSection?.classList.toggle('wp5-priority-attention', immediateRisk > 0);
+      historySection?.classList.add('wp5-priority-muted');
+    }
+
+    function wp5AnimateCounts() {
+      Object.entries(counts).forEach(([key, node]) => {
+        if (!node) return;
+        const current = node.textContent;
+        if (wp5PreviousCounts[key] !== undefined && wp5PreviousCounts[key] !== current) {
+          node.classList.remove('wp5-count-updated');
+          void node.offsetWidth;
+          node.classList.add('wp5-count-updated');
+        }
+        wp5PreviousCounts[key] = current;
+      });
+    }
+
+    function wp5MarkUpdatedCard() {
+      if (!wp5LastAction?.bookingId) return;
+      const card = document.querySelector(`.r2-job-card[data-booking-id="${CSS.escape(String(wp5LastAction.bookingId))}"]`);
+      if (card) {
+        card.classList.add('wp5-newly-updated');
+        window.setTimeout(() => card.classList.remove('wp5-newly-updated'), 1600);
+      }
+      wp5LastAction = null;
+    }
+
+    function wp5SetSectionsRefreshing(isRefreshing) {
+      document.querySelectorAll('.r2-workspace-body > .r2-section').forEach(section => {
+        section.classList.toggle('wp5-refreshing', isRefreshing);
+        if (!isRefreshing) {
+          section.classList.remove('wp5-refresh-complete');
+          void section.offsetWidth;
+          section.classList.add('wp5-refresh-complete');
+        }
+      });
+    }
+
+    function wp5Announce(message) {
+      if (!message) return;
+      statusMessage.setAttribute('aria-live', 'assertive');
+      statusMessage.textContent = message;
+      window.setTimeout(() => statusMessage.setAttribute('aria-live', 'polite'), 500);
+    }
+
     function renderBookings(bookings) {
       latestBookings = Array.isArray(bookings) ? bookings : [];
       renderCurrentJob(latestBookings);
@@ -2426,12 +2644,17 @@ return currentUser;
       lanes['Exceptions'].innerHTML = grouped['Exceptions'].length
         ? grouped['Exceptions'].map(renderJobCard).join('')
         : renderContextualEmptyState('No deployment exceptions', 'Jobs marked unable to deploy will appear here with their recorded reason.');
+
+      wp5BuildOperationalContext(latestBookings, latestOperationalSummary, latestJourneyValidation);
+      wp5AnimateCounts();
+      window.requestAnimationFrame(wp5MarkUpdatedCard);
     }
 
     async function loadBookings({ silent = false } = {}) {
       if (!deploymentDate.value) return;
       if (!silent) clearStatus();
       setLoadingState(true);
+      wp5SetSectionsRefreshing(true);
       try {
         const response = await fetch(`/api/de/bookings?date=${encodeURIComponent(deploymentDate.value)}`, { cache: 'no-store' });
         const result = await response.json();
@@ -2461,8 +2684,10 @@ return currentUser;
       lastUpdated.textContent = `Last updated: ${new Date().toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
       lastLoadSucceeded = true;
       setLoadingState(false);
+      wp5SetSectionsRefreshing(false);
       } catch (error) {
         setLoadingState(false, true);
+        wp5SetSectionsRefreshing(false);
         operationalAlertsSection.classList.remove('is-clear','is-warning','is-critical');
         operationalAlertsSection.classList.add('is-offline');
         operationalAlertIcon.textContent = '×';
@@ -2520,7 +2745,9 @@ return currentUser;
         if (!response.ok || !result.success) {
           throw new Error(result.message || 'Unable to update deployment job.');
         }
+        wp5LastAction = { bookingId, action };
         showStatus('success', result.message || 'Deployment job updated.');
+        wp5Announce(result.message || 'Deployment job updated and workspace synchronised.');
         await loadBookings({ silent: true });
         if (action === 'claim' && !currentJobWorkspace.hidden) {
           window.setTimeout(() => currentJobWorkspace.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
@@ -2549,7 +2776,9 @@ return currentUser;
         throw new Error(result.message || 'Unable to complete route stop.');
       }
 
+      wp5LastAction = { bookingId: button.dataset.bookingId, action: 'bundle-leg-complete' };
       showStatus('success', result.message || 'Route stop completed.');
+      wp5Announce(result.message || 'Route stop completed and workspace synchronised.');
       await loadBookings({ silent: true });
       return true;
     }
@@ -2610,6 +2839,21 @@ return currentUser;
       });
     });
 
+
+    document.querySelectorAll('.r2-section-action').forEach(button => {
+      button.addEventListener('click', () => {
+        const section = button.closest('.r2-section');
+        const cards = section ? Array.from(section.querySelectorAll('.r2-job-card')) : [];
+        if (!cards.length) {
+          showStatus('warning', 'There are no jobs to display in this section.');
+          return;
+        }
+        cards[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        cards[0].setAttribute('tabindex', '-1');
+        cards[0].focus({ preventScroll: true });
+      });
+    });
+
     operationsDrawerTab.addEventListener('click', () => openDrawer('operations', operationsDrawerTab));
     journeysDrawerTab.addEventListener('click', () => openDrawer('journeys', journeysDrawerTab));
     closeOperationsDrawerBtn.addEventListener('click', () => closeDrawer());
@@ -2622,6 +2866,7 @@ return currentUser;
 
     document.getElementById('todayBtn').addEventListener('click', async () => {
       deploymentDate.value = formatLocalDateForInput(new Date());
+      wp5BuildOperationalContext([], {}, {});
       await loadBookings().catch(error => showStatus('error', error.message));
     });
 
