@@ -1249,8 +1249,70 @@
   <link rel="stylesheet" href="portal-shell.css?v=1.5b.hf2" />
   <link rel="stylesheet" href="portal-workspaces.css?v=1.5b.hf2" />
 
+  <!-- Release 2 WP-4 HF1-001 — final cascade correction for Attention Required headings -->
+  <style id="wp4-hf1-001-attention-fix">
+    .r2-attention-grid {
+      align-items: start;
+    }
+
+    .r2-attention-grid .lifecycle-panel {
+      min-width: 0;
+      overflow: visible;
+    }
+
+    .r2-attention-grid .r2-attention-heading {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px 12px;
+      width: 100%;
+      min-height: 0;
+      height: auto;
+      margin: 0 0 8px;
+      padding: 4px 2px 10px;
+      overflow: visible;
+      color: #475569;
+      font-size: 0.75rem;
+      font-weight: 900;
+      line-height: 1.45;
+      text-transform: uppercase;
+      white-space: normal;
+    }
+
+    .r2-attention-grid .r2-attention-heading > span {
+      display: block;
+      min-width: 0;
+      max-width: 100%;
+      overflow: visible;
+      line-height: inherit;
+      text-overflow: clip;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+
+    .r2-attention-grid .r2-attention-heading > span:first-child {
+      flex: 0 1 auto;
+    }
+
+    .r2-attention-grid .r2-attention-heading > span:last-child {
+      flex: 1 1 18rem;
+      margin-left: auto;
+      text-align: right;
+    }
+
+    @media (max-width: 1100px) {
+      .r2-attention-grid .r2-attention-heading > span:last-child {
+        flex-basis: 100%;
+        margin-left: 0;
+        text-align: left;
+      }
+    }
+  </style>
+
+
 </head>
-<body class="portal-app pds-migrated" data-pds-release="R2-WP4-HF1">
+<body class="portal-app pds-migrated" data-pds-release="R2-WP4-HF1-001">
   <main class="page">
     <nav class="portal-nav portal-nav-v2 nav-initializing" aria-label="Portal navigation" aria-busy="true">
       <button id="mobileMenuButton" class="mobile-menu-button" type="button" aria-label="Open navigation menu">☰</button>
@@ -1312,13 +1374,13 @@
       </div>
     </nav>
 
-    <section class="card r2-workspace-card" data-r2-work-package="WP-4-HF1">
+    <section class="card r2-workspace-card" data-r2-work-package="WP-4-HF1-001">
       <header class="r2-workspace-header">
         <div>
           <h1>Deployment Workspace</h1>
           <p>Continue claimed work, discover available jobs, and resolve operational exceptions.</p>
         </div>
-        <span class="r2-workspace-badge">Release 2 · WP-4 HF1</span>
+        <span class="r2-workspace-badge">Release 2 · WP-4 HF1-001</span>
       </header>
 
       <div class="toolbar r2-toolbar">
