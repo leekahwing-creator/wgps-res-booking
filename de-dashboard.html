@@ -1109,6 +1109,84 @@
       .r2-alert-summary{font-size:.76rem}
     }
 
+    /* Release 2 WP-2 — High-fidelity operational job cards */
+    .r2-job-card {
+      position: relative;
+      display: grid;
+      gap: 12px;
+      min-width: 0;
+      padding: 15px;
+      border: 1px solid #dbe4ee;
+      border-radius: 17px;
+      background: #ffffff;
+      box-shadow: 0 9px 24px rgba(15, 23, 42, 0.055);
+    }
+    .r2-job-card.is-claimed { border-color: #99f6e4; box-shadow: 0 12px 28px rgba(15,118,110,.10); }
+    .r2-job-card.is-exception { border-color: #fecaca; background: linear-gradient(180deg,#fff,#fff7f7); }
+    .r2-job-card.is-expired { border-color: #fed7aa; background: linear-gradient(180deg,#fff,#fffaf5); }
+    .r2-job-card.is-completed { border-color: #bbf7d0; background: linear-gradient(180deg,#fff,#f7fff9); }
+    .r2-job-card.claimed-by-other { opacity: .72; }
+    .r2-card-topline { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+    .r2-card-type { display:block; color:var(--primary-dark); font-size:.66rem; font-weight:900; letter-spacing:.055em; text-transform:uppercase; }
+    .r2-card-title { margin:3px 0 0; color:#0f172a; font-size:1rem; line-height:1.25; }
+    .r2-card-time { flex:0 0 auto; padding:6px 8px; border-radius:10px; background:#f1f5f9; color:#334155; font-size:.74rem; font-weight:900; white-space:nowrap; }
+    .r2-card-status { display:inline-flex; align-items:center; gap:5px; width:max-content; padding:5px 8px; border-radius:999px; background:#e2e8f0; color:#334155; font-size:.68rem; font-weight:900; }
+    .r2-card-status.ready { background:#dcfce7; color:#166534; }
+    .r2-card-status.active { background:#dbeafe; color:#1d4ed8; }
+    .r2-card-status.exception { background:#fee2e2; color:#991b1b; }
+    .r2-card-status.expired { background:#ffedd5; color:#9a3412; }
+    .r2-card-status.completed { background:#dcfce7; color:#166534; }
+    .r2-route {
+      display:grid;
+      grid-template-columns:minmax(0,1fr) 28px minmax(0,1fr);
+      gap:8px;
+      align-items:center;
+      padding:11px;
+      border:1px solid #dbeafe;
+      border-radius:14px;
+      background:#f8fbff;
+    }
+    .r2-route-stop small,.r2-route-stop strong { display:block; }
+    .r2-route-stop small { color:#64748b; font-size:.64rem; font-weight:900; letter-spacing:.04em; text-transform:uppercase; }
+    .r2-route-stop strong { margin-top:4px; color:#0f172a; font-size:.88rem; overflow-wrap:anywhere; }
+    .r2-route-arrow { text-align:center; color:var(--primary); font-size:1.1rem; font-weight:900; }
+    .r2-resource-summary { display:flex; flex-wrap:wrap; gap:6px; }
+    .r2-resource-chip { display:inline-flex; align-items:center; gap:5px; padding:6px 8px; border:1px solid #dbe4ee; border-radius:999px; background:#f8fafc; color:#334155; font-size:.72rem; font-weight:850; }
+    .r2-next-action {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      padding:10px 11px;
+      border-radius:13px;
+      background:#ecfeff;
+      border:1px solid #a5f3fc;
+    }
+    .r2-next-action span { color:#0e7490; font-size:.65rem; font-weight:900; letter-spacing:.04em; text-transform:uppercase; }
+    .r2-next-action strong { display:block; margin-top:3px; color:#164e63; font-size:.86rem; }
+    .r2-card-details { border-top:1px solid #edf2f7; padding-top:10px; }
+    .r2-card-details summary { cursor:pointer; color:#475569; font-size:.74rem; font-weight:900; list-style:none; }
+    .r2-card-details summary::-webkit-details-marker { display:none; }
+    .r2-card-details[open] summary { margin-bottom:9px; }
+    .r2-card-meta { display:grid; gap:7px; }
+    .r2-card-meta-row { display:grid; grid-template-columns:92px minmax(0,1fr); gap:8px; color:#475569; font-size:.76rem; line-height:1.35; }
+    .r2-card-meta-row span { color:#64748b; font-weight:800; }
+    .r2-card-meta-row strong { color:#334155; overflow-wrap:anywhere; }
+    .r2-job-card .job-actions { margin-top:0; }
+    .r2-job-card .job-actions .btn { min-height:38px; }
+    .r2-job-card .job-actions .btn-primary { flex:1 1 130px; }
+    .r2-job-card .job-actions .btn-success { flex:1 1 130px; }
+    .r2-card-owner { color:#64748b; font-size:.74rem; line-height:1.35; }
+    .r2-card-warning { padding:8px 9px; border-radius:11px; background:#fff7ed; color:#9a3412; font-size:.74rem; font-weight:850; }
+    @media(max-width:640px){
+      .r2-job-card{padding:13px;gap:10px}
+      .r2-route{grid-template-columns:1fr}
+      .r2-route-arrow{transform:rotate(90deg);min-height:18px}
+      .r2-card-topline{align-items:flex-start}
+      .r2-card-time{font-size:.69rem}
+      .r2-card-meta-row{grid-template-columns:82px minmax(0,1fr)}
+    }
+
 </style>
 
   <!-- R1.5B HF2 Portal Design System -->
@@ -1118,7 +1196,7 @@
   <link rel="stylesheet" href="portal-workspaces.css?v=1.5b.hf2" />
 
 </head>
-<body class="portal-app pds-migrated" data-pds-release="R2-WP1">
+<body class="portal-app pds-migrated" data-pds-release="R2-WP2">
   <main class="page">
     <nav class="portal-nav portal-nav-v2 nav-initializing" aria-label="Portal navigation" aria-busy="true">
       <button id="mobileMenuButton" class="mobile-menu-button" type="button" aria-label="Open navigation menu">☰</button>
@@ -1180,13 +1258,13 @@
       </div>
     </nav>
 
-    <section class="card r2-workspace-card" data-r2-work-package="WP-1">
+    <section class="card r2-workspace-card" data-r2-work-package="WP-2">
       <header class="r2-workspace-header">
         <div>
           <h1>Deployment Workspace</h1>
           <p>Continue claimed work, discover available jobs, and resolve operational exceptions.</p>
         </div>
-        <span class="r2-workspace-badge">Release 2 · WP-1</span>
+        <span class="r2-workspace-badge">Release 2 · WP-2</span>
       </header>
 
       <div class="toolbar r2-toolbar">
@@ -1622,58 +1700,152 @@ return currentUser;
       `;
     }
 
+    function getOperationalCardType(booking, lifecycle, status) {
+      if (lifecycle === 'Completed') return 'Completed deployment';
+      if (lifecycle === 'Exceptions') return 'Deployment exception';
+      if (lifecycle === 'Expired') return 'Expired deployment';
+      if (status === 'Claimed') return 'Active deployment';
+      return 'Available deployment';
+    }
+
+    function getOperationalCardStatus(lifecycle, status, isClaimedByMe) {
+      if (lifecycle === 'Completed') return { label: 'Completed', css: 'completed' };
+      if (lifecycle === 'Exceptions') return { label: 'Needs attention', css: 'exception' };
+      if (lifecycle === 'Expired') return { label: 'Expired', css: 'expired' };
+      if (status === 'Claimed') return {
+        label: isClaimedByMe ? 'Claimed by you' : 'Claimed',
+        css: 'active'
+      };
+      return { label: 'Ready to claim', css: 'ready' };
+    }
+
+    function getOperationalNextAction(booking, lifecycle, status, isClaimedByMe) {
+      if (lifecycle === 'Completed') return 'Deployment completed';
+      if (lifecycle === 'Exceptions') return 'Review exception details';
+      if (lifecycle === 'Expired') return 'Booking window has ended';
+      if (status === 'Claimed' && isClaimedByMe) return 'Collect and deliver resources';
+      if (status === 'Claimed') return 'Owned by another engineer';
+      return 'Claim this job';
+    }
+
+    function renderResourceSummaryChips(booking) {
+      const chips = [];
+      const deviceType = String(booking.deviceType || '').trim();
+      const quantity = Number(booking.devicesRequired || 0);
+      const software = String(booking.softwareRequirement || '').trim();
+      const resources = getResourceList(booking);
+
+      if (deviceType) chips.push(`${quantity > 0 ? `${quantity} × ` : ''}${deviceType}`);
+      if (resources && resources !== 'No DE-managed allocation recorded') chips.push(resources);
+      if (software && software.toLowerCase() !== 'none') chips.push(software);
+
+      normaliseAdditionalResources(booking.additionalResources)
+        .forEach(item => chips.push(`${item.quantity} × ${item.type}`));
+
+      return chips.length
+        ? chips.slice(0, 5).map(label => `<span class="r2-resource-chip">${escapeHtml(label)}</span>`).join('')
+        : '<span class="r2-resource-chip">No managed resource allocation</span>';
+    }
+
     function renderJobCard(booking) {
       const status = booking.deploymentStatus || 'Pending Deployment';
+      const lifecycle = booking.lifecycleLabel || classifyBookingLifecycle(booking);
       const jobId = getJobId(booking);
       const isClaimedByMe = String(booking.claimedByUserId || '') === String(currentUser.userId);
       const canUpdateClaimedJob = isClaimedByMe || currentUser.role === 'Admin';
+      const claimedByOther = status === 'Claimed' && !isClaimedByMe && currentUser.role !== 'Admin';
+      const cardStatus = getOperationalCardStatus(lifecycle, status, isClaimedByMe);
+      const nextAction = getOperationalNextAction(booking, lifecycle, status, isClaimedByMe);
+      const pickup = booking.pickupLocationSummary || 'ICT Room';
+      const destination = booking.destinationLocation || booking.location || '-';
+      const typeLabel = getOperationalCardType(booking, lifecycle, status);
 
       let actions = '';
-      if (booking.lifecycleLabel === 'Expired') {
+      if (lifecycle === 'Expired' || lifecycle === 'Completed') {
         actions = '';
       } else if (status === 'Pending Deployment') {
         actions = `<button class="btn btn-primary" data-action="claim">Claim Job</button>`;
       } else if (status === 'Claimed') {
         actions = canUpdateClaimedJob
-          ? `<button class="btn btn-success" data-action="complete">Mark Deployed</button><button class="btn btn-secondary" data-action="release">Release Job</button><button class="btn btn-warning" data-action="fail">Unable to Deploy</button>`
+          ? `<button class="btn btn-success" data-action="complete">Mark Deployed</button>
+             <button class="btn btn-secondary" data-action="release">Release</button>
+             <button class="btn btn-warning" data-action="fail">Unable to Deploy</button>`
           : '';
       }
 
-      const claimedByOther = status === 'Claimed' && !isClaimedByMe && currentUser.role !== 'Admin';
+      const stateClass =
+        lifecycle === 'Completed' ? 'is-completed' :
+        lifecycle === 'Exceptions' ? 'is-exception' :
+        lifecycle === 'Expired' ? 'is-expired' :
+        status === 'Claimed' ? 'is-claimed' : '';
 
       return `
-        <article class="job-card ${claimedByOther ? 'claimed-by-other' : ''}" data-booking-id="${escapeHtml(jobId)}" data-booking-date="${escapeHtml(booking.bookingDate)}">
-          <h3 class="job-title">${escapeHtml(booking.startTime || '-')}–${escapeHtml(booking.endTime || '-')} · ${escapeHtml(booking.location || '-')}</h3>
-          <div class="job-subtitle">
-            Requested by ${escapeHtml(booking.requesterName || 'Requester')}
-            ${booking.lifecycleLabel === 'Expired'
-              ? '<span class="expired-badge">Expired</span>'
-              : ''}
+        <article class="job-card r2-job-card ${stateClass} ${claimedByOther ? 'claimed-by-other' : ''}"
+          data-booking-id="${escapeHtml(jobId)}"
+          data-booking-date="${escapeHtml(booking.bookingDate)}">
+
+          <div class="r2-card-topline">
+            <div>
+              <span class="r2-card-type">${escapeHtml(typeLabel)}</span>
+              <h3 class="r2-card-title">${escapeHtml(destination)}</h3>
+            </div>
+            <span class="r2-card-time">${escapeHtml(booking.startTime || '-')}–${escapeHtml(booking.endTime || '-')}</span>
           </div>
-          ${renderMovementStrip(booking)}
-          <div class="meta-grid">
-            <div class="meta-row"><span>Device</span><strong>${escapeHtml(booking.deviceType || '-')}</strong></div>
-            <div class="meta-row"><span>Quantity</span><strong>${escapeHtml(booking.devicesRequired || '-')}</strong></div>
-            <div class="meta-row"><span>Software</span><strong>${escapeHtml(booking.softwareRequirement || 'None')}</strong></div>
-            <div class="meta-row"><span>Resources</span><strong>${escapeHtml(getResourceList(booking))}</strong></div>
-            <div class="meta-row"><span>Accessories</span><strong>${escapeHtml(formatAdditionalResources(booking.additionalResources))}</strong></div>
-            <div class="meta-row"><span>Accessory Allocation</span><strong>${escapeHtml(getAdditionalResourceAllocationList(booking))}</strong></div>
-            ${Array.isArray(booking.userCollectedResources) && booking.userCollectedResources.length
-              ? `<div class="meta-row collection-note"><span>User collection</span><strong>${escapeHtml(
-                  booking.userCollectedResources
-                    .map(resource => resource.resourceName || resource.resourceId)
-                    .filter(Boolean)
-                    .join(', ')
-                )} — handled by the requester at ICT Room</strong></div>`
-              : ''}
-            <div class="meta-row"><span>Booking</span><strong>${escapeHtml(booking.status || '-')}</strong></div>
-            ${booking.claimedByName ? `<div class="meta-row"><span>Claimed by</span><strong>${escapeHtml(booking.claimedByName)}</strong></div>` : ''}
-            ${booking.claimedAt ? `<div class="meta-row"><span>Claimed at</span><strong>${escapeHtml(formatDateTime(booking.claimedAt))}</strong></div>` : ''}
-            ${booking.deployedByName ? `<div class="meta-row"><span>Updated by</span><strong>${escapeHtml(booking.deployedByName)}</strong></div>` : ''}
-            ${booking.deployedAt ? `<div class="meta-row"><span>Updated at</span><strong>${escapeHtml(formatDateTime(booking.deployedAt))}</strong></div>` : ''}
-            ${booking.deploymentRemarks ? `<div class="meta-row"><span>Remarks</span><strong>${escapeHtml(booking.deploymentRemarks)}</strong></div>` : ''}
+
+          <span class="r2-card-status ${cardStatus.css}">${escapeHtml(cardStatus.label)}</span>
+
+          ${booking.multiplePickupLocations
+            ? `<div class="r2-card-warning">Multiple collection points: ${escapeHtml((booking.pickupLocations || []).join(' and '))}</div>`
+            : ''}
+
+          <div class="r2-route">
+            <div class="r2-route-stop">
+              <small>Collect from</small>
+              <strong>${escapeHtml(pickup)}</strong>
+            </div>
+            <div class="r2-route-arrow" aria-hidden="true">→</div>
+            <div class="r2-route-stop">
+              <small>Deliver to</small>
+              <strong>${escapeHtml(destination)}</strong>
+            </div>
           </div>
-          <div class="job-actions">${actions}</div>
+
+          <div class="r2-resource-summary">${renderResourceSummaryChips(booking)}</div>
+
+          <div class="r2-next-action">
+            <div><span>Next action</span><strong>${escapeHtml(nextAction)}</strong></div>
+            <span aria-hidden="true">→</span>
+          </div>
+
+          ${booking.claimedByName
+            ? `<div class="r2-card-owner">Owned by <strong>${escapeHtml(booking.claimedByName)}</strong>${booking.claimedAt ? ` · ${escapeHtml(formatDateTime(booking.claimedAt))}` : ''}</div>`
+            : `<div class="r2-card-owner">Requested by <strong>${escapeHtml(booking.requesterName || 'Requester')}</strong></div>`}
+
+          <details class="r2-card-details">
+            <summary>More job details ▾</summary>
+            <div class="r2-card-meta">
+              <div class="r2-card-meta-row"><span>Booking</span><strong>${escapeHtml(jobId || '-')}</strong></div>
+              <div class="r2-card-meta-row"><span>Device</span><strong>${escapeHtml(booking.deviceType || '-')}</strong></div>
+              <div class="r2-card-meta-row"><span>Quantity</span><strong>${escapeHtml(booking.devicesRequired || '-')}</strong></div>
+              <div class="r2-card-meta-row"><span>Software</span><strong>${escapeHtml(booking.softwareRequirement || 'None')}</strong></div>
+              <div class="r2-card-meta-row"><span>Resources</span><strong>${escapeHtml(getResourceList(booking))}</strong></div>
+              <div class="r2-card-meta-row"><span>Accessories</span><strong>${escapeHtml(formatAdditionalResources(booking.additionalResources))}</strong></div>
+              <div class="r2-card-meta-row"><span>Allocation</span><strong>${escapeHtml(getAdditionalResourceAllocationList(booking))}</strong></div>
+              ${Array.isArray(booking.userCollectedResources) && booking.userCollectedResources.length
+                ? `<div class="r2-card-meta-row"><span>User collection</span><strong>${escapeHtml(
+                    booking.userCollectedResources
+                      .map(resource => resource.resourceName || resource.resourceId)
+                      .filter(Boolean)
+                      .join(', ')
+                  )}</strong></div>`
+                : ''}
+              ${booking.deployedByName ? `<div class="r2-card-meta-row"><span>Updated by</span><strong>${escapeHtml(booking.deployedByName)}</strong></div>` : ''}
+              ${booking.deployedAt ? `<div class="r2-card-meta-row"><span>Updated at</span><strong>${escapeHtml(formatDateTime(booking.deployedAt))}</strong></div>` : ''}
+              ${booking.deploymentRemarks ? `<div class="r2-card-meta-row"><span>Remarks</span><strong>${escapeHtml(booking.deploymentRemarks)}</strong></div>` : ''}
+            </div>
+          </details>
+
+          ${actions ? `<div class="job-actions">${actions}</div>` : ''}
         </article>
       `;
     }
