@@ -1207,6 +1207,40 @@
     .r2-drawer-brief{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:10px}.r2-brief-card{padding:11px;border:1px solid #dbe4ee;border-radius:13px;background:#fff}.r2-brief-card span{display:block;color:#64748b;font-size:.66rem;font-weight:900;text-transform:uppercase}.r2-brief-card strong{display:block;margin-top:4px;font-size:1.05rem}.r2-location-groups{display:grid;gap:10px}.r2-location-group{border:1px solid #dbe4ee;border-radius:14px;background:#fff;overflow:hidden}.r2-location-group>summary{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px;cursor:pointer;list-style:none;font-weight:900}.r2-location-group>summary::-webkit-details-marker{display:none}.r2-location-group-list{display:grid;gap:7px;padding:0 10px 10px}.r2-attention-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;color:#475569;font-size:.75rem;font-weight:900;text-transform:uppercase}.r2-filter-chip{cursor:pointer}.r2-filter-chip:focus-visible,.r2-section-action:focus-visible,.r2-alert-chip:focus-visible{outline:3px solid rgba(15,118,110,.22);outline-offset:2px}
     @media(max-width:640px){.r2-toast-region{right:12px;bottom:12px;width:calc(100vw - 24px)}.r2-alert-summary-row{align-items:flex-start;flex-direction:column}.r2-drawer-brief{grid-template-columns:1fr}.floating-drawer-tabs{bottom:72px}.floating-drawer-tab{min-height:102px}}
 
+    /* Release 2 WP-4 HF1 — Attention layout and disclosure corrections */
+    .r2-attention-grid {
+      align-items: start;
+    }
+    .r2-attention-heading {
+      min-height: auto;
+      padding: 2px 2px 10px;
+      line-height: 1.35;
+      overflow: visible;
+      white-space: normal;
+      flex-wrap: wrap;
+    }
+    .r2-attention-heading > span {
+      min-width: 0;
+      overflow: visible;
+      text-overflow: clip;
+      white-space: normal;
+    }
+    .r2-attention-heading > span:last-child {
+      margin-left: auto;
+      text-align: right;
+    }
+    .r2-card-details > summary {
+      display: flex;
+      align-items: center;
+      min-height: 44px;
+      padding: 2px 0;
+      line-height: 1.35;
+    }
+    @media (max-width: 1100px) {
+      .r2-attention-heading { align-items: flex-start; }
+      .r2-attention-heading > span:last-child { margin-left: 0; text-align: left; flex-basis: 100%; }
+    }
+
 </style>
 
   <!-- R1.5B HF2 Portal Design System -->
@@ -1216,7 +1250,7 @@
   <link rel="stylesheet" href="portal-workspaces.css?v=1.5b.hf2" />
 
 </head>
-<body class="portal-app pds-migrated" data-pds-release="R2-WP4">
+<body class="portal-app pds-migrated" data-pds-release="R2-WP4-HF1">
   <main class="page">
     <nav class="portal-nav portal-nav-v2 nav-initializing" aria-label="Portal navigation" aria-busy="true">
       <button id="mobileMenuButton" class="mobile-menu-button" type="button" aria-label="Open navigation menu">☰</button>
@@ -1278,13 +1312,13 @@
       </div>
     </nav>
 
-    <section class="card r2-workspace-card" data-r2-work-package="WP-4">
+    <section class="card r2-workspace-card" data-r2-work-package="WP-4-HF1">
       <header class="r2-workspace-header">
         <div>
           <h1>Deployment Workspace</h1>
           <p>Continue claimed work, discover available jobs, and resolve operational exceptions.</p>
         </div>
-        <span class="r2-workspace-badge">Release 2 · WP-4</span>
+        <span class="r2-workspace-badge">Release 2 · WP-4 HF1</span>
       </header>
 
       <div class="toolbar r2-toolbar">
@@ -1921,7 +1955,7 @@ return currentUser;
             </div>
           </details>
 
-          <div class="job-actions">${actions}<button class="btn r2-details-button" data-action="details" type="button">View Details</button></div>
+          ${actions ? `<div class="job-actions">${actions}</div>` : ''}
           ${isBundledRoute ? '<div class="r2-action-hint">This booking is part of an active multi-stop route. Complete it from the route workspace.</div>' : ''}
         </article>
       `;
@@ -2494,12 +2528,6 @@ return currentUser;
       const card = button.closest('.job-card');
       const action = button.dataset.action;
 
-      if (action === 'details') {
-        const details = card.querySelector('.r2-card-details');
-        details.open = !details.open;
-        button.textContent = details.open ? 'Hide Details' : 'View Details';
-        return;
-      }
       if (action === 'resume') {
         currentJobWorkspace.scrollIntoView({ behavior: 'smooth', block: 'start' });
         currentJobWorkspace.focus?.({ preventScroll: true });
