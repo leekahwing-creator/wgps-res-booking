@@ -5292,6 +5292,17 @@ app.put("/api/de/bookings/:bookingId/release", requireLogin, requireDEOrAdmin, (
   }
 });
 
+
+function findActiveBundleAnchorContainingBooking(bookings = [], bookingId = "") {
+  const targetId = String(bookingId || "");
+  return bookings.find(candidate => {
+    const bundle = candidate.operationalBundle;
+    if (!bundle || String(bundle.status || "") !== "Active") return false;
+    if (getBookingRecordId(candidate) === targetId) return true;
+    return getJourneyEngine().getBundleLinkedBookingIds(bundle).includes(targetId);
+  }) || null;
+}
+
 app.put("/api/de/bookings/:bookingId/bundle-legs/:legId/complete", requireLogin, requireDEOrAdmin, (req, res) => {
   try {
     const bookingId = req.params.bookingId;
@@ -5392,6 +5403,16 @@ app.put("/api/de/bookings/:bookingId/complete", requireLogin, requireDEOrAdmin, 
     const bookingDate = req.body.bookingDate || req.query.date;
     const remarks = String(req.body.remarks || "").trim();
 
+    const completeBookingsFile = getDateBookingsFile(bookingDate);
+    const completeBookings = readBookingsFromFile(completeBookingsFile);
+    const activeBundleAnchor = findActiveBundleAnchorContainingBooking(completeBookings, bookingId);
+    if (activeBundleAnchor) {
+      return res.status(409).json({
+        success: false,
+        message: "This job belongs to an active operational route. Complete its route stops from My Active Jobs."
+      });
+    }
+
     const updatedBooking = updateDeploymentBooking(bookingDate, bookingId, booking => {
       const currentStatus = normaliseDeploymentStatus(booking);
       const isClaimant = String(booking.claimedByUserId || "") === String(req.session.user.userId);
@@ -5442,43 +5463,63 @@ app.put("/api/de/bookings/:bookingId/fail", requireLogin, requireDEOrAdmin, (req
     const bookingId = req.params.bookingId;
     const bookingDate = req.body.bookingDate || req.query.date;
     const remarks = String(req.body.remarks || "").trim();
+    if (!remarks) {
+      return res.status(400).json({ success: false, message: "A reason is required." });
+    }
 
-    const updatedBooking = updateDeploymentBooking(bookingDate, bookingId, booking => {
-      const currentStatus = normaliseDeploymentStatus(booking);
-      const isClaimant = String(booking.claimedByUserId || "") === String(req.session.user.userId);
-      const isAdmin = req.session.user.role === "Admin";
+    const bookingsFile = getDateBookingsFile(bookingDate);
+    const bookings = readBookingsFromFile(bookingsFile);
+    const requestedBooking = findBookingById(bookings, bookingId);
+    if (!requestedBooking) {
+      return res.status(404).json({ success: false, message: "Booking not found." });
+    }
 
-      if (currentStatus === "Claimed" && !isClaimant && !isAdmin) {
-        const error = new Error("Only the claimant or an Admin can update this claimed job.");
-        error.statusCode = 403;
-        throw error;
-      }
+    const anchor = findActiveBundleAnchorContainingBooking(bookings, bookingId) || requestedBooking;
+    const isClaimant = String(anchor.claimedByUserId || "") === String(req.session.user.userId);
+    const isAdmin = req.session.user.role === "Admin";
+    if (normaliseDeploymentStatus(anchor) === "Claimed" && !isClaimant && !isAdmin) {
+      return res.status(403).json({ success: false, message: "Only the claimant or an Admin can update this claimed job." });
+    }
 
-      booking.deploymentStatus = "Unable to Deploy";
-      booking.deployedByUserId = req.session.user.userId;
-      booking.deployedByName = req.session.user.name;
-      booking.deployedAt = new Date().toISOString();
-      booking.deploymentRemarks = remarks || "Unable to deploy.";
+    const now = new Date().toISOString();
+    const affectedIds = anchor.operationalBundle
+      ? Array.from(new Set([getBookingRecordId(anchor), ...getJourneyEngine().getBundleLinkedBookingIds(anchor.operationalBundle)]))
+      : [getBookingRecordId(requestedBooking)];
 
-      if (!booking.claimedByUserId) {
-        booking.claimedByUserId = req.session.user.userId;
-        booking.claimedByName = req.session.user.name;
-        booking.claimedAt = booking.claimedAt || new Date().toISOString();
+    affectedIds.forEach(id => {
+      const booking = findBookingById(bookings, id);
+      if (!booking) return;
+      if (["Pending Deployment", "Claimed"].includes(normaliseDeploymentStatus(booking))) {
+        booking.deploymentStatus = "Unable to Deploy";
+        booking.deployedByUserId = req.session.user.userId;
+        booking.deployedByName = req.session.user.name;
+        booking.deployedAt = now;
+        booking.deploymentRemarks = remarks;
+        if (!booking.claimedByUserId) {
+          booking.claimedByUserId = req.session.user.userId;
+          booking.claimedByName = req.session.user.name;
+          booking.claimedAt = now;
+        }
       }
     });
 
+    if (anchor.operationalBundle) {
+      anchor.operationalBundle.status = "Unable to Complete";
+      anchor.operationalBundle.failedAt = now;
+      anchor.operationalBundle.failedByUserId = req.session.user.userId;
+      anchor.operationalBundle.failedByName = req.session.user.name;
+      anchor.operationalBundle.failureRemarks = remarks;
+    }
+
+    writeBookingsToFile(bookingsFile, bookings);
     res.json({
       success: true,
-      message: "Deployment job marked as unable to deploy.",
-      booking: formatDeploymentBookingForResponse(updatedBooking, getUsersFromXML())
+      message: anchor.operationalBundle ? "Operational route marked as unable to complete." : "Deployment job marked as unable to deploy.",
+      booking: formatDeploymentBookingForResponse(anchor, getUsersFromXML())
     });
   } catch (error) {
     console.error("DE fail job error:", error);
-
-    res.status(error.statusCode || 500).json({
-      success: false,
-      message: error.message
-    });
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 

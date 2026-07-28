@@ -1187,6 +1187,14 @@
       .r2-card-meta-row{grid-template-columns:82px minmax(0,1fr)}
     }
 
+
+    /* Release 2 WP-3 — Operational action behaviour */
+    .r2-job-card.is-busy { opacity:.72; pointer-events:none; }
+    .r2-job-card.is-busy::after { content:"Updating…"; position:absolute; inset:0; display:grid; place-items:center; border-radius:inherit; background:rgba(255,255,255,.78); color:var(--primary-dark); font-weight:900; }
+    .r2-job-card .btn[disabled], .current-job-workspace .btn[disabled] { opacity:.58; cursor:wait; }
+    .r2-action-hint { color:var(--muted); font-size:.72rem; line-height:1.35; }
+    .r2-details-button { border:1px solid #cbd5e1; background:#fff; color:#334155; }
+
 </style>
 
   <!-- R1.5B HF2 Portal Design System -->
@@ -1196,7 +1204,7 @@
   <link rel="stylesheet" href="portal-workspaces.css?v=1.5b.hf2" />
 
 </head>
-<body class="portal-app pds-migrated" data-pds-release="R2-WP2">
+<body class="portal-app pds-migrated" data-pds-release="R2-WP3">
   <main class="page">
     <nav class="portal-nav portal-nav-v2 nav-initializing" aria-label="Portal navigation" aria-busy="true">
       <button id="mobileMenuButton" class="mobile-menu-button" type="button" aria-label="Open navigation menu">☰</button>
@@ -1258,13 +1266,13 @@
       </div>
     </nav>
 
-    <section class="card r2-workspace-card" data-r2-work-package="WP-2">
+    <section class="card r2-workspace-card" data-r2-work-package="WP-3">
       <header class="r2-workspace-header">
         <div>
           <h1>Deployment Workspace</h1>
           <p>Continue claimed work, discover available jobs, and resolve operational exceptions.</p>
         </div>
-        <span class="r2-workspace-badge">Release 2 · WP-2</span>
+        <span class="r2-workspace-badge">Release 2 · WP-3</span>
       </header>
 
       <div class="toolbar r2-toolbar">
@@ -1300,7 +1308,7 @@
             <button class="r2-section-action" type="button">View all</button>
           </div>
           <div class="r2-section-body r2-active-grid">
-            <section id="currentJobWorkspace" class="current-job-workspace" hidden aria-live="polite"></section>
+            <section id="currentJobWorkspace" class="current-job-workspace" hidden aria-live="polite" tabindex="-1"></section>
             <section class="lane" aria-label="Claimed jobs"><div id="claimedLane" class="lane-body"></div></section>
           </div>
         </section>
@@ -1747,6 +1755,20 @@ return currentUser;
         : '<span class="r2-resource-chip">No managed resource allocation</span>';
     }
 
+    function findActiveBundleAnchorForBooking(booking) {
+      const bookingId = String(getJobId(booking));
+      return latestBookings.find(candidate => {
+        const bundle = candidate.operationalBundle;
+        if (!bundle || String(bundle.status || '') !== 'Active') return false;
+        if (String(getJobId(candidate)) === bookingId) return true;
+        return normaliseBundleLegs(bundle).some(leg =>
+          normaliseBundleResources(leg.linkedBookingIds?.bookingId || leg.linkedBookingIds)
+            .map(String)
+            .includes(bookingId)
+        );
+      }) || null;
+    }
+
     function renderJobCard(booking) {
       const status = booking.deploymentStatus || 'Pending Deployment';
       const lifecycle = booking.lifecycleLabel || classifyBookingLifecycle(booking);
@@ -1759,6 +1781,8 @@ return currentUser;
       const pickup = booking.pickupLocationSummary || 'ICT Room';
       const destination = booking.destinationLocation || booking.location || '-';
       const typeLabel = getOperationalCardType(booking, lifecycle, status);
+      const bundleAnchor = status === 'Claimed' ? findActiveBundleAnchorForBooking(booking) : null;
+      const isBundledRoute = Boolean(bundleAnchor);
 
       let actions = '';
       if (lifecycle === 'Expired' || lifecycle === 'Completed') {
@@ -1766,11 +1790,17 @@ return currentUser;
       } else if (status === 'Pending Deployment') {
         actions = `<button class="btn btn-primary" data-action="claim">Claim Job</button>`;
       } else if (status === 'Claimed') {
-        actions = canUpdateClaimedJob
-          ? `<button class="btn btn-success" data-action="complete">Mark Deployed</button>
-             <button class="btn btn-secondary" data-action="release">Release</button>
-             <button class="btn btn-warning" data-action="fail">Unable to Deploy</button>`
-          : '';
+        if (canUpdateClaimedJob && isBundledRoute) {
+          actions = `<button class="btn btn-primary" data-action="resume" data-anchor-id="${escapeHtml(getJobId(bundleAnchor))}">Resume Route</button>
+             <button class="btn btn-secondary" data-action="release" data-anchor-id="${escapeHtml(getJobId(bundleAnchor))}">Release Route</button>
+             <button class="btn btn-warning" data-action="fail" data-anchor-id="${escapeHtml(getJobId(bundleAnchor))}">Unable to Complete</button>`;
+        } else {
+          actions = canUpdateClaimedJob
+            ? `<button class="btn btn-success" data-action="complete">Mark Deployed</button>
+               <button class="btn btn-secondary" data-action="release">Release</button>
+               <button class="btn btn-warning" data-action="fail">Unable to Deploy</button>`
+            : '';
+        }
       }
 
       const stateClass =
@@ -1845,7 +1875,8 @@ return currentUser;
             </div>
           </details>
 
-          ${actions ? `<div class="job-actions">${actions}</div>` : ''}
+          <div class="job-actions">${actions}<button class="btn r2-details-button" data-action="details" type="button">View Details</button></div>
+          ${isBundledRoute ? '<div class="r2-action-hint">This booking is part of an active multi-stop route. Complete it from the route workspace.</div>' : ''}
         </article>
       `;
     }
@@ -2230,52 +2261,68 @@ return currentUser;
       lastUpdated.textContent = `Last updated: ${new Date().toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
     }
 
-    async function updateJob(card, action) {
-      const bookingId = card.dataset.bookingId;
+    async function updateJob(card, action, triggerButton = null) {
+      const bookingId = triggerButton?.dataset.anchorId || card.dataset.bookingId;
       const bookingDate = card.dataset.bookingDate;
       let endpoint = '';
-      let body = { bookingDate };
+      const body = { bookingDate };
 
-      if (action === 'claim') endpoint = `/api/de/bookings/${bookingId}/claim`;
-      if (action === 'release') endpoint = `/api/de/bookings/${bookingId}/release`;
-      if (action === 'complete') {
-        endpoint = `/api/de/bookings/${bookingId}/complete`;
-        const remarks = prompt('Deployment remarks (optional):', '');
-        body.remarks = remarks || '';
+      if (action === 'claim') {
+        if (!confirm('Claim this operational job?')) return false;
+        endpoint = `/api/de/bookings/${encodeURIComponent(bookingId)}/claim`;
       }
-      if (action === 'fail') {
-        endpoint = `/api/de/bookings/${bookingId}/fail`;
-        const remarks = prompt('Reason unable to deploy:', '');
-        if (remarks === null) return;
+      if (action === 'release') {
+        if (!confirm('Release this job so another engineer can claim it?')) return false;
+        endpoint = `/api/de/bookings/${encodeURIComponent(bookingId)}/release`;
+      }
+      if (action === 'complete') {
+        if (!confirm('Confirm that all listed resources have been delivered?')) return false;
+        endpoint = `/api/de/bookings/${encodeURIComponent(bookingId)}/complete`;
+        const remarks = prompt('Deployment remarks (optional):', '');
+        if (remarks === null) return false;
         body.remarks = remarks.trim();
       }
-
-      const response = await fetch(endpoint, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        throw new Error(result.message || 'Unable to update deployment job.');
+      if (action === 'fail') {
+        endpoint = `/api/de/bookings/${encodeURIComponent(bookingId)}/fail`;
+        const remarks = prompt('State why the job or route could not be completed:', '');
+        if (remarks === null) return false;
+        if (!remarks.trim()) {
+          showStatus('warning', 'A reason is required before marking a job unable to deploy.');
+          return false;
+        }
+        if (!confirm('Mark this job or route as unable to complete?')) return false;
+        body.remarks = remarks.trim();
       }
+      if (!endpoint) return false;
 
-      showStatus('success', result.message || 'Deployment job updated.');
-      await loadBookings({ silent: true });
-
-      if (action === 'claim' && !currentJobWorkspace.hidden) {
-        window.setTimeout(() => {
-          currentJobWorkspace.scrollIntoView({
-            behavior: 'smooth',
-            block: 'start'
-          });
-        }, 80);
+      card.classList?.add('is-busy');
+      const actionButtons = Array.from(card.querySelectorAll?.('button[data-action]') || []);
+      actionButtons.forEach(button => { button.disabled = true; });
+      try {
+        const response = await fetch(endpoint, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          throw new Error(result.message || 'Unable to update deployment job.');
+        }
+        showStatus('success', result.message || 'Deployment job updated.');
+        await loadBookings({ silent: true });
+        if (action === 'claim' && !currentJobWorkspace.hidden) {
+          window.setTimeout(() => currentJobWorkspace.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+        }
+        return true;
+      } finally {
+        card.classList?.remove('is-busy');
+        actionButtons.forEach(button => { button.disabled = false; });
       }
     }
 
     async function completeBundleLeg(button) {
+      if (!confirm('Confirm that this route stop has been completed?')) return false;
+      button.disabled = true;
       const response = await fetch(
         `/api/de/bookings/${encodeURIComponent(button.dataset.bookingId)}/bundle-legs/${encodeURIComponent(button.dataset.legId)}/complete`,
         {
@@ -2292,6 +2339,7 @@ return currentUser;
 
       showStatus('success', result.message || 'Route stop completed.');
       await loadBookings({ silent: true });
+      return true;
     }
 
     currentJobWorkspace.addEventListener('click', async event => {
@@ -2317,7 +2365,7 @@ return currentUser;
       };
 
       try {
-        await updateJob(mockCard, button.dataset.currentJobAction);
+        await updateJob(mockCard, button.dataset.currentJobAction, button);
       } catch (error) {
         showStatus('error', error.message);
         await loadBookings({ silent: true }).catch(() => {});
@@ -2327,12 +2375,23 @@ return currentUser;
     document.querySelector('.r2-workspace-body').addEventListener('click', async event => {
       const button = event.target.closest('button[data-action]');
       if (!button) return;
-
       const card = button.closest('.job-card');
       const action = button.dataset.action;
 
+      if (action === 'details') {
+        const details = card.querySelector('.r2-card-details');
+        details.open = !details.open;
+        button.textContent = details.open ? 'Hide Details' : 'View Details';
+        return;
+      }
+      if (action === 'resume') {
+        currentJobWorkspace.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        currentJobWorkspace.focus?.({ preventScroll: true });
+        return;
+      }
+
       try {
-        await updateJob(card, action);
+        await updateJob(card, action, button);
       } catch (error) {
         showStatus('error', error.message);
         await loadBookings({ silent: true }).catch(() => {});
