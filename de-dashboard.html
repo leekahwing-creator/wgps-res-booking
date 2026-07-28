@@ -1195,6 +1195,18 @@
     .r2-action-hint { color:var(--muted); font-size:.72rem; line-height:1.35; }
     .r2-details-button { border:1px solid #cbd5e1; background:#fff; color:#334155; }
 
+
+    /* Release 2 WP-4 — Supporting operational experience */
+    .r2-loading-bar{height:3px;background:transparent;overflow:hidden}.r2-loading-bar[hidden]{display:none}.r2-loading-bar::after{content:"";display:block;width:38%;height:100%;background:var(--primary);animation:r2-load 1s ease-in-out infinite}@keyframes r2-load{0%{transform:translateX(-110%)}100%{transform:translateX(300%)}}
+    .r2-alert-strip{transition:border-color .2s,background .2s}.r2-alert-strip.is-clear{border-color:#bbf7d0;background:#f7fff9}.r2-alert-strip.is-warning{border-color:#fde68a;background:#fffdf5}.r2-alert-strip.is-critical{border-color:#fecaca;background:#fff7f7}.r2-alert-strip.is-offline{border-color:#cbd5e1;background:#f8fafc}
+    .r2-alert-strip.is-clear .r2-alert-icon{color:#166534}.r2-alert-strip.is-warning .r2-alert-icon{color:#92400e}.r2-alert-strip.is-offline .r2-alert-icon{color:#475569}
+    .r2-alert-content{display:grid;gap:10px}.r2-alert-summary-row{display:flex;align-items:center;justify-content:space-between;gap:12px}.r2-alert-list{display:flex;flex-wrap:wrap;gap:8px}.r2-alert-chip{display:inline-flex;align-items:center;gap:6px;padding:7px 9px;border-radius:999px;background:#fff;border:1px solid #e2e8f0;color:#334155;font-size:.73rem;font-weight:850;cursor:pointer}.r2-alert-chip.critical{border-color:#fecaca;color:#991b1b}.r2-alert-chip.warning{border-color:#fde68a;color:#92400e}.r2-alert-chip.info{border-color:#bae6fd;color:#075985}.r2-alert-chip.clear{border-color:#bbf7d0;color:#166534}.r2-alert-guidance{color:#475569;font-size:.78rem;line-height:1.4}
+    .r2-refresh-state{display:inline-flex;align-items:center;gap:6px}.r2-refresh-dot{width:8px;height:8px;border-radius:999px;background:#94a3b8}.r2-refresh-state.is-live .r2-refresh-dot{background:#22c55e}.r2-refresh-state.is-loading .r2-refresh-dot{background:#0f766e;animation:r2-pulse 1s infinite}.r2-refresh-state.is-error .r2-refresh-dot{background:#dc2626}@keyframes r2-pulse{50%{opacity:.35}}
+    .r2-empty-state{display:grid;justify-items:center;gap:6px;padding:22px 14px;text-align:center;color:#64748b;border:1px dashed #cbd5e1;border-radius:14px;background:#fff}.r2-empty-state strong{color:#334155}.r2-empty-state small{max-width:36ch;line-height:1.4}
+    .r2-toast-region{position:fixed;right:18px;bottom:18px;z-index:130;display:grid;gap:8px;width:min(360px,calc(100vw - 36px));pointer-events:none}.r2-toast{padding:12px 14px;border-radius:14px;background:#fff;border:1px solid #dbe4ee;box-shadow:0 18px 45px rgba(15,23,42,.18);font-weight:800;font-size:.82rem;line-height:1.4;animation:r2-toast-in .2s ease-out}.r2-toast.success{border-color:#86efac;color:#166534}.r2-toast.warning{border-color:#fde68a;color:#92400e}.r2-toast.error{border-color:#fecaca;color:#991b1b}@keyframes r2-toast-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+    .r2-drawer-brief{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:10px}.r2-brief-card{padding:11px;border:1px solid #dbe4ee;border-radius:13px;background:#fff}.r2-brief-card span{display:block;color:#64748b;font-size:.66rem;font-weight:900;text-transform:uppercase}.r2-brief-card strong{display:block;margin-top:4px;font-size:1.05rem}.r2-location-groups{display:grid;gap:10px}.r2-location-group{border:1px solid #dbe4ee;border-radius:14px;background:#fff;overflow:hidden}.r2-location-group>summary{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px;cursor:pointer;list-style:none;font-weight:900}.r2-location-group>summary::-webkit-details-marker{display:none}.r2-location-group-list{display:grid;gap:7px;padding:0 10px 10px}.r2-attention-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;color:#475569;font-size:.75rem;font-weight:900;text-transform:uppercase}.r2-filter-chip{cursor:pointer}.r2-filter-chip:focus-visible,.r2-section-action:focus-visible,.r2-alert-chip:focus-visible{outline:3px solid rgba(15,118,110,.22);outline-offset:2px}
+    @media(max-width:640px){.r2-toast-region{right:12px;bottom:12px;width:calc(100vw - 24px)}.r2-alert-summary-row{align-items:flex-start;flex-direction:column}.r2-drawer-brief{grid-template-columns:1fr}.floating-drawer-tabs{bottom:72px}.floating-drawer-tab{min-height:102px}}
+
 </style>
 
   <!-- R1.5B HF2 Portal Design System -->
@@ -1204,7 +1216,7 @@
   <link rel="stylesheet" href="portal-workspaces.css?v=1.5b.hf2" />
 
 </head>
-<body class="portal-app pds-migrated" data-pds-release="R2-WP3">
+<body class="portal-app pds-migrated" data-pds-release="R2-WP4">
   <main class="page">
     <nav class="portal-nav portal-nav-v2 nav-initializing" aria-label="Portal navigation" aria-busy="true">
       <button id="mobileMenuButton" class="mobile-menu-button" type="button" aria-label="Open navigation menu">☰</button>
@@ -1266,13 +1278,13 @@
       </div>
     </nav>
 
-    <section class="card r2-workspace-card" data-r2-work-package="WP-3">
+    <section class="card r2-workspace-card" data-r2-work-package="WP-4">
       <header class="r2-workspace-header">
         <div>
           <h1>Deployment Workspace</h1>
           <p>Continue claimed work, discover available jobs, and resolve operational exceptions.</p>
         </div>
-        <span class="r2-workspace-badge">Release 2 · WP-3</span>
+        <span class="r2-workspace-badge">Release 2 · WP-4</span>
       </header>
 
       <div class="toolbar r2-toolbar">
@@ -1285,20 +1297,25 @@
         <button id="refreshBtn" class="btn btn-primary" type="button">Refresh</button>
         <div class="refresh-note">
           <div id="lastUpdated">Last updated: -</div>
-          <div>Auto-refreshes every 15 seconds</div>
+          <div id="refreshState" class="r2-refresh-state"><span class="r2-refresh-dot"></span><span>Auto-refreshes every 15 seconds</span></div>
         </div>
       </div>
 
+      <div id="workspaceLoadingBar" class="r2-loading-bar" hidden aria-hidden="true"></div>
       <div id="statusMessage" class="status" role="status" aria-live="polite"></div>
 
       <div class="r2-workspace-body">
-        <section class="r2-section r2-alert-strip" aria-labelledby="r2AlertsTitle">
-          <div class="r2-section-header">
-            <div class="r2-section-heading">
-              <span class="r2-alert-icon">⚠</span>
-              <div><h2 id="r2AlertsTitle">Operational Alerts</h2><p>Immediate issues affecting today's work.</p></div>
+        <section id="operationalAlertsSection" class="r2-section r2-alert-strip is-offline" aria-labelledby="r2AlertsTitle">
+          <div class="r2-section-header r2-alert-content">
+            <div class="r2-alert-summary-row">
+              <div class="r2-section-heading">
+                <span id="operationalAlertIcon" class="r2-alert-icon">•</span>
+                <div><h2 id="r2AlertsTitle">Operational Alerts</h2><p>Immediate issues affecting the selected deployment date.</p></div>
+              </div>
+              <span id="operationalAlertSummary" class="r2-alert-summary">Loading operational status…</span>
             </div>
-            <span class="r2-alert-summary">No active alerts loaded</span>
+            <div id="operationalAlertList" class="r2-alert-list" aria-live="polite"></div>
+            <div id="operationalAlertGuidance" class="r2-alert-guidance">The workspace will highlight overdue work, exceptions, returns and data-integrity warnings.</div>
           </div>
         </section>
 
@@ -1329,8 +1346,8 @@
             <button class="r2-section-action" type="button">View all</button>
           </div>
           <div class="r2-section-body r2-attention-grid">
-            <section id="exceptionsPanel" class="lifecycle-panel" data-job-panel="Exceptions"><div class="panel-heading"><h2>Exception Jobs</h2></div><div id="exceptionsLane" class="lane-body lifecycle-list"></div></section>
-            <section id="expiredPanel" class="lifecycle-panel" data-job-panel="Expired"><div class="panel-heading"><h2>Expired Jobs</h2></div><div id="expiredLane" class="lane-body lifecycle-list"></div></section>
+            <section id="exceptionsPanel" class="lifecycle-panel" data-job-panel="Exceptions"><div class="panel-heading"><h2>Exception Jobs</h2></div><div class="r2-attention-heading"><span>Unable to deploy</span><span id="exceptionGuidance">Review reason and coordinate recovery</span></div><div id="exceptionsLane" class="lane-body lifecycle-list"></div></section>
+            <section id="expiredPanel" class="lifecycle-panel" data-job-panel="Expired"><div class="panel-heading"><h2>Expired Jobs</h2></div><div class="r2-attention-heading"><span>Past due</span><span>Claim, resolve or escalate</span></div><div id="expiredLane" class="lane-body lifecycle-list"></div></section>
           </div>
         </section>
 
@@ -1358,7 +1375,7 @@
   <aside id="operationsDrawer" class="side-drawer" role="dialog" aria-modal="true" aria-labelledby="operationsDrawerTitle" hidden>
     <div class="side-drawer-header"><div><span>Deployment Workspace</span><h2 id="operationsDrawerTitle">Daily Overview</h2></div><button id="closeOperationsDrawerBtn" class="btn btn-secondary" type="button">Close</button></div>
     <div class="side-drawer-body">
-      <section class="drawer-section"><div class="section-heading"><h3>Today's Summary</h3><span id="operationsSummaryDate"></span></div><div id="operationsSummary" class="operations-summary"></div></section>
+      <section class="drawer-section"><div class="section-heading"><h3>Operational Briefing</h3><span id="operationsSummaryDate"></span></div><div id="dailyBriefCards" class="r2-drawer-brief"></div><div id="operationsSummary" class="operations-summary"></div></section>
       <section class="drawer-section" style="margin-top:10px"><div class="section-heading"><h3>Journey Intelligence</h3><span id="journeyIntelligenceDate"></span></div><div id="journeyIntelligenceSummary" class="journey-intelligence-grid"></div><div id="journeyValidationHealth"></div><div id="journeyIntelligencePolicy" class="intelligence-policy"></div></section>
       <details class="drawer-disclosure" open><summary><span>Operational Recommendations</span><small id="operationalRecommendationCount">0</small></summary><div id="operationalRecommendationList" class="intelligence-list"></div></details>
       <details class="drawer-disclosure"><summary><span>Optimisation Opportunities</span><small id="journeyOpportunityCount">0</small></summary><div id="journeyOpportunityList" class="intelligence-list"></div></details>
@@ -1371,10 +1388,11 @@
   <aside id="journeysDrawer" class="side-drawer" role="dialog" aria-modal="true" aria-labelledby="journeysDrawerTitle" hidden>
     <div class="side-drawer-header"><div><span>Resource Locations</span><h2 id="journeysDrawerTitle">Expected Locations</h2></div><button id="closeJourneysDrawerBtn" class="btn btn-secondary" type="button">Close</button></div>
     <div class="side-drawer-body">
-      <div id="journeyListView"><div class="drawer-search-wrap"><label for="journeySearchInput">Find a resource</label><input id="journeySearchInput" type="search" placeholder="Search by resource name or location" /></div><div id="resourceJourneyList" class="resource-journey-list"></div></div>
+      <div id="journeyListView"><div class="drawer-search-wrap"><label for="journeySearchInput">Find a resource</label><input id="journeySearchInput" type="search" placeholder="Search by resource name, status or location" /><small id="journeySearchSummary" style="color:var(--muted)">All resources</small></div><div id="resourceJourneyList" class="resource-journey-list r2-location-groups"></div></div>
       <div id="journeyDetailView" hidden><button id="backToJourneyListBtn" class="btn btn-secondary" type="button">← All resources</button><div class="journey-detail-heading"><span>Resource journey</span><h3 id="journeyDialogTitle">Resource</h3></div><div id="journeyDialogBody" class="journey-dialog-body journey-detail-body"></div></div>
     </div>
   </aside>
+  <div id="toastRegion" class="r2-toast-region" aria-live="polite" aria-atomic="true"></div>
 
   <script src="portalRegistry.js?v=1.5b.hf2"></script>
   <script src="portalNavigation.js?v=1.5b.hf2"></script>
@@ -1385,6 +1403,16 @@
 
     const deploymentDate = document.getElementById('deploymentDate');
     const statusMessage = document.getElementById('statusMessage');
+    const workspaceLoadingBar = document.getElementById('workspaceLoadingBar');
+    const refreshState = document.getElementById('refreshState');
+    const operationalAlertsSection = document.getElementById('operationalAlertsSection');
+    const operationalAlertIcon = document.getElementById('operationalAlertIcon');
+    const operationalAlertSummary = document.getElementById('operationalAlertSummary');
+    const operationalAlertList = document.getElementById('operationalAlertList');
+    const operationalAlertGuidance = document.getElementById('operationalAlertGuidance');
+    const toastRegion = document.getElementById('toastRegion');
+    const dailyBriefCards = document.getElementById('dailyBriefCards');
+    const journeySearchSummary = document.getElementById('journeySearchSummary');
     const lastUpdated = document.getElementById('lastUpdated');
     const currentJobWorkspace = document.getElementById('currentJobWorkspace');
     const commandKpis = document.getElementById('commandKpis');
@@ -1459,6 +1487,8 @@
     let latestOperationalForecast = {};
     let activeDrawer = null;
     let lastDrawerTrigger = null;
+    let availableJobFilter = 'All';
+    let lastLoadSucceeded = false;
 
     function parseLocalDate(dateString) {
       const [year, month, day] = dateString.split('-').map(Number);
@@ -1488,6 +1518,22 @@
     function showStatus(type, message) {
       statusMessage.className = `status ${type}`;
       statusMessage.textContent = message;
+      const toast = document.createElement('div');
+      toast.className = `r2-toast ${type}`;
+      toast.textContent = message;
+      toastRegion.appendChild(toast);
+      window.setTimeout(() => toast.remove(), type === 'error' ? 7000 : 4200);
+    }
+
+    function setLoadingState(isLoading, hasError = false) {
+      workspaceLoadingBar.hidden = !isLoading;
+      refreshState.classList.toggle('is-loading', isLoading);
+      refreshState.classList.toggle('is-live', !isLoading && !hasError && lastLoadSucceeded);
+      refreshState.classList.toggle('is-error', !isLoading && hasError);
+      const label = refreshState.querySelector('span:last-child');
+      if (label) label.textContent = isLoading ? 'Refreshing operational data…' : hasError ? 'Refresh failed · retry available' : 'Live · auto-refreshes every 15 seconds';
+      document.getElementById('refreshBtn').disabled = isLoading;
+      deploymentDate.setAttribute('aria-busy', String(isLoading));
     }
 
     function clearStatus() {
@@ -1926,7 +1972,32 @@ return currentUser;
     }
 
     function setActiveJobTab(tabName) {
-      jobTabs.forEach(button => {
+      document.querySelectorAll('.r2-filter-chip').forEach(button => {
+      button.addEventListener('click', () => {
+        availableJobFilter = button.textContent.trim();
+        document.querySelectorAll('.r2-filter-chip').forEach(item => item.classList.toggle('active', item === button));
+        renderBookings(latestBookings);
+      });
+    });
+
+    operationalAlertList.addEventListener('click', event => {
+      const retry = event.target.closest('[data-retry-load]');
+      if (retry) { loadBookings().catch(error => showStatus('error', error.message)); return; }
+      const chip = event.target.closest('[data-alert-index]');
+      if (!chip) return;
+      if (chip.dataset.alertDrawer) openDrawer(chip.dataset.alertDrawer, chip.dataset.alertDrawer === 'operations' ? operationsDrawerTab : journeysDrawerTab);
+      if (chip.dataset.alertTarget === 'attention') document.getElementById('r2AttentionTitle')?.scrollIntoView({behavior:'smooth',block:'start'});
+    });
+
+    window.addEventListener('offline', () => {
+      operationalAlertsSection.classList.remove('is-clear','is-warning','is-critical');
+      operationalAlertsSection.classList.add('is-offline');
+      operationalAlertSummary.textContent = 'Device is offline';
+      operationalAlertGuidance.textContent = 'Reconnect before claiming or completing operational work.';
+    });
+    window.addEventListener('online', () => loadBookings({silent:true}).catch(() => {}));
+
+    jobTabs.forEach(button => {
         const active = button.dataset.jobTab === tabName;
         button.classList.toggle('active', active);
         button.setAttribute('aria-selected', String(active));
@@ -2002,6 +2073,13 @@ return currentUser;
           <strong>${Number(value || 0)}</strong>
         </div>
       `).join('');
+      const activeMoves = Number(summary.inTransit || 0) + Number(summary.directTransfer || 0);
+      const intervention = Number(summary.overdue || 0) + Number(summary.awaitingReturn || 0) + Number(summary.exceptions || 0);
+      dailyBriefCards.innerHTML = `
+        <div class="r2-brief-card"><span>Operational posture</span><strong>${intervention ? 'Attention needed' : activeMoves ? 'Work in progress' : 'Ready'}</strong></div>
+        <div class="r2-brief-card"><span>Immediate workload</span><strong>${activeMoves} active movement${activeMoves === 1 ? '' : 's'}</strong></div>
+        <div class="r2-brief-card"><span>Intervention queue</span><strong>${intervention} item${intervention === 1 ? '' : 's'}</strong></div>
+        <div class="r2-brief-card"><span>Completed movements</span><strong>${Number(summary.completedEvents || 0)}</strong></div>`;
     }
 
     function renderJourneyIntelligence(optimization = {}, validation = {}) {
@@ -2097,34 +2175,25 @@ return currentUser;
     }
 
     function renderResourceJourneys(journeys = []) {
+      journeySearchSummary.textContent = `${journeys.length} resource${journeys.length === 1 ? '' : 's'} shown`;
       if (!journeys.length) {
-        resourceJourneyList.innerHTML =
-          '<div class="empty-state">No resource journeys for this date.</div>';
+        resourceJourneyList.innerHTML = '<div class="r2-empty-state"><strong>No matching resource journeys</strong><small>Try another resource name, status or location.</small></div>';
         return;
       }
-
-      resourceJourneyList.innerHTML = journeys.map(journey => `
-        <button
-          type="button"
-          class="resource-journey-card"
-          data-resource-journey="${escapeHtml(journey.resourceId)}"
-        >
-          <div class="resource-journey-card-heading">
-            <strong>${escapeHtml(journey.resourceName)}</strong>
-            <span class="operational-badge ${getStatusClass(journey.operationalStatus)}">${escapeHtml(journey.operationalStatus)}</span>
-          </div>
-          <div class="resource-location-row">
-            <span>Current expected location</span>
-            <strong>${escapeHtml(journey.currentExpectedLocation || journey.homeLocation || 'ICT Room')}</strong>
-          </div>
-          <div class="resource-next-row">
-            <span>Next</span>
-            <strong>${journey.nextStep
-              ? `${escapeHtml(journey.nextStep.time || '—')} · ${escapeHtml(journey.nextStep.location || '-')}`
-              : 'No further movement'}</strong>
-          </div>
-        </button>
-      `).join('');
+      const byLocation = journeys.reduce((groups, journey) => {
+        const location = journey.currentExpectedLocation || journey.homeLocation || 'ICT Room';
+        if (!groups[location]) groups[location] = [];
+        groups[location].push(journey);
+        return groups;
+      }, {});
+      resourceJourneyList.innerHTML = Object.entries(byLocation)
+        .sort(([a],[b]) => a.localeCompare(b))
+        .map(([location, items], index) => `<details class="r2-location-group" ${index < 4 ? 'open' : ''}><summary><span>${escapeHtml(location)}</span><span class="count-pill">${items.length}</span></summary><div class="r2-location-group-list">${items.map(journey => `
+          <button type="button" class="resource-journey-card" data-resource-journey="${escapeHtml(journey.resourceId)}">
+            <div class="resource-journey-card-heading"><strong>${escapeHtml(journey.resourceName)}</strong><span class="operational-badge ${getStatusClass(journey.operationalStatus)}">${escapeHtml(journey.operationalStatus)}</span></div>
+            <div class="resource-location-row"><span>Home location</span><strong>${escapeHtml(journey.homeLocation || 'ICT Room')}</strong></div>
+            <div class="resource-next-row"><span>Next</span><strong>${journey.nextStep ? `${escapeHtml(journey.nextStep.time || '—')} · ${escapeHtml(journey.nextStep.location || '-')}` : 'No further movement'}</strong></div>
+          </button>`).join('')}</div></details>`).join('');
     }
 
     function renderJourneyStatusList(target, journeys, emptyMessage) {
@@ -2167,6 +2236,33 @@ return currentUser;
     }
     function closeDrawer({restoreFocus=true}={}) { if(!activeDrawer)return; const x=getDrawerElements(activeDrawer), f=lastDrawerTrigger||x.trigger; x.drawer.classList.remove('open');drawerOverlay.classList.remove('open');x.trigger.setAttribute('aria-expanded','false');document.body.classList.remove('drawer-open');setTimeout(()=>{x.drawer.hidden=true;drawerOverlay.hidden=true},220);activeDrawer=null;lastDrawerTrigger=null;if(restoreFocus)setTimeout(()=>f?.focus(),230); }
 
+    function renderOperationalAlerts(bookings = [], summary = {}, validation = {}, integrity = {}) {
+      const alerts = [];
+      const overdue = Number(summary.overdue || 0);
+      const awaiting = Number(summary.awaitingReturn || 0);
+      const exceptions = bookings.filter(item => classifyBookingLifecycle(item) === 'Exceptions').length;
+      const errors = Number(validation?.summary?.errors || 0);
+      const warnings = Number(validation?.summary?.warnings || 0);
+      const duplicateIds = Array.isArray(integrity?.duplicateBookingIds) ? integrity.duplicateBookingIds.length : 0;
+      if (exceptions) alerts.push({label:`${exceptions} deployment exception${exceptions===1?'':'s'}`, level:'critical', target:'attention'});
+      if (overdue) alerts.push({label:`${overdue} overdue resource${overdue===1?'':'s'}`, level:'critical', drawer:'operations'});
+      if (awaiting) alerts.push({label:`${awaiting} awaiting return`, level:'warning', drawer:'operations'});
+      if (errors) alerts.push({label:`${errors} journey validation error${errors===1?'':'s'}`, level:'critical', drawer:'operations'});
+      if (warnings) alerts.push({label:`${warnings} journey caution${warnings===1?'':'s'}`, level:'warning', drawer:'operations'});
+      if (duplicateIds) alerts.push({label:'Booking identity conflict', level:'critical', drawer:'operations'});
+      operationalAlertsSection.classList.remove('is-clear','is-warning','is-critical','is-offline');
+      const severity = alerts.some(item => item.level === 'critical') ? 'critical' : alerts.length ? 'warning' : 'clear';
+      operationalAlertsSection.classList.add(`is-${severity}`);
+      operationalAlertIcon.textContent = severity === 'clear' ? '✓' : severity === 'critical' ? '!' : '⚠';
+      operationalAlertSummary.textContent = alerts.length ? `${alerts.length} operational alert${alerts.length===1?'':'s'}` : 'No immediate operational issues';
+      operationalAlertGuidance.textContent = alerts.length ? 'Resolve critical items first, then review returns and advisory journey cautions.' : 'The selected date is operationally clear. Continue with active work or claim the next available job.';
+      operationalAlertList.innerHTML = alerts.length ? alerts.map((item,index)=>`<button type="button" class="r2-alert-chip ${item.level}" data-alert-index="${index}" data-alert-drawer="${item.drawer||''}" data-alert-target="${item.target||''}">${escapeHtml(item.label)}</button>`).join('') : '<span class="r2-alert-chip clear">All monitored conditions are clear</span>';
+    }
+
+    function renderContextualEmptyState(title, detail) {
+      return `<div class="r2-empty-state"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(detail)}</small></div>`;
+    }
+
     function renderBookings(bookings) {
       latestBookings = Array.isArray(bookings) ? bookings : [];
       renderCurrentJob(latestBookings);
@@ -2204,39 +2300,46 @@ return currentUser;
       counts['Completed'].textContent = grouped['Completed'].length;
       counts['Exceptions'].textContent = grouped['Exceptions'].length;
 
-      lanes['Pending Deployment'].innerHTML = grouped['Pending Deployment'].length
-        ? grouped['Pending Deployment'].map(renderJobCard).join('')
-        : '<div class="empty-state">No pending deployment jobs.</div>';
+      const availableCandidates = availableJobFilter === 'Overdue'
+        ? grouped['Expired']
+        : grouped['Pending Deployment'];
+      const filteredPending = availableCandidates.filter(booking => {
+        if (availableJobFilter === 'All' || availableJobFilter === 'Overdue') return true;
+        if (availableJobFilter === 'Due Today') return booking.bookingDate === formatLocalDateForInput(new Date());
+        if (availableJobFilter === 'Due Tomorrow') return booking.bookingDate === formatLocalDateForInput(addDays(new Date(), 1));
+        return true;
+      });
+      lanes['Pending Deployment'].innerHTML = filteredPending.length
+        ? filteredPending.map(renderJobCard).join('')
+        : renderContextualEmptyState('No available jobs match this view', availableJobFilter === 'All' ? 'There is nothing waiting to be claimed for the selected date.' : `No jobs match the ${availableJobFilter} filter.`);
 
       lanes['Claimed'].innerHTML = grouped['Claimed'].length
         ? grouped['Claimed'].map(renderJobCard).join('')
-        : '<div class="empty-state">No claimed jobs.</div>';
+        : renderContextualEmptyState('No active jobs', 'Claim an available job when you are ready to begin work.');
 
       lanes['Expired'].innerHTML = grouped['Expired'].length
         ? grouped['Expired'].map(booking =>
             renderJobCard({ ...booking, lifecycleLabel: 'Expired' })
           ).join('')
-        : '<div class="empty-state">No expired jobs.</div>';
+        : renderContextualEmptyState('No expired jobs', 'There is no uncompleted work past its scheduled end time.');
 
       lanes['Completed'].innerHTML = grouped['Completed'].length
         ? grouped['Completed'].map(renderJobCard).join('')
-        : '<div class="empty-state">No completed jobs.</div>';
+        : renderContextualEmptyState('No completed jobs yet', 'Completed deployment work will appear here for reference.');
 
       lanes['Exceptions'].innerHTML = grouped['Exceptions'].length
         ? grouped['Exceptions'].map(renderJobCard).join('')
-        : '<div class="empty-state">No exception jobs.</div>';
+        : renderContextualEmptyState('No deployment exceptions', 'Jobs marked unable to deploy will appear here with their recorded reason.');
     }
 
     async function loadBookings({ silent = false } = {}) {
       if (!deploymentDate.value) return;
       if (!silent) clearStatus();
-
-      const response = await fetch(`/api/de/bookings?date=${encodeURIComponent(deploymentDate.value)}`, { cache: 'no-store' });
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        throw new Error(result.message || 'Unable to load deployment jobs.');
-      }
+      setLoadingState(true);
+      try {
+        const response = await fetch(`/api/de/bookings?date=${encodeURIComponent(deploymentDate.value)}`, { cache: 'no-store' });
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.message || 'Unable to load deployment jobs.');
 
       latestOperationalTimeline = Array.isArray(result.operationalTimeline)
         ? result.operationalTimeline
@@ -2258,7 +2361,20 @@ return currentUser;
       renderResourceJourneys(latestResourceJourneys);
       renderOperationsStatusGroups();
       renderBookings(result.bookings || []);
+      renderOperationalAlerts(result.bookings || [], latestOperationalSummary, latestJourneyValidation, result.bookingIdentityIntegrity || {});
       lastUpdated.textContent = `Last updated: ${new Date().toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+      lastLoadSucceeded = true;
+      setLoadingState(false);
+      } catch (error) {
+        setLoadingState(false, true);
+        operationalAlertsSection.classList.remove('is-clear','is-warning','is-critical');
+        operationalAlertsSection.classList.add('is-offline');
+        operationalAlertIcon.textContent = '×';
+        operationalAlertSummary.textContent = 'Operational data unavailable';
+        operationalAlertList.innerHTML = '<button type="button" class="r2-alert-chip warning" data-retry-load="true">Retry refresh</button>';
+        operationalAlertGuidance.textContent = 'The last successful view remains on screen. Retry before acting on time-sensitive work.';
+        throw error;
+      }
     }
 
     async function updateJob(card, action, triggerButton = null) {
