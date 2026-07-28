@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Deployment Dashboard | ICT Resource Booking Portal</title>
+  <title>Deployment Workspace | ICT Resource Booking Portal</title>
   <style>
     :root {
       --primary: #0f766e;
@@ -1050,6 +1050,65 @@
   
 
     /* R1.5B: Application-shell and navigation styles are owned exclusively by portal-shell.css. */
+
+    /* Release 2 WP-1 — Deployment Workspace framework */
+    .r2-workspace-card { overflow: visible; }
+    .r2-workspace-header {
+      display:flex; align-items:flex-start; justify-content:space-between; gap:18px;
+      padding:22px 24px 12px; background:#fff;
+    }
+    .r2-workspace-header h1 { margin:0; font-size:clamp(1.55rem,2.7vw,2.15rem); letter-spacing:-.035em; }
+    .r2-workspace-header p { margin:6px 0 0; color:var(--muted); line-height:1.45; }
+    .r2-workspace-badge { padding:7px 10px; border-radius:999px; background:#e0f2fe; color:#075985; font-size:.72rem; font-weight:900; white-space:nowrap; }
+    .r2-toolbar { border-top:1px solid #eef2f7; }
+    .r2-workspace-body { display:grid; gap:14px; padding:16px 24px 24px; }
+    .r2-section { border:1px solid var(--border); border-radius:18px; background:#fff; overflow:hidden; }
+    .r2-section-header { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:14px 16px; border-bottom:1px solid #e8eef5; }
+    .r2-section-heading { display:flex; align-items:center; gap:9px; min-width:0; }
+    .r2-section-heading h2 { margin:0; font-size:1.02rem; }
+    .r2-section-heading p { margin:2px 0 0; color:var(--muted); font-size:.78rem; }
+    .r2-section-body { padding:14px; background:#f8fafc; }
+    .r2-alert-strip { border-color:#fecaca; background:#fff7f7; }
+    .r2-alert-strip .r2-section-header { border:0; background:linear-gradient(90deg,#fff1f2,#fff); }
+    .r2-alert-icon { color:#dc2626; font-weight:900; }
+    .r2-alert-summary { color:#991b1b; font-size:.82rem; font-weight:800; }
+    .r2-active-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+    .r2-active-grid .current-job-workspace { position:static; margin:0; box-shadow:none; }
+    .r2-active-grid .lane { min-height:140px; }
+    .r2-active-grid .lane-header { display:none; }
+    .r2-active-grid .lane-body { padding:0; }
+    .r2-available-toolbar { display:flex; flex-wrap:wrap; gap:7px; }
+    .r2-filter-chip { border:1px solid #cbd5e1; border-radius:999px; background:#fff; color:#475569; padding:7px 10px; font-size:.74rem; font-weight:850; }
+    .r2-filter-chip.active { border-color:var(--primary); background:var(--primary); color:#fff; }
+    .r2-available .lane { border:0; background:transparent; min-height:160px; }
+    .r2-available .lane-header { display:none; }
+    .r2-available .lane-body { grid-template-columns:repeat(3,minmax(0,1fr)); padding:0; }
+    .r2-attention-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+    .r2-attention-grid .lifecycle-panel { border:0; background:transparent; }
+    .r2-attention-grid .panel-heading { display:none; }
+    .r2-attention-grid .lane-body { padding:0; grid-template-columns:1fr; }
+    .r2-history details { background:#fff; }
+    .r2-history summary { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:15px 16px; cursor:pointer; font-weight:900; list-style:none; }
+    .r2-history summary::-webkit-details-marker { display:none; }
+    .r2-history-content { padding:0 14px 14px; border-top:1px solid #e8eef5; background:#f8fafc; }
+    .r2-history-content .lifecycle-panel { border:0; background:transparent; }
+    .r2-history-content .panel-heading { display:none; }
+    .r2-history-content .lane-body { padding:14px 0 0; }
+    .r2-legacy-compat { display:none !important; }
+    .r2-section-action { border:0; background:transparent; color:var(--primary-dark); font-weight:900; cursor:pointer; }
+    @media(max-width:900px){
+      .r2-active-grid,.r2-attention-grid{grid-template-columns:1fr}
+      .r2-available .lane-body{grid-template-columns:repeat(2,minmax(0,1fr))}
+    }
+    @media(max-width:640px){
+      .r2-workspace-header{padding:18px 16px 10px}.r2-workspace-badge{display:none}
+      .r2-workspace-body{padding:12px;gap:11px}.r2-section-header{padding:12px}
+      .r2-section-heading p{display:none}.r2-section-body{padding:10px}
+      .r2-available .lane-body{grid-template-columns:1fr}
+      .r2-toolbar{padding:14px}.r2-toolbar .field{grid-column:1/-1}
+      .r2-alert-summary{font-size:.76rem}
+    }
+
 </style>
 
   <!-- R1.5B HF2 Portal Design System -->
@@ -1059,7 +1118,7 @@
   <link rel="stylesheet" href="portal-workspaces.css?v=1.5b.hf2" />
 
 </head>
-<body class="portal-app pds-migrated" data-pds-release="1.5B-HF2">
+<body class="portal-app pds-migrated" data-pds-release="R2-WP1">
   <main class="page">
     <nav class="portal-nav portal-nav-v2 nav-initializing" aria-label="Portal navigation" aria-busy="true">
       <button id="mobileMenuButton" class="mobile-menu-button" type="button" aria-label="Open navigation menu">☰</button>
@@ -1121,13 +1180,16 @@
       </div>
     </nav>
 
-    <section class="card">
-      <div class="card-header">
-        <h1>Deployment Dashboard</h1>
-        <p>Claim, track, and complete ICT deployment jobs for the selected booking date.</p>
-      </div>
+    <section class="card r2-workspace-card" data-r2-work-package="WP-1">
+      <header class="r2-workspace-header">
+        <div>
+          <h1>Deployment Workspace</h1>
+          <p>Continue claimed work, discover available jobs, and resolve operational exceptions.</p>
+        </div>
+        <span class="r2-workspace-badge">Release 2 · WP-1</span>
+      </header>
 
-      <div class="toolbar">
+      <div class="toolbar r2-toolbar">
         <div class="field">
           <label for="deploymentDate">Deployment date</label>
           <input id="deploymentDate" type="date" />
@@ -1143,95 +1205,72 @@
 
       <div id="statusMessage" class="status" role="status" aria-live="polite"></div>
 
-      <section id="commandCentre" class="command-centre" aria-label="Operations Centre intelligence">
-        <div id="commandKpis" class="command-kpis"></div>
-        <div class="command-layout">
-          <section class="command-panel"><div class="command-panel-header"><div><h2>Live Dispatch Queue</h2><p>Priority-ranked advisory movements from the Journey Engine.</p></div><span id="dispatchQueueCount" class="count-pill">0</span></div><div id="dispatchQueueList" class="command-list"></div></section>
-          <section class="command-panel"><div class="command-panel-header"><div><h2>Operational Risks</h2><p>Forecast, capacity and validation conditions requiring attention.</p></div><span id="operationalRiskCount" class="count-pill">0</span></div><div id="operationalRiskList" class="command-list"></div></section>
-        </div>
-        <div class="command-secondary-grid">
-          <section class="command-panel"><div class="command-panel-header"><div><h2>Journey Chains</h2><p>Resource continuity, direct transfers and avoided returns.</p></div><span id="journeyChainCount" class="count-pill">0</span></div><div id="journeyChainList" class="command-list"></div></section>
-          <section class="command-panel"><div class="command-panel-header"><div><h2>Technician Capacity</h2><p>Advisory workload forecast when a roster is supplied.</p></div><span id="technicianCapacityCount" class="count-pill">0</span></div><div id="technicianCapacityList" class="command-list"></div></section>
-        </div>
-        <section class="command-panel"><div class="command-panel-header"><div><h2>Operational Load Forecast</h2><p>Movement demand by forecast window.</p></div></div><div id="peakPeriodStrip" class="peak-strip"></div></section>
-      </section>
+      <div class="r2-workspace-body">
+        <section class="r2-section r2-alert-strip" aria-labelledby="r2AlertsTitle">
+          <div class="r2-section-header">
+            <div class="r2-section-heading">
+              <span class="r2-alert-icon">⚠</span>
+              <div><h2 id="r2AlertsTitle">Operational Alerts</h2><p>Immediate issues affecting today's work.</p></div>
+            </div>
+            <span class="r2-alert-summary">No active alerts loaded</span>
+          </div>
+        </section>
 
-      <section id="currentJobWorkspace" class="current-job-workspace" hidden aria-live="polite"></section>
+        <section class="r2-section" aria-labelledby="r2ActiveTitle">
+          <div class="r2-section-header">
+            <div class="r2-section-heading"><div><h2 id="r2ActiveTitle">My Active Jobs</h2><p>Jobs you have claimed.</p></div><span id="claimedCount" class="count-pill">0</span></div>
+            <button class="r2-section-action" type="button">View all</button>
+          </div>
+          <div class="r2-section-body r2-active-grid">
+            <section id="currentJobWorkspace" class="current-job-workspace" hidden aria-live="polite"></section>
+            <section class="lane" aria-label="Claimed jobs"><div id="claimedLane" class="lane-body"></div></section>
+          </div>
+        </section>
 
-      <div class="job-tabs" role="tablist" aria-label="Deployment job categories">
-        <button class="job-tab active" type="button" role="tab" aria-selected="true" data-job-tab="Active">
-          Active <span id="activeCount" class="count-pill">0</span>
-        </button>
-        <button class="job-tab" type="button" role="tab" aria-selected="false" data-job-tab="Expired">
-          Expired <span id="expiredCount" class="count-pill">0</span>
-        </button>
-        <button class="job-tab" type="button" role="tab" aria-selected="false" data-job-tab="Completed">
-          Completed <span id="completedCount" class="count-pill">0</span>
-        </button>
-        <button class="job-tab" type="button" role="tab" aria-selected="false" data-job-tab="Exceptions">
-          Exceptions <span id="exceptionsCount" class="count-pill">0</span>
-        </button>
+        <section class="r2-section r2-available" aria-labelledby="r2AvailableTitle">
+          <div class="r2-section-header">
+            <div class="r2-section-heading"><div><h2 id="r2AvailableTitle">Available Jobs</h2><p>Jobs available to claim.</p></div><span id="pendingCount" class="count-pill">0</span></div>
+            <div class="r2-available-toolbar" aria-label="Available job filters">
+              <button class="r2-filter-chip active" type="button">All</button><button class="r2-filter-chip" type="button">Overdue</button><button class="r2-filter-chip" type="button">Due Today</button><button class="r2-filter-chip" type="button">Due Tomorrow</button>
+            </div>
+          </div>
+          <div class="r2-section-body"><section class="lane"><div id="pendingLane" class="lane-body"></div></section></div>
+        </section>
+
+        <section class="r2-section" aria-labelledby="r2AttentionTitle">
+          <div class="r2-section-header">
+            <div class="r2-section-heading"><div><h2 id="r2AttentionTitle">Attention Required</h2><p>Jobs needing operational intervention.</p></div><span id="exceptionsCount" class="count-pill">0</span></div>
+            <button class="r2-section-action" type="button">View all</button>
+          </div>
+          <div class="r2-section-body r2-attention-grid">
+            <section id="exceptionsPanel" class="lifecycle-panel" data-job-panel="Exceptions"><div class="panel-heading"><h2>Exception Jobs</h2></div><div id="exceptionsLane" class="lane-body lifecycle-list"></div></section>
+            <section id="expiredPanel" class="lifecycle-panel" data-job-panel="Expired"><div class="panel-heading"><h2>Expired Jobs</h2></div><div id="expiredLane" class="lane-body lifecycle-list"></div></section>
+          </div>
+        </section>
+
+        <section class="r2-section r2-history" aria-labelledby="r2HistoryTitle">
+          <details>
+            <summary><span id="r2HistoryTitle">History <small style="color:var(--muted);font-weight:700">Completed and expired jobs</small></span><span>Show ▾</span></summary>
+            <div class="r2-history-content"><section id="completedPanel" class="lifecycle-panel" data-job-panel="Completed"><div class="panel-heading"><h2>Completed Jobs</h2></div><div id="completedLane" class="lane-body lifecycle-list"></div></section></div>
+          </details>
+        </section>
       </div>
 
-      <div class="dashboard-grid lifecycle-grid">
-        <section id="activePanel" class="lifecycle-panel" data-job-panel="Active">
-          <div class="panel-heading">
-            <div>
-              <h2>Active Jobs</h2>
-              <p>Pending and claimed work that is still within its booking window.</p>
-            </div>
-          </div>
-          <div class="active-lanes">
-            <section class="lane">
-              <div class="lane-header"><h3>Pending Deployment</h3><span id="pendingCount" class="count-pill">0</span></div>
-              <div id="pendingLane" class="lane-body"></div>
-            </section>
-            <section class="lane">
-              <div class="lane-header"><h3>Claimed</h3><span id="claimedCount" class="count-pill">0</span></div>
-              <div id="claimedLane" class="lane-body"></div>
-            </section>
-          </div>
-        </section>
-
-        <section id="expiredPanel" class="lifecycle-panel" data-job-panel="Expired" hidden>
-          <div class="panel-heading">
-            <div>
-              <h2>Expired Jobs</h2>
-              <p>The booking end time has passed without completed deployment.</p>
-            </div>
-          </div>
-          <div id="expiredLane" class="lane-body lifecycle-list"></div>
-        </section>
-
-        <section id="completedPanel" class="lifecycle-panel" data-job-panel="Completed" hidden>
-          <div class="panel-heading">
-            <div>
-              <h2>Completed Jobs</h2>
-              <p>Successfully completed deployments and operational routes.</p>
-            </div>
-          </div>
-          <div id="completedLane" class="lane-body lifecycle-list"></div>
-        </section>
-
-        <section id="exceptionsPanel" class="lifecycle-panel" data-job-panel="Exceptions" hidden>
-          <div class="panel-heading">
-            <div>
-              <h2>Exception Jobs</h2>
-              <p>Jobs marked unable to deploy or requiring follow-up.</p>
-            </div>
-          </div>
-          <div id="exceptionsLane" class="lane-body lifecycle-list"></div>
-        </section>
+      <!-- Compatibility nodes retained during WP-1 so existing scripts continue to initialise. -->
+      <div class="r2-legacy-compat" aria-hidden="true">
+        <section id="commandCentre" class="command-centre"><div id="commandKpis"></div><span id="dispatchQueueCount">0</span><div id="dispatchQueueList"></div><span id="operationalRiskCount">0</span><div id="operationalRiskList"></div><span id="journeyChainCount">0</span><div id="journeyChainList"></div><span id="technicianCapacityCount">0</span><div id="technicianCapacityList"></div><div id="peakPeriodStrip"></div></section>
+        <div class="job-tabs"><button class="job-tab active" data-job-tab="Active"><span id="activeCount">0</span></button><button class="job-tab" data-job-tab="Expired"><span id="expiredCount">0</span></button><button class="job-tab" data-job-tab="Completed"><span id="completedCount">0</span></button><button class="job-tab" data-job-tab="Exceptions"></button></div>
+        <section id="activePanel" data-job-panel="Active"></section>
       </div>
     </section>
   </main>
   <div id="drawerOverlay" class="drawer-overlay" hidden></div>
   <div class="floating-drawer-tabs" aria-label="Operational information drawers">
-    <button id="operationsDrawerTab" class="floating-drawer-tab" type="button" aria-expanded="false" aria-controls="operationsDrawer"><span class="floating-tab-icon">☷</span><span>Operations</span></button>
-    <button id="journeysDrawerTab" class="floating-drawer-tab" type="button" aria-expanded="false" aria-controls="journeysDrawer"><span class="floating-tab-icon">↝</span><span>Journeys</span></button>
+    <button id="operationsDrawerTab" class="floating-drawer-tab" type="button" aria-expanded="false" aria-controls="operationsDrawer"><span class="floating-tab-icon">☷</span><span>Daily Overview</span></button>
+    <button id="journeysDrawerTab" class="floating-drawer-tab" type="button" aria-expanded="false" aria-controls="journeysDrawer"><span class="floating-tab-icon">↝</span><span>Resource Locations</span></button>
   </div>
   <aside id="operationsDrawer" class="side-drawer" role="dialog" aria-modal="true" aria-labelledby="operationsDrawerTitle" hidden>
-    <div class="side-drawer-header"><div><span>Operations Centre</span><h2 id="operationsDrawerTitle">Daily Operations</h2></div><button id="closeOperationsDrawerBtn" class="btn btn-secondary" type="button">Close</button></div>
+    <div class="side-drawer-header"><div><span>Deployment Workspace</span><h2 id="operationsDrawerTitle">Daily Overview</h2></div><button id="closeOperationsDrawerBtn" class="btn btn-secondary" type="button">Close</button></div>
     <div class="side-drawer-body">
       <section class="drawer-section"><div class="section-heading"><h3>Today's Summary</h3><span id="operationsSummaryDate"></span></div><div id="operationsSummary" class="operations-summary"></div></section>
       <section class="drawer-section" style="margin-top:10px"><div class="section-heading"><h3>Journey Intelligence</h3><span id="journeyIntelligenceDate"></span></div><div id="journeyIntelligenceSummary" class="journey-intelligence-grid"></div><div id="journeyValidationHealth"></div><div id="journeyIntelligencePolicy" class="intelligence-policy"></div></section>
@@ -1244,7 +1283,7 @@
     </div>
   </aside>
   <aside id="journeysDrawer" class="side-drawer" role="dialog" aria-modal="true" aria-labelledby="journeysDrawerTitle" hidden>
-    <div class="side-drawer-header"><div><span>Resource Journeys</span><h2 id="journeysDrawerTitle">Expected Locations</h2></div><button id="closeJourneysDrawerBtn" class="btn btn-secondary" type="button">Close</button></div>
+    <div class="side-drawer-header"><div><span>Resource Locations</span><h2 id="journeysDrawerTitle">Expected Locations</h2></div><button id="closeJourneysDrawerBtn" class="btn btn-secondary" type="button">Close</button></div>
     <div class="side-drawer-body">
       <div id="journeyListView"><div class="drawer-search-wrap"><label for="journeySearchInput">Find a resource</label><input id="journeySearchInput" type="search" placeholder="Search by resource name or location" /></div><div id="resourceJourneyList" class="resource-journey-list"></div></div>
       <div id="journeyDetailView" hidden><button id="backToJourneyListBtn" class="btn btn-secondary" type="button">← All resources</button><div class="journey-detail-heading"><span>Resource journey</span><h3 id="journeyDialogTitle">Resource</h3></div><div id="journeyDialogBody" class="journey-dialog-body journey-detail-body"></div></div>
@@ -2113,7 +2152,7 @@ return currentUser;
       }
     });
 
-    document.querySelector('.dashboard-grid').addEventListener('click', async event => {
+    document.querySelector('.r2-workspace-body').addEventListener('click', async event => {
       const button = event.target.closest('button[data-action]');
       if (!button) return;
 
