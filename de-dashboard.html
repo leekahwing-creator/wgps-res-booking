@@ -1405,8 +1405,91 @@
     }
   </style>
 
+
+  <!-- Release 2 WP-5 HF1 — Resource Locations drawer scrollbar restoration -->
+  <style id="wp5-hf1-resource-locations-scrollbar">
+    #journeysDrawer .side-drawer-body {
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    #journeyListView:not([hidden]) {
+      min-height: 0;
+      height: 100%;
+      max-height: 100%;
+      overflow: hidden;
+    }
+
+    #journeysDrawer .resource-journey-list {
+      min-height: 0;
+      height: auto;
+      max-height: 100%;
+      overflow-x: hidden;
+      overflow-y: scroll;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
+      scrollbar-width: thin;
+      scrollbar-color: #94a3b8 #e2e8f0;
+      -webkit-overflow-scrolling: touch;
+      padding-right: 4px;
+    }
+
+    #journeysDrawer .resource-journey-list::-webkit-scrollbar {
+      width: 10px;
+    }
+
+    #journeysDrawer .resource-journey-list::-webkit-scrollbar-track {
+      background: #e2e8f0;
+      border-radius: 999px;
+    }
+
+    #journeysDrawer .resource-journey-list::-webkit-scrollbar-thumb {
+      background: #94a3b8;
+      border: 2px solid #e2e8f0;
+      border-radius: 999px;
+    }
+
+    #journeysDrawer .resource-journey-list::-webkit-scrollbar-thumb:hover {
+      background: #64748b;
+    }
+
+    #journeyDetailView:not([hidden]) {
+      min-height: 0;
+      height: 100%;
+      max-height: 100%;
+      overflow-x: hidden;
+      overflow-y: scroll;
+      scrollbar-gutter: stable;
+      scrollbar-width: thin;
+      scrollbar-color: #94a3b8 #e2e8f0;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    #journeyDetailView:not([hidden])::-webkit-scrollbar {
+      width: 10px;
+    }
+
+    #journeyDetailView:not([hidden])::-webkit-scrollbar-track {
+      background: #e2e8f0;
+      border-radius: 999px;
+    }
+
+    #journeyDetailView:not([hidden])::-webkit-scrollbar-thumb {
+      background: #94a3b8;
+      border: 2px solid #e2e8f0;
+      border-radius: 999px;
+    }
+
+    @media (max-width: 640px) {
+      #journeysDrawer .resource-journey-list,
+      #journeyDetailView:not([hidden]) {
+        scrollbar-width: auto;
+      }
+    }
+  </style>
+
 </head>
-<body class="portal-app pds-migrated" data-pds-release="R2-WP5">
+<body class="portal-app pds-migrated" data-pds-release="R2-WP5-HF1">
   <a class="wp5-skip-link" href="#wp5OperationalContext">Skip to deployment workspace</a>
   <main class="page">
     <nav class="portal-nav portal-nav-v2 nav-initializing" aria-label="Portal navigation" aria-busy="true">
@@ -1469,13 +1552,13 @@
       </div>
     </nav>
 
-    <section class="card r2-workspace-card" data-r2-work-package="WP-5">
+    <section class="card r2-workspace-card" data-r2-work-package="WP-5-HF1">
       <header class="r2-workspace-header">
         <div>
           <h1>Deployment Workspace</h1>
           <p>Continue claimed work, discover available jobs, and resolve operational exceptions.</p>
         </div>
-        <span class="r2-workspace-badge">Release 2 · WP-5</span>
+        <span class="r2-workspace-badge">Release 2 · WP-5 HF1</span>
       </header>
 
       <div class="toolbar r2-toolbar">
