@@ -4124,7 +4124,44 @@ function applyImportDecisionMetadata(rows = []) {
   });
 }
 
-function previewLegacyBookingRows(rows, dateRange = {}) {
+const IMPORT_PREVIEW_YIELD_INTERVAL = Math.max(
+  1,
+  Number.parseInt(process.env.IMPORT_PREVIEW_YIELD_INTERVAL || "20", 10) || 20
+);
+const IMPORT_COMMIT_YIELD_INTERVAL = Math.max(
+  1,
+  Number.parseInt(process.env.IMPORT_COMMIT_YIELD_INTERVAL || "5", 10) || 5
+);
+
+function yieldImportWorkToEventLoop() {
+  return new Promise(resolve => setImmediate(resolve));
+}
+
+function createImportRunDiagnostics(operation, sourceRowCount = 0) {
+  return {
+    importRunId: crypto.randomUUID(),
+    operation,
+    startedAt: new Date().toISOString(),
+    startedAtMs: Date.now(),
+    sourceRowCount,
+    yieldCount: 0
+  };
+}
+
+function finishImportRunDiagnostics(diagnostics) {
+  const finishedAtMs = Date.now();
+  return {
+    importRunId: diagnostics.importRunId,
+    operation: diagnostics.operation,
+    startedAt: diagnostics.startedAt,
+    finishedAt: new Date(finishedAtMs).toISOString(),
+    durationMs: finishedAtMs - diagnostics.startedAtMs,
+    sourceRowCount: diagnostics.sourceRowCount,
+    yieldCount: diagnostics.yieldCount
+  };
+}
+
+async function previewLegacyBookingRows(rows, dateRange = {}, runDiagnostics = null) {
   const users = getUsersFromXML();
   const importContext = createImportPreviewContext(users);
   const sourceRows = toArray(rows);
@@ -4157,7 +4194,9 @@ function previewLegacyBookingRows(rows, dateRange = {}) {
     rowsForProcessing.push({ sourceRow, sourceIndex: index });
   });
 
-  let allRows = rowsForProcessing.flatMap(({ sourceRow, sourceIndex: index }) => {
+  const allRows = [];
+
+  function processSourceRow(sourceRow, index) {
     const compoundSegments = parseCompoundLocationTimeRemarks(sourceRow, importContext);
     if (compoundSegments.length > 1) {
       return compoundSegments.map(timeSegment => {
@@ -4197,15 +4236,32 @@ function previewLegacyBookingRows(rows, dateRange = {}) {
       mapped.mappedBooking.operationalSegmentationReason = timeSegment?.segmentationReason || "resource/location boundary";
       return mapped;
     });
-  });
+  }
 
-  allRows = consolidateParallelDeviceImportRows(allRows);
-  allRows = applyImportDecisionMetadata(consolidateAccessoryOnlyImportRows(allRows));
+  for (let processingIndex = 0; processingIndex < rowsForProcessing.length; processingIndex += 1) {
+    const { sourceRow, sourceIndex } = rowsForProcessing[processingIndex];
+    allRows.push(...processSourceRow(sourceRow, sourceIndex));
+
+    if ((processingIndex + 1) % IMPORT_PREVIEW_YIELD_INTERVAL === 0) {
+      if (runDiagnostics) runDiagnostics.yieldCount += 1;
+      await yieldImportWorkToEventLoop();
+    }
+  }
+
+  // Yield between the mapping and consolidation stages because consolidation
+  // can also be material for large legacy workbooks.
+  if (runDiagnostics && allRows.length > 0) runDiagnostics.yieldCount += 1;
+  await yieldImportWorkToEventLoop();
+
+  let consolidatedRows = consolidateParallelDeviceImportRows(allRows);
+  if (runDiagnostics && consolidatedRows.length > 0) runDiagnostics.yieldCount += 1;
+  await yieldImportWorkToEventLoop();
+  consolidatedRows = applyImportDecisionMetadata(consolidateAccessoryOnlyImportRows(consolidatedRows));
 
   const inRangeRows = [];
   const outOfRangeRows = [...earlyOutOfRangeRows];
 
-  allRows.forEach(row => {
+  consolidatedRows.forEach(row => {
     const bookingDate = row.mappedBooking?.bookingDate || "";
     if (bookingIsWithinImportDateRange(bookingDate, dateRange)) {
       inRangeRows.push(row);
@@ -4248,7 +4304,7 @@ function previewLegacyBookingRows(rows, dateRange = {}) {
   }, {});
 
   return {
-    totalRows: allRows.length + outOfRangeRows.length,
+    totalRows: consolidatedRows.length + outOfRangeRows.length,
     rowsWithinRange: inRangeRows.length,
     rowsOutsideRange: outOfRangeRows.length,
     dateRange,
@@ -4266,7 +4322,9 @@ function previewLegacyBookingRows(rows, dateRange = {}) {
       sourceRows: sourceRows.length,
       rowsFullyProcessed: rowsForProcessing.length,
       rowsFilteredBeforeMapping: earlyOutOfRangeRows.length,
-      bookingFilesParsed: importContext.monthlyBookingsByMonth.size
+      bookingFilesParsed: importContext.monthlyBookingsByMonth.size,
+      cooperativeYieldInterval: IMPORT_PREVIEW_YIELD_INTERVAL,
+      cooperativeYieldCount: runDiagnostics?.yieldCount || 0
     }
   };
 }
@@ -4424,36 +4482,55 @@ function saveImportedBooking(mappedBooking, importerUser, commitContext = null) 
   return newBooking;
 }
 
-app.post("/api/admin/import/bookings/preview", requireLogin, requireAdmin, (req, res) => {
+app.post("/api/admin/import/bookings/preview", requireLogin, requireAdmin, async (req, res) => {
+  const rows = req.body.rows;
+  const runDiagnostics = createImportRunDiagnostics(
+    "preview",
+    Array.isArray(rows) ? rows.length : 0
+  );
+
   try {
-    const rows = req.body.rows;
     if (!Array.isArray(rows)) {
       return res.status(400).json({ success: false, message: "rows must be an array of booking records." });
     }
 
     const dateRange = getImportDateRange(req.body);
-    const preview = previewLegacyBookingRows(rows, dateRange);
-    res.json({ success: true, ...preview });
+    const preview = await previewLegacyBookingRows(rows, dateRange, runDiagnostics);
+    const importRun = finishImportRunDiagnostics(runDiagnostics);
+    console.info("Booking import preview completed:", importRun);
+    res.json({ success: true, ...preview, importRun });
   } catch (error) {
-    console.error("Booking import preview error:", error);
-    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+    const importRun = finishImportRunDiagnostics(runDiagnostics);
+    console.error("Booking import preview error:", { ...importRun, error: error.message });
+    res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.message,
+      importRun
+    });
   }
 });
 
-app.post("/api/admin/import/bookings/commit", requireLogin, requireAdmin, (req, res) => {
+app.post("/api/admin/import/bookings/commit", requireLogin, requireAdmin, async (req, res) => {
+  const rows = req.body.rows;
+  const runDiagnostics = createImportRunDiagnostics(
+    "commit",
+    Array.isArray(rows) ? rows.length : 0
+  );
+
   try {
-    const rows = req.body.rows;
     if (!Array.isArray(rows)) {
       return res.status(400).json({ success: false, message: "rows must be an array of booking records." });
     }
 
     const dateRange = getImportDateRange(req.body);
-    const preview = previewLegacyBookingRows(rows, dateRange);
+    const preview = await previewLegacyBookingRows(rows, dateRange, runDiagnostics);
     if (preview.invalidRows.length > 0 && !req.body.allowPartialImport) {
+      const importRun = finishImportRunDiagnostics(runDiagnostics);
       return res.status(400).json({
         success: false,
         message: "Some rows within the selected date range are invalid. Fix them or set allowPartialImport to true.",
-        ...preview
+        ...preview,
+        importRun
       });
     }
 
@@ -4464,9 +4541,28 @@ app.post("/api/admin/import/bookings/commit", requireLogin, requireAdmin, (req, 
     ];
     const unapprovedReviewRows = preview.reviewRows.filter(row => !approvedReviewKeys.has(String(row.traceKey || "")));
     const commitContext = createImportCommitContext();
-    const importResults = rowsToCommit.map(row => saveImportedBooking(row.mappedBooking, req.session.user, commitContext));
+    const importResults = [];
+
+    for (let index = 0; index < rowsToCommit.length; index += 1) {
+      importResults.push(
+        saveImportedBooking(rowsToCommit[index].mappedBooking, req.session.user, commitContext)
+      );
+
+      if ((index + 1) % IMPORT_COMMIT_YIELD_INTERVAL === 0) {
+        runDiagnostics.yieldCount += 1;
+        await yieldImportWorkToEventLoop();
+      }
+    }
+
     const importedBookings = importResults.filter(result => !result.skipped);
     const duplicateRows = importResults.filter(result => result.skipped);
+    const importRun = finishImportRunDiagnostics(runDiagnostics);
+    console.info("Booking import commit completed:", {
+      ...importRun,
+      importedCount: importedBookings.length,
+      skippedCount: duplicateRows.length,
+      affectedMonths: Array.from(commitContext.monthStateByKey.keys())
+    });
 
     res.json({
       success: true,
@@ -4484,6 +4580,7 @@ app.post("/api/admin/import/bookings/commit", requireLogin, requireAdmin, (req, 
       rowsWithinRange: preview.rowsWithinRange,
       rowsOutsideRange: preview.rowsOutsideRange,
       dateRange: preview.dateRange,
+      importRun,
       commitPerformance: {
         bookingFilesParsed: commitContext.bookingFilesParsed,
         bookingFilesWritten: commitContext.bookingFilesWritten,
@@ -4491,12 +4588,19 @@ app.post("/api/admin/import/bookings/commit", requireLogin, requireAdmin, (req, 
         duplicateIndexHits: commitContext.duplicateIndexHits,
         committedBookings: commitContext.committedBookings,
         reallocationUpdatesApplied: commitContext.reallocationUpdatesApplied,
-        affectedMonths: Array.from(commitContext.monthStateByKey.keys())
+        affectedMonths: Array.from(commitContext.monthStateByKey.keys()),
+        cooperativeYieldInterval: IMPORT_COMMIT_YIELD_INTERVAL,
+        cooperativeYieldCount: runDiagnostics.yieldCount
       }
     });
   } catch (error) {
-    console.error("Booking import commit error:", error);
-    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+    const importRun = finishImportRunDiagnostics(runDiagnostics);
+    console.error("Booking import commit error:", { ...importRun, error: error.message });
+    res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.message,
+      importRun
+    });
   }
 });
 
