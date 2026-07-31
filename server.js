@@ -4271,7 +4271,64 @@ function previewLegacyBookingRows(rows, dateRange = {}) {
   };
 }
 
-function saveImportedBooking(mappedBooking, importerUser) {
+function createImportCommitContext() {
+  return {
+    monthStateByKey: new Map(),
+    bookingFilesParsed: 0,
+    bookingFilesWritten: 0,
+    duplicateLookups: 0,
+    duplicateIndexHits: 0,
+    committedBookings: 0,
+    reallocationUpdatesApplied: 0
+  };
+}
+
+function getImportCommitMonthState(bookingDate, commitContext) {
+  const monthKey = String(bookingDate || "").slice(0, 7);
+  if (!monthKey) {
+    throw new Error("Booking date is required for import commit.");
+  }
+
+  if (commitContext.monthStateByKey.has(monthKey)) {
+    return commitContext.monthStateByKey.get(monthKey);
+  }
+
+  const bookingsFile = ensureMonthlyBookingsFile(bookingDate);
+  const bookings = readBookingsFromFile(bookingsFile);
+  const fingerprintIndex = new Map();
+
+  bookings
+    .filter(booking => booking.status !== "Deleted" && booking.status !== "Cancelled")
+    .forEach(booking => {
+      const fingerprint = booking.bookingFingerprint || generateBookingFingerprint(booking);
+      const key = `${String(booking.userId || "")}|${fingerprint}`;
+      if (!fingerprintIndex.has(key)) fingerprintIndex.set(key, booking);
+    });
+
+  const state = {
+    monthKey,
+    bookingsFile,
+    bookings,
+    fingerprintIndex,
+    nextBookingId: Number(getNextBookingRecordId(bookings))
+  };
+
+  commitContext.monthStateByKey.set(monthKey, state);
+  commitContext.bookingFilesParsed += 1;
+  return state;
+}
+
+function findDuplicateBookingInCommitContext(bookingRequest, commitContext) {
+  const state = getImportCommitMonthState(bookingRequest.bookingDate, commitContext);
+  const fingerprint = bookingRequest.bookingFingerprint || generateBookingFingerprint(bookingRequest);
+  const key = `${String(bookingRequest.userId || "")}|${fingerprint}`;
+  commitContext.duplicateLookups += 1;
+  const duplicate = state.fingerprintIndex.get(key) || null;
+  if (duplicate) commitContext.duplicateIndexHits += 1;
+  return duplicate;
+}
+
+function saveImportedBooking(mappedBooking, importerUser, commitContext = null) {
   const bookingRequest = prepareBookingForSave(removePersonalDataFromBooking({
     ...mappedBooking,
     userId: mappedBooking.userId || importerUser.userId,
@@ -4281,7 +4338,9 @@ function saveImportedBooking(mappedBooking, importerUser) {
     status: "Pending Allocation"
   }));
 
-  const duplicateBooking = findDuplicateBooking(bookingRequest);
+  const duplicateBooking = commitContext
+    ? findDuplicateBookingInCommitContext(bookingRequest, commitContext)
+    : findDuplicateBooking(bookingRequest);
   if (duplicateBooking) {
     return {
       skipped: true,
@@ -4315,19 +4374,23 @@ function saveImportedBooking(mappedBooking, importerUser) {
     }
   }
 
-  const bookingsFile = ensureMonthlyBookingsFile(bookingRequest.bookingDate);
-  const bookings = readBookingsFromFile(bookingsFile);
+  const state = commitContext
+    ? getImportCommitMonthState(bookingRequest.bookingDate, commitContext)
+    : null;
+  const bookingsFile = state?.bookingsFile || ensureMonthlyBookingsFile(bookingRequest.bookingDate);
+  const bookings = state?.bookings || readBookingsFromFile(bookingsFile);
 
   reallocationUpdates.forEach(update => {
     const bookingToUpdate = bookings.find(booking => String(booking["@_id"]) === String(update.bookingId));
     if (bookingToUpdate) {
       bookingToUpdate.status = update.status;
       bookingToUpdate.allocation = update.allocation;
+      if (commitContext) commitContext.reallocationUpdatesApplied += 1;
     }
   });
 
   const newBooking = {
-    "@_id": getNextBookingRecordId(bookings),
+    "@_id": state ? String(state.nextBookingId++) : getNextBookingRecordId(bookings),
     ...bookingRequest,
     status: allocationResult.status,
     allocation: allocationResult.allocation,
@@ -4342,7 +4405,22 @@ function saveImportedBooking(mappedBooking, importerUser) {
   };
 
   bookings.push(newBooking);
+
+  if (state) {
+    const fingerprint = newBooking.bookingFingerprint || generateBookingFingerprint(newBooking);
+    state.fingerprintIndex.set(`${String(newBooking.userId || "")}|${fingerprint}`, newBooking);
+  }
+
+  // Deliberately retain write-through semantics. resourceAllocator and
+  // conflictResolver read the live monthly XML directly, so each successful
+  // booking must be visible on disk before the next allocation is assessed.
+  // Pass 2 removes the repeated server-side XML read/parse and duplicate scan
+  // while preserving allocation and conflict behaviour exactly.
   writeBookingsToFile(bookingsFile, bookings);
+  if (commitContext) {
+    commitContext.bookingFilesWritten += 1;
+    commitContext.committedBookings += 1;
+  }
   return newBooking;
 }
 
@@ -4385,7 +4463,8 @@ app.post("/api/admin/import/bookings/commit", requireLogin, requireAdmin, (req, 
       ...preview.reviewRows.filter(row => approvedReviewKeys.has(String(row.traceKey || "")))
     ];
     const unapprovedReviewRows = preview.reviewRows.filter(row => !approvedReviewKeys.has(String(row.traceKey || "")));
-    const importResults = rowsToCommit.map(row => saveImportedBooking(row.mappedBooking, req.session.user));
+    const commitContext = createImportCommitContext();
+    const importResults = rowsToCommit.map(row => saveImportedBooking(row.mappedBooking, req.session.user, commitContext));
     const importedBookings = importResults.filter(result => !result.skipped);
     const duplicateRows = importResults.filter(result => result.skipped);
 
@@ -4404,7 +4483,16 @@ app.post("/api/admin/import/bookings/commit", requireLogin, requireAdmin, (req, 
       outOfRangeRows: preview.outOfRangeRows,
       rowsWithinRange: preview.rowsWithinRange,
       rowsOutsideRange: preview.rowsOutsideRange,
-      dateRange: preview.dateRange
+      dateRange: preview.dateRange,
+      commitPerformance: {
+        bookingFilesParsed: commitContext.bookingFilesParsed,
+        bookingFilesWritten: commitContext.bookingFilesWritten,
+        duplicateLookups: commitContext.duplicateLookups,
+        duplicateIndexHits: commitContext.duplicateIndexHits,
+        committedBookings: commitContext.committedBookings,
+        reallocationUpdatesApplied: commitContext.reallocationUpdatesApplied,
+        affectedMonths: Array.from(commitContext.monthStateByKey.keys())
+      }
     });
   } catch (error) {
     console.error("Booking import commit error:", error);
