@@ -1887,9 +1887,9 @@ function normaliseAdditionalResourceRequests(additionalResources) {
     .filter(item => item.type && Number.isInteger(item.quantity) && item.quantity > 0);
 }
 
-function validateAdditionalResourceRequests(bookingRequest) {
+function validateAdditionalResourceRequests(bookingRequest, importContext = null) {
   const errors = [];
-  const resources = readResourcesFromXML().map(formatResourceForResponse);
+  const resources = importContext?.resources || readResourcesFromXML().map(formatResourceForResponse);
   const accessoryKeySet = getAvailableAccessoryKeySet(resources);
   const additionalRequests = normaliseAdditionalResourceRequests(bookingRequest.additionalResources);
 
@@ -2037,21 +2037,71 @@ function generateBookingFingerprint(booking) {
     .digest("hex");
 }
 
-function getActiveBookingsForDate(bookingDate) {
-  const bookingsFile = ensureMonthlyBookingsFile(bookingDate);
-  return readBookingsFromFile(bookingsFile)
+function getActiveBookingsForDate(bookingDate, importContext = null) {
+  const dateKey = String(bookingDate || "");
+
+  if (importContext?.activeBookingsByDate?.has(dateKey)) {
+    return importContext.activeBookingsByDate.get(dateKey);
+  }
+
+  let monthlyBookings;
+  const monthKey = dateKey.slice(0, 7);
+
+  if (importContext?.monthlyBookingsByMonth?.has(monthKey)) {
+    monthlyBookings = importContext.monthlyBookingsByMonth.get(monthKey);
+  } else {
+    const bookingsFile = ensureMonthlyBookingsFile(dateKey);
+    monthlyBookings = readBookingsFromFile(bookingsFile);
+    if (importContext?.monthlyBookingsByMonth) {
+      importContext.monthlyBookingsByMonth.set(monthKey, monthlyBookings);
+    }
+  }
+
+  const bookings = monthlyBookings
+    .filter(booking => String(booking.bookingDate || "") === dateKey)
     .filter(booking => booking.status !== "Deleted" && booking.status !== "Cancelled");
+
+  if (importContext?.activeBookingsByDate) {
+    importContext.activeBookingsByDate.set(dateKey, bookings);
+  }
+
+  return bookings;
 }
 
-function findDuplicateBooking(bookingRequest, options = {}) {
+function getImportFingerprintIndexForDate(bookingDate, importContext) {
+  const dateKey = String(bookingDate || "");
+  if (!importContext?.fingerprintIndexByDate) return null;
+
+  if (!importContext.fingerprintIndexByDate.has(dateKey)) {
+    const index = new Map();
+    getActiveBookingsForDate(dateKey, importContext).forEach(booking => {
+      const fingerprint = booking.bookingFingerprint || generateBookingFingerprint(booking);
+      const userId = String(booking.userId || "");
+      const key = `${userId}|${fingerprint}`;
+      if (!index.has(key)) index.set(key, booking);
+    });
+    importContext.fingerprintIndexByDate.set(dateKey, index);
+  }
+
+  return importContext.fingerprintIndexByDate.get(dateKey);
+}
+
+function findDuplicateBooking(bookingRequest, options = {}, importContext = null) {
   const fingerprint = generateBookingFingerprint(bookingRequest);
-  const bookings = getActiveBookingsForDate(bookingRequest.bookingDate);
+  const requestedUserId = String(bookingRequest.userId || "");
+
+  if (importContext && !options.excludeBookingId) {
+    const index = getImportFingerprintIndexForDate(bookingRequest.bookingDate, importContext);
+    return index?.get(`${requestedUserId}|${fingerprint}`) || null;
+  }
+
+  const bookings = getActiveBookingsForDate(bookingRequest.bookingDate, importContext);
   return bookings.find(booking => {
     if (options.excludeBookingId && String(booking["@_id"]) === String(options.excludeBookingId)) {
       return false;
     }
 
-    if (String(booking.userId || "") !== String(bookingRequest.userId || "")) {
+    if (String(booking.userId || "") !== requestedUserId) {
       return false;
     }
 
@@ -2182,7 +2232,44 @@ function normaliseImportTime(value) {
   return `${String(hour).padStart(2, "0")}:${minute}`;
 }
 
-function getAvailableAccessoryTypes() {
+function createImportPreviewContext(users = []) {
+  const resources = readResourcesFromXML().map(formatResourceForResponse);
+  const availableResources = resources.filter(resource => resource.status === "Available");
+  const knownLocations = readLocationsFromXML()
+    .filter(location => location.status === "Active")
+    .map(location => location.name)
+    .filter(name => name && name !== "Other")
+    .sort((a, b) => b.length - a.length);
+
+  const resourceCapacityLookup = availableResources.reduce((lookup, resource) => {
+    const key = normaliseResourceLookupText(resource.name);
+    if (key) lookup.set(key, Number(resource.capacity) || 0);
+    return lookup;
+  }, new Map());
+
+  return {
+    users,
+    resources,
+    availableResources,
+    availableAccessoryTypes: Array.from(new Set(
+      availableResources
+        .filter(resource => resource.category === "Accessory")
+        .map(resource => resource.deviceType)
+        .filter(Boolean)
+    )),
+    knownLocations,
+    resourceCapacityLookup,
+    resourceAliasEntries: null,
+    monthlyBookingsByMonth: new Map(),
+    activeBookingsByDate: new Map(),
+    fingerprintIndexByDate: new Map()
+  };
+}
+
+function getAvailableAccessoryTypes(importContext = null) {
+  if (importContext?.availableAccessoryTypes) {
+    return importContext.availableAccessoryTypes;
+  }
   return Array.from(new Set(
     readResourcesFromXML()
       .map(formatResourceForResponse)
@@ -2321,7 +2408,8 @@ function normaliseResourceLookupText(value) {
     .trim();
 }
 
-function getResourceCapacityLookup() {
+function getResourceCapacityLookup(importContext = null) {
+  if (importContext?.resourceCapacityLookup) return importContext.resourceCapacityLookup;
   return readResourcesFromXML()
     .map(formatResourceForResponse)
     .reduce((lookup, resource) => {
@@ -2405,7 +2493,8 @@ function inferLegacyAccessoriesFromResourceText(resourceText) {
   return Array.from(quantitiesByType.values());
 }
 
-function getResourceAliasEntries() {
+function getResourceAliasEntries(importContext = null) {
+  if (importContext?.resourceAliasEntries) return importContext.resourceAliasEntries;
   const colourByLetter = {
     a: "blue",
     b: "green",
@@ -2413,9 +2502,9 @@ function getResourceAliasEntries() {
     d: "red"
   };
 
-  return readResourcesFromXML()
+  const entries = (importContext?.availableResources || readResourcesFromXML()
     .map(formatResourceForResponse)
-    .filter(resource => resource.status === "Available")
+    .filter(resource => resource.status === "Available"))
     .flatMap(resource => {
       const aliases = new Set();
       const name = String(resource.name || "").trim();
@@ -2458,6 +2547,9 @@ function getResourceAliasEntries() {
         .map(alias => ({ alias, resource }));
     })
     .sort((a, b) => b.alias.length - a.alias.length);
+
+  if (importContext) importContext.resourceAliasEntries = entries;
+  return entries;
 }
 
 function extractCanonicalLegacyResourceIdentity(value) {
@@ -2488,12 +2580,12 @@ function getCanonicalResourceIdentity(resource = {}) {
   };
 }
 
-function findRegisteredResourceMatch(resourceText) {
+function findRegisteredResourceMatch(resourceText, importContext = null) {
   const sourceIdentity = extractCanonicalLegacyResourceIdentity(resourceText);
   const text = sourceIdentity.text;
   if (!text) return null;
 
-  const availableResources = readResourcesFromXML()
+  const availableResources = importContext?.availableResources || readResourcesFromXML()
     .map(formatResourceForResponse)
     .filter(resource => resource.status === "Available");
 
@@ -2522,7 +2614,7 @@ function findRegisteredResourceMatch(resourceText) {
     };
   }
 
-  const entries = getResourceAliasEntries();
+  const entries = getResourceAliasEntries(importContext);
   let bestMatch = null;
   let bestScore = 0;
 
@@ -2560,12 +2652,12 @@ function findRegisteredResourceMatch(resourceText) {
   return null;
 }
 
-function findRegisteredDeviceResourceMatches(resourceText) {
+function findRegisteredDeviceResourceMatches(resourceText, importContext = null) {
   const deviceItems = splitLegacyResourceItems(resourceText)
     .filter(item => legacyResourceItemIsDevice(item));
 
   const resolvedItems = deviceItems.map(item => {
-    const match = findRegisteredResourceMatch(item);
+    const match = findRegisteredResourceMatch(item, importContext);
     const resource = match?.resource;
     const validDeviceMatch = resource && resource.category !== "Accessory";
     const quantity = validDeviceMatch
@@ -2603,17 +2695,17 @@ function findRegisteredDeviceResourceMatches(resourceText) {
   };
 }
 
-function extractLegacyDeviceQuantityFromResource(resourceText, fallback = 1) {
+function extractLegacyDeviceQuantityFromResource(resourceText, fallback = 1, importContext = null) {
   const text = normaliseImportValue(resourceText);
   if (!text) return fallback;
 
-  const registeredMatch = findRegisteredResourceMatch(text);
+  const registeredMatch = findRegisteredResourceMatch(text, importContext);
   if (registeredMatch?.resource?.capacity && registeredMatch.resource.category !== "Accessory") {
     return Number(registeredMatch.resource.capacity) || fallback;
   }
 
   const items = splitLegacyResourceItems(text);
-  const resourceCapacityLookup = getResourceCapacityLookup();
+  const resourceCapacityLookup = getResourceCapacityLookup(importContext);
   let total = 0;
 
   items.forEach(item => {
@@ -2701,7 +2793,7 @@ function normaliseSearchText(value) {
     .trim();
 }
 
-function inferLegacyResource(resourceText) {
+function inferLegacyResource(resourceText, importContext = null) {
   const text = normaliseSearchText(resourceText);
   const result = {
     isICT: false,
@@ -2755,7 +2847,7 @@ function inferLegacyResource(resourceText) {
     return result;
   }
 
-  const deviceMatches = findRegisteredDeviceResourceMatches(resourceText);
+  const deviceMatches = findRegisteredDeviceResourceMatches(resourceText, importContext);
 
   if (deviceMatches.deviceItemCount > 1) {
     const resolved = deviceMatches.items.filter(item => item.matched);
@@ -2795,7 +2887,7 @@ function inferLegacyResource(resourceText) {
       result.resourceResolution = `Canonical physical resource set matched (${result.matchedResourceIds.join(", ")})`;
     }
   } else {
-    const registeredMatch = findRegisteredResourceMatch(resourceText);
+    const registeredMatch = findRegisteredResourceMatch(resourceText, importContext);
     if (registeredMatch?.resource) {
       const resource = registeredMatch.resource;
       result.isICT = true;
@@ -2883,7 +2975,8 @@ function extractLegacyQuantity(value, fallback = 1) {
   return fallback;
 }
 
-function getKnownLocationNames() {
+function getKnownLocationNames(importContext = null) {
+  if (importContext?.knownLocations) return importContext.knownLocations;
   return readLocationsFromXML()
     .filter(location => location.status === "Active")
     .map(location => location.name)
@@ -2921,10 +3014,10 @@ function looksLikeDescriptiveDeploymentLocation(text) {
   return locationIntentPatterns.some(pattern => pattern.test(lower));
 }
 
-function extractLegacyLocation(row) {
+function extractLegacyLocation(row, importContext = null) {
   if (row?.__legacyLocationOverride) {
     const overrideLocation = normaliseImportValue(row.__legacyLocationOverride);
-    const knownLocations = getKnownLocationNames();
+    const knownLocations = getKnownLocationNames(importContext);
     return {
       location: overrideLocation,
       resolution: knownLocations.includes(overrideLocation) ? "Matched existing location" : "Custom resource-specific location",
@@ -2940,7 +3033,7 @@ function extractLegacyLocation(row) {
   ].map(normaliseImportValue).filter(Boolean);
 
   const searchableText = sources.join("\n");
-  const knownLocations = getKnownLocationNames();
+  const knownLocations = getKnownLocationNames(importContext);
 
   for (const locationName of knownLocations) {
     const escaped = locationName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -3051,8 +3144,8 @@ function extractLegacyLocation(row) {
   };
 }
 
-function getAccessoryDetectionRules() {
-  return getAvailableAccessoryTypes().map(type => {
+function getAccessoryDetectionRules(importContext = null) {
+  return getAvailableAccessoryTypes(importContext).map(type => {
     const normalisedType = String(type || "").trim();
     const escapedType = normalisedType.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s*");
     const aliases = [escapedType];
@@ -3102,13 +3195,13 @@ function detectQuantityNearAccessory(text, matchIndex, matchLength) {
   return 0;
 }
 
-function inferLegacyAccessoriesFromText(text, sourceLabel) {
+function inferLegacyAccessoriesFromText(text, sourceLabel, importContext = null) {
   const rawText = normaliseImportValue(text);
   if (!rawText) return { accessories: [], resolutions: [] };
 
   const accessories = [];
   const resolutions = [];
-  const rules = getAccessoryDetectionRules();
+  const rules = getAccessoryDetectionRules(importContext);
 
   rules.forEach(rule => {
     const match = rawText.match(rule.pattern);
@@ -3164,7 +3257,7 @@ function cleanLegacyResourceSegmentText(value) {
     .trim();
 }
 
-function parseLegacyResourceDeploymentSegments(row) {
+function parseLegacyResourceDeploymentSegments(row, importContext = null) {
   const legacyResourceText = normaliseImportValue(getImportValue(row, [
     "Resources", "Resource", "Device Type", "Resource Type", "Main Resource", "deviceType"
   ]));
@@ -3181,7 +3274,7 @@ function parseLegacyResourceDeploymentSegments(row) {
   const resourceItemsWithMatches = resourceItems
     .map(item => ({
       item,
-      match: findRegisteredResourceMatch(item)
+      match: findRegisteredResourceMatch(item, importContext)
     }))
     .filter(entry => entry.match?.resource && entry.match.resource.category !== "Accessory");
 
@@ -3224,7 +3317,7 @@ function parseLegacyResourceDeploymentSegments(row) {
     }
 
     if (!matchedEntry) {
-      const directMatch = findRegisteredResourceMatch(resourceHint);
+      const directMatch = findRegisteredResourceMatch(resourceHint, importContext);
       if (directMatch?.resource && directMatch.resource.category !== "Accessory") {
         matchedEntry = {
           item: resourceHint,
@@ -3269,13 +3362,13 @@ function normaliseCompactLegacyTime(value) {
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
-function parseCompoundLocationTimeRemarks(row) {
+function parseCompoundLocationTimeRemarks(row, importContext = null) {
   const remarksText = normaliseImportValue(getImportValue(row, [
     "Booking Remarks", "Booking Remark", "Remarks", "Remark", "bookingRemarks"
   ]));
   if (!remarksText) return [];
 
-  const knownLocations = getKnownLocationNames();
+  const knownLocations = getKnownLocationNames(importContext);
   const segments = [];
   const lines = remarksText
     .split(/\r?\n|\s*;\s*/)
@@ -3355,15 +3448,15 @@ function buildImportSegmentLabel(index, row) {
 }
 
 
-function mapLegacyBookingRow(row, index, users) {
+function mapLegacyBookingRow(row, index, users, importContext = null) {
   const errors = [];
   const warnings = [];
-  const accessoryTypes = getAvailableAccessoryTypes();
+  const accessoryTypes = getAvailableAccessoryTypes(importContext);
 
   const legacyResourceText = normaliseImportValue(getImportValue(row, [
     "Resources", "Resource", "Device Type", "Resource Type", "Main Resource", "deviceType"
   ]));
-  const legacyResourceInference = inferLegacyResource(legacyResourceText);
+  const legacyResourceInference = inferLegacyResource(legacyResourceText, importContext);
 
   const bookedFor = parseLegacyPerson(getImportValue(row, [
     "Booked For", "Requester", "Requester Email", "Email", "User Email", "Teacher Email", "requesterEmail", "email"
@@ -3392,7 +3485,7 @@ function mapLegacyBookingRow(row, index, users) {
     "End Time", "End", "endTime", "EndTime"
   ])) || timeslotParse.endTime;
 
-  const locationResolution = extractLegacyLocation(row);
+  const locationResolution = extractLegacyLocation(row, importContext);
   let location = locationResolution.location;
 
   const isCollectionOnlyResource = legacyResourceInference.isICT && legacyResourceInference.matchedResourceDeploymentRequired === false;
@@ -3412,7 +3505,8 @@ function mapLegacyBookingRow(row, index, users) {
     legacyResourceText,
     extractLegacyQuantity(getImportValue(row, [
       "Number of Devices", "Devices Required", "Quantity", "Qty", "devicesRequired"
-    ]), 1)
+    ]), 1),
+    importContext
   );
 
   const softwareRequirement = normaliseImportValue(getImportValue(row, [
@@ -3439,11 +3533,11 @@ function mapLegacyBookingRow(row, index, users) {
 
   legacyResourceInference.accessoryResources.forEach(item => additionalResources.push(item));
 
-  const purposeAccessories = inferLegacyAccessoriesFromText(legacyPurpose, "Purpose");
+  const purposeAccessories = inferLegacyAccessoriesFromText(legacyPurpose, "Purpose", importContext);
   purposeAccessories.accessories.forEach(item => additionalResources.push(item));
   purposeAccessories.resolutions.forEach(note => accessoryResolutionNotes.push(note));
 
-  const remarksAccessories = inferLegacyAccessoriesFromText(legacyBookingRemarks, "Booking Remarks");
+  const remarksAccessories = inferLegacyAccessoriesFromText(legacyBookingRemarks, "Booking Remarks", importContext);
   remarksAccessories.accessories.forEach(item => additionalResources.push(item));
   remarksAccessories.resolutions.forEach(note => accessoryResolutionNotes.push(note));
 
@@ -3545,10 +3639,10 @@ function mapLegacyBookingRow(row, index, users) {
     }
   };
 
-  const additionalErrors = validateAdditionalResourceRequests(mappedBooking);
+  const additionalErrors = validateAdditionalResourceRequests(mappedBooking, importContext);
   additionalErrors.forEach(error => errors.push(error));
 
-  if (errors.length === 0 && findDuplicateBooking(prepareBookingForSave(mappedBooking))) {
+  if (errors.length === 0 && findDuplicateBooking(prepareBookingForSave(mappedBooking), {}, importContext)) {
     errors.push("Duplicate booking already exists and will not be imported again.");
   }
 
@@ -4032,12 +4126,42 @@ function applyImportDecisionMetadata(rows = []) {
 
 function previewLegacyBookingRows(rows, dateRange = {}) {
   const users = getUsersFromXML();
-  let allRows = toArray(rows).flatMap((row, index) => {
+  const importContext = createImportPreviewContext(users);
+  const sourceRows = toArray(rows);
+  const hasDateRange = Boolean(dateRange.importFrom || dateRange.importTo);
+  const rowsForProcessing = [];
+  const earlyOutOfRangeRows = [];
+
+  sourceRows.forEach((row, index) => {
     const sourceRow = row || {};
-    const compoundSegments = parseCompoundLocationTimeRemarks(sourceRow);
+    const bookingDate = normaliseImportDate(getImportValue(sourceRow, [
+      "Booking Date", "Date", "bookingDate", "BookingDate"
+    ]));
+
+    if (hasDateRange && !bookingIsWithinImportDateRange(bookingDate, dateRange)) {
+      earlyOutOfRangeRows.push({
+        rowNumber: String(index + 1),
+        valid: false,
+        skipped: true,
+        classification: "Outside selected range",
+        errors: [],
+        warnings: [],
+        mappedBooking: { bookingDate },
+        skippedReason: bookingDate
+          ? "Outside selected import date range."
+          : "No valid booking date found for date-range filtering."
+      });
+      return;
+    }
+
+    rowsForProcessing.push({ sourceRow, sourceIndex: index });
+  });
+
+  let allRows = rowsForProcessing.flatMap(({ sourceRow, sourceIndex: index }) => {
+    const compoundSegments = parseCompoundLocationTimeRemarks(sourceRow, importContext);
     if (compoundSegments.length > 1) {
       return compoundSegments.map(timeSegment => {
-        const mapped = mapLegacyBookingRow(buildLegacySegmentRow(sourceRow, null, timeSegment), index, users);
+        const mapped = mapLegacyBookingRow(buildLegacySegmentRow(sourceRow, null, timeSegment), index, users, importContext);
         mapped.mappedBooking.operationalSegmentNumber = timeSegment.segmentIndex;
         mapped.mappedBooking.operationalSegmentTotal = timeSegment.segmentTotal;
         mapped.mappedBooking.operationalSegmentationReason = timeSegment.segmentationReason;
@@ -4045,7 +4169,7 @@ function previewLegacyBookingRows(rows, dateRange = {}) {
       });
     }
 
-    const resourceSegments = parseLegacyResourceDeploymentSegments(sourceRow);
+    const resourceSegments = parseLegacyResourceDeploymentSegments(sourceRow, importContext);
     const timeSegments = parseLegacyTimeslotSegments(getImportValue(sourceRow, [
       "Timeslots", "Timeslot", "Time Slots", "Time", "Start Time", "Start", "startTime", "StartTime"
     ]));
@@ -4053,7 +4177,7 @@ function previewLegacyBookingRows(rows, dateRange = {}) {
     const segmentation = bookingSegmentationEngine.pairOperationalSegments(resourceSegments, timeSegments);
 
     if (segmentation.errors.length) {
-      const reviewRow = mapLegacyBookingRow(sourceRow, index, users);
+      const reviewRow = mapLegacyBookingRow(sourceRow, index, users, importContext);
       reviewRow.valid = false;
       reviewRow.errors = Array.from(new Set([...(reviewRow.errors || []), ...segmentation.errors]));
       reviewRow.warnings = Array.from(new Set([...(reviewRow.warnings || []), ...segmentation.warnings]));
@@ -4063,7 +4187,7 @@ function previewLegacyBookingRows(rows, dateRange = {}) {
     }
 
     return segmentation.segments.map(({ resourceSegment, timeSegment }) => {
-      const mapped = mapLegacyBookingRow(buildLegacySegmentRow(sourceRow, resourceSegment, timeSegment), index, users);
+      const mapped = mapLegacyBookingRow(buildLegacySegmentRow(sourceRow, resourceSegment, timeSegment), index, users, importContext);
       if (segmentation.warnings.length) {
         mapped.warnings = Array.from(new Set([...(mapped.warnings || []), ...segmentation.warnings]));
         mapped.mappedBooking.importWarnings = { warning: mapped.warnings };
@@ -4079,7 +4203,7 @@ function previewLegacyBookingRows(rows, dateRange = {}) {
   allRows = applyImportDecisionMetadata(consolidateAccessoryOnlyImportRows(allRows));
 
   const inRangeRows = [];
-  const outOfRangeRows = [];
+  const outOfRangeRows = [...earlyOutOfRangeRows];
 
   allRows.forEach(row => {
     const bookingDate = row.mappedBooking?.bookingDate || "";
@@ -4124,7 +4248,7 @@ function previewLegacyBookingRows(rows, dateRange = {}) {
   }, {});
 
   return {
-    totalRows: allRows.length,
+    totalRows: allRows.length + outOfRangeRows.length,
     rowsWithinRange: inRangeRows.length,
     rowsOutsideRange: outOfRangeRows.length,
     dateRange,
@@ -4137,7 +4261,13 @@ function previewLegacyBookingRows(rows, dateRange = {}) {
     outOfRangeRows,
     classificationSummary,
     resourceSummary,
-    accessorySummary
+    accessorySummary,
+    performance: {
+      sourceRows: sourceRows.length,
+      rowsFullyProcessed: rowsForProcessing.length,
+      rowsFilteredBeforeMapping: earlyOutOfRangeRows.length,
+      bookingFilesParsed: importContext.monthlyBookingsByMonth.size
+    }
   };
 }
 
