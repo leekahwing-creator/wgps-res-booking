@@ -3352,13 +3352,24 @@ function parseLegacyResourceDeploymentSegments(row, importContext = null) {
   }));
 }
 
-function normaliseCompactLegacyTime(value) {
-  const text = String(value || "").trim().replace(/[.:]/g, "");
-  if (!/^\d{3,4}$/.test(text)) return "";
-  const padded = text.padStart(4, "0");
-  const hour = Number(padded.slice(0, 2));
-  const minute = Number(padded.slice(2));
+function normaliseCompactLegacyTime(value, inheritedSuffix = "") {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  const match = raw.match(/^(\d{1,2})(?::|\.)?(\d{2})\s*(AM|PM)?$/i);
+  if (!match) return "";
+
+  let hour = Number(match[1]);
+  const minute = Number(match[2]);
+  const suffix = String(match[3] || inheritedSuffix || "").toUpperCase();
+
   if (hour > 23 || minute > 59) return "";
+  if (suffix) {
+    if (hour < 1 || hour > 12) return "";
+    if (suffix === "PM" && hour < 12) hour += 12;
+    if (suffix === "AM" && hour === 12) hour = 0;
+  }
+
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
@@ -3376,12 +3387,19 @@ function parseCompoundLocationTimeRemarks(row, importContext = null) {
     .filter(Boolean);
 
   lines.forEach(line => {
-    const match = line.match(/^\s*(?:class(?:room)?\s*)?(P?\s*[1-6]\s*[A-G]{1,6}|[A-Za-z][A-Za-z0-9 .&'()\/-]{1,40}?)\s*[:,-]?\s*(\d{1,2}(?::|\.)?\d{2}|\d{3,4})\s*[-–—]\s*(\d{1,2}(?::|\.)?\d{2}|\d{3,4})\s*$/i);
+    // HF-IMP-002: preserve each location/time pairing across the legacy formats
+    // observed in exported remarks. Supported examples include:
+    //   Class 6C: 10:15-11:15
+    //   Class 6C: 10:15 to 11:15pm
+    //   Classroom 6C, 10.15am – 11.15am
+    const match = line.match(/^\s*(?:class(?:room)?\s*)?(P?\s*[1-6]\s*[A-G]{1,6}|[A-Za-z][A-Za-z0-9 .&'()\/-]{1,40}?)\s*[:,-]?\s*(\d{1,2}(?::|\.)?\d{2}|\d{3,4})\s*(AM|PM)?\s*(?:[-–—]|\bto\b)\s*(\d{1,2}(?::|\.)?\d{2}|\d{3,4})\s*(AM|PM)?\s*$/i);
     if (!match) return;
 
     const rawLocation = match[1].replace(/^P\s*/i, "").replace(/\s+/g, "").toUpperCase();
-    const startTime = normaliseCompactLegacyTime(match[2]);
-    const endTime = normaliseCompactLegacyTime(match[3]);
+    const endSuffix = String(match[5] || "").toUpperCase();
+    const startSuffix = String(match[3] || endSuffix || "").toUpperCase();
+    const startTime = normaliseCompactLegacyTime(match[2], startSuffix);
+    const endTime = normaliseCompactLegacyTime(match[4], endSuffix || startSuffix);
     if (!rawLocation || !startTime || !endTime || startTime >= endTime) return;
 
     const knownLocation = findKnownLocationByCandidate(rawLocation, knownLocations);
