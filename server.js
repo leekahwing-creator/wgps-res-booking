@@ -3373,6 +3373,80 @@ function normaliseCompactLegacyTime(value, inheritedSuffix = "") {
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
+const LEGACY_IMPORT_BOOKING_WINDOW = Object.freeze({
+  startTime: "07:45",
+  endTime: "17:30"
+});
+
+function legacyImportTimeIsWithinBookingWindow(value) {
+  const time = String(value || "");
+  return time >= LEGACY_IMPORT_BOOKING_WINDOW.startTime &&
+    time <= LEGACY_IMPORT_BOOKING_WINDOW.endTime;
+}
+
+function normaliseCompoundLegacyTimeRange(startValue, startSuffixValue, endValue, endSuffixValue) {
+  const explicitStartSuffix = String(startSuffixValue || "").toUpperCase();
+  const explicitEndSuffix = String(endSuffixValue || "").toUpperCase();
+  const inheritedStartSuffix = explicitStartSuffix || explicitEndSuffix;
+  const inheritedEndSuffix = explicitEndSuffix || explicitStartSuffix;
+
+  const literalStartTime = normaliseCompactLegacyTime(startValue, inheritedStartSuffix);
+  const literalEndTime = normaliseCompactLegacyTime(endValue, inheritedEndSuffix);
+  const literalChronological = Boolean(
+    literalStartTime && literalEndTime && literalStartTime < literalEndTime
+  );
+  const literalWithinWindow = literalChronological &&
+    legacyImportTimeIsWithinBookingWindow(literalStartTime) &&
+    legacyImportTimeIsWithinBookingWindow(literalEndTime);
+
+  if (literalWithinWindow) {
+    return {
+      startTime: literalStartTime,
+      endTime: literalEndTime,
+      normalised: false,
+      warning: "",
+      code: ""
+    };
+  }
+
+  // HF-IMP-003: legacy exports occasionally append a PM marker only to the
+  // final time even when the lesson occurred during the school day. The older
+  // parser inherited that marker backwards, producing impossible times such as
+  // 22:15-23:15. Only test the clock-face daytime interpretation when the
+  // literal interpretation is invalid or outside the portal booking window.
+  const daytimeStartTime = normaliseCompactLegacyTime(startValue, "");
+  const daytimeEndTime = normaliseCompactLegacyTime(endValue, "");
+  const daytimeChronological = Boolean(
+    daytimeStartTime && daytimeEndTime && daytimeStartTime < daytimeEndTime
+  );
+  const daytimeWithinWindow = daytimeChronological &&
+    legacyImportTimeIsWithinBookingWindow(daytimeStartTime) &&
+    legacyImportTimeIsWithinBookingWindow(daytimeEndTime);
+
+  if ((explicitStartSuffix === "PM" || explicitEndSuffix === "PM") && daytimeWithinWindow) {
+    const literalLabel = literalStartTime && literalEndTime
+      ? `${literalStartTime}-${literalEndTime}`
+      : "an invalid time range";
+    return {
+      startTime: daytimeStartTime,
+      endTime: daytimeEndTime,
+      normalised: true,
+      warning: `Legacy PM marker normalised to daytime because the literal interpretation (${literalLabel}) falls outside the permitted booking window ${LEGACY_IMPORT_BOOKING_WINDOW.startTime}-${LEGACY_IMPORT_BOOKING_WINDOW.endTime}.`,
+      code: "LEGACY_PM_MARKER_NORMALISED_TO_DAYTIME",
+      originalStartTime: literalStartTime,
+      originalEndTime: literalEndTime
+    };
+  }
+
+  return {
+    startTime: literalStartTime,
+    endTime: literalEndTime,
+    normalised: false,
+    warning: "",
+    code: ""
+  };
+}
+
 function parseCompoundLocationTimeRemarks(row, importContext = null) {
   const remarksText = normaliseImportValue(getImportValue(row, [
     "Booking Remarks", "Booking Remark", "Remarks", "Remark", "bookingRemarks"
@@ -3396,10 +3470,14 @@ function parseCompoundLocationTimeRemarks(row, importContext = null) {
     if (!match) return;
 
     const rawLocation = match[1].replace(/^P\s*/i, "").replace(/\s+/g, "").toUpperCase();
-    const endSuffix = String(match[5] || "").toUpperCase();
-    const startSuffix = String(match[3] || endSuffix || "").toUpperCase();
-    const startTime = normaliseCompactLegacyTime(match[2], startSuffix);
-    const endTime = normaliseCompactLegacyTime(match[4], endSuffix || startSuffix);
+    const timeRange = normaliseCompoundLegacyTimeRange(
+      match[2],
+      match[3],
+      match[4],
+      match[5]
+    );
+    const startTime = timeRange.startTime;
+    const endTime = timeRange.endTime;
     if (!rawLocation || !startTime || !endTime || startTime >= endTime) return;
 
     const knownLocation = findKnownLocationByCandidate(rawLocation, knownLocations);
@@ -3410,7 +3488,12 @@ function parseCompoundLocationTimeRemarks(row, importContext = null) {
       endTime,
       periodLabel: "",
       segmentationReason: "compound booking remarks location/time instruction",
-      sourceLine: line
+      sourceLine: line,
+      timeNormalizationApplied: timeRange.normalised,
+      timeNormalizationCode: timeRange.code || "",
+      timeNormalizationWarning: timeRange.warning || "",
+      timeNormalizationOriginalStartTime: timeRange.originalStartTime || "",
+      timeNormalizationOriginalEndTime: timeRange.originalEndTime || ""
     });
   });
 
@@ -3607,6 +3690,9 @@ function mapLegacyBookingRow(row, index, users, importContext = null) {
 
   if (row.__legacyCompoundSegment) {
     warnings.push(`Compound legacy booking expanded into segment ${row.__legacyCompoundSegment.segmentIndex} of ${row.__legacyCompoundSegment.segmentTotal}.`);
+    if (row.__legacyCompoundSegment.timeNormalizationWarning) {
+      warnings.push(row.__legacyCompoundSegment.timeNormalizationWarning);
+    }
   }
 
   const mappedBooking = {
@@ -3635,6 +3721,10 @@ function mapLegacyBookingRow(row, index, users, importContext = null) {
     compoundImportSegmentNumber: row.__legacyCompoundSegment?.segmentIndex || "",
     compoundImportSegmentTotal: row.__legacyCompoundSegment?.segmentTotal || "",
     compoundImportSourceLine: row.__legacyCompoundSegment?.sourceLine || "",
+    legacyTimeNormalizationApplied: Boolean(row.__legacyCompoundSegment?.timeNormalizationApplied),
+    legacyTimeNormalizationCode: row.__legacyCompoundSegment?.timeNormalizationCode || "",
+    legacyTimeNormalizationOriginalStartTime: row.__legacyCompoundSegment?.timeNormalizationOriginalStartTime || "",
+    legacyTimeNormalizationOriginalEndTime: row.__legacyCompoundSegment?.timeNormalizationOriginalEndTime || "",
     legacyResourceSegmentLabel: row.__legacyResourceSegment ? `Resource ${row.__legacyResourceSegment.segmentIndex} of ${row.__legacyResourceSegment.segmentTotal}` : "",
     legacyResourceText,
     matchedResourceId: legacyResourceInference.matchedResourceId || "",
