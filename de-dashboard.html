@@ -1488,8 +1488,93 @@
     }
   </style>
 
+
+  <!-- Release 2 WP-5 HF2 — Resource Locations drawer expansion and scroll correction -->
+  <style id="wp5-hf2-resource-locations-layout-fix">
+    #journeysDrawer .side-drawer-body {
+      display: grid;
+      grid-template-rows: minmax(0, 1fr);
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    #journeyListView:not([hidden]) {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      min-height: 0;
+      height: 100%;
+      max-height: 100%;
+      overflow: hidden;
+    }
+
+    #journeysDrawer .resource-journey-list {
+      display: grid;
+      grid-auto-flow: row;
+      grid-auto-rows: max-content;
+      align-content: start;
+      gap: 10px;
+      min-height: 0;
+      height: 100%;
+      max-height: none;
+      overflow-x: hidden;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
+      -webkit-overflow-scrolling: touch;
+      padding-right: 4px;
+    }
+
+    #journeysDrawer .r2-location-group {
+      display: block;
+      min-width: 0;
+      min-height: max-content;
+      height: auto;
+      flex: 0 0 auto;
+      align-self: start;
+      overflow: hidden;
+    }
+
+    #journeysDrawer .r2-location-group[open] {
+      height: auto;
+      min-height: max-content;
+    }
+
+    #journeysDrawer .r2-location-group > summary {
+      min-height: 48px;
+      flex: 0 0 auto;
+    }
+
+    #journeysDrawer .r2-location-group-list {
+      display: grid;
+      grid-auto-rows: max-content;
+      align-content: start;
+      min-height: 0;
+      height: auto;
+      overflow: visible;
+    }
+
+    #journeysDrawer .resource-journey-card {
+      display: block;
+      min-width: 0;
+      min-height: max-content;
+      height: auto;
+      flex: 0 0 auto;
+      overflow: visible;
+    }
+
+    #journeysDrawer .resource-journey-card-heading,
+    #journeysDrawer .resource-location-row,
+    #journeysDrawer .resource-next-row {
+      min-width: 0;
+    }
+
+    #journeysDrawer .resource-journey-card strong {
+      overflow-wrap: anywhere;
+    }
+  </style>
+
 </head>
-<body class="portal-app pds-migrated" data-pds-release="R2-WP5-HF1">
+<body class="portal-app pds-migrated" data-pds-release="R2-WP5-HF2">
   <a class="wp5-skip-link" href="#wp5OperationalContext">Skip to deployment workspace</a>
   <main class="page">
     <nav class="portal-nav portal-nav-v2 nav-initializing" aria-label="Portal navigation" aria-busy="true">
@@ -1552,13 +1637,13 @@
       </div>
     </nav>
 
-    <section class="card r2-workspace-card" data-r2-work-package="WP-5-HF1">
+    <section class="card r2-workspace-card" data-r2-work-package="WP-5-HF2">
       <header class="r2-workspace-header">
         <div>
           <h1>Deployment Workspace</h1>
           <p>Continue claimed work, discover available jobs, and resolve operational exceptions.</p>
         </div>
-        <span class="r2-workspace-badge">Release 2 · WP-5 HF1</span>
+        <span class="r2-workspace-badge">Release 2 · WP-5 HF2</span>
       </header>
 
       <div class="toolbar r2-toolbar">
